@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Find your team</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#A594FF}a:hover{color:#C4B8FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; font-family: Inter, system-ui, sans-serif; color: {{t.text}}; display: flex; flex-direction: column; padding: 28px 20px 24px; gap: 18px; overflow: hidden">
+  <div style="display: flex; align-items: center; gap: 10px">
+    <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="7" fill="#1F7A4D"></rect><line x1="14" y1="1" x2="14" y2="27" stroke="#FFFFFF" stroke-width="1.5"></line><circle cx="14" cy="14" r="5" fill="none" stroke="#FFFFFF" stroke-width="1.5"></circle></svg>
+    <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 17px">Mini-League Planner</div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; padding-top: 4px">
+    <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 32px; line-height: 1.1; letter-spacing: -0.5px">Beat your mini-league, not the template.</h1>
+    <p style="margin: 0; font-size: 15px; line-height: 1.45; color: {{t.text2}}">Transfer plans built against your rivals' squads, with a reason for every move.</p>
+  </div>
+
+  <div style="background: {{t.surface}}; border: 1px solid {{t.border}}; border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 10px">
+    <label for="team-link" style="font-size: 13px; font-weight: 600">Paste a link or team ID</label>
+    <div style="display: flex; gap: 8px">
+      <input id="team-link" type="text" value="fantasy.premierleague.com/leagues/314159/standings/c" style="flex-grow: 1; min-width: 0; height: 48px; box-sizing: border-box; border: 1px solid {{t.inputBorder}}; border-radius: 10px; padding: 0 12px; font-family: Inter, sans-serif; font-size: 14px; color: {{t.text}}; background: {{t.input}}">
+      <button type="button" style="height: 48px; padding: 0 16px; border: none; border-radius: 10px; background: {{accent}}; color: #FFFFFF; font-family: Inter, sans-serif; font-weight: 600; font-size: 14px; cursor: pointer">Find</button>
+    </div>
+    <div style="font-size: 12.5px; line-height: 1.45; color: {{t.text3}}">Works with your team link, your team ID, or your mini-league's link.</div>
+  </div>
+
+  <div style="background: {{t.surface}}; border: 1.5px solid {{t.accentLine}}; border-radius: 16px; padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 12px; font-weight: 600; color: {{t.good}}">League link found</div>
+      <div style="font-weight: 600; font-size: 15px">Office League · 12 managers. Which one is you?</div>
+    </div>
+    <sc-for list="{{members}}" as="m" hint-placeholder-count="4">
+      <button type="button" onClick="{{m.pick}}" style="{{m.rowStyle}}">
+        <span style="display: flex; flex-direction: column; align-items: flex-start; gap: 1px">
+          <span style="font-weight: 600; font-size: 14px; color: {{t.text}}">{{m.name}}</span>
+          <span style="font-size: 12px; color: {{t.text3}}">{{m.team}}</span>
+        </span>
+        <span style="font-size: 12px; color: {{t.text2}}">{{m.rank}}</span>
+      </button>
+    </sc-for>
+    <a href="Team.dc.html" style="margin-top: 4px; height: 46px; border-radius: 10px; background: {{accent}}; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px">That's me, continue</a>
+    <div style="font-size: 12px; color: {{t.text3}}; text-align: center">Your row gives us your team ID. Your rivals load at the same time.</div>
+  </div>
+
+  <div style="margin-top: auto; text-align: center; font-size: 12px; color: {{t.text3}}">We never ask for your FPL password.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"accent":{"editor":"color","default":"#5B3DF5","options":["#5B3DF5","#1F7A4D","#C2410C"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { picked: 2 };
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#5B3DF5';
+    const dark = (this.props.theme ?? 'dark') === 'dark';
+    const t = dark
+      ? { bg: '#0B0F14', surface: '#151B23', border: '#2A3441', input: '#0F141B', inputBorder: '#3A4656', text: '#F1F5F9', text2: '#B4BECB', text3: '#94A0AF', good: '#4ADE80', accentLine: '#3B2F86', rowOn: '#221C45' }
+      : { bg: '#F5F6F2', surface: '#FFFFFF', border: '#E2E8F0', input: '#FFFFFF', inputBorder: '#CBD5E1', text: '#0F172A', text2: '#475569', text3: '#64748B', good: '#15803D', accentLine: '#C9C0FF', rowOn: '#EEEBFF' };
+    const list = [
+      { name: 'Aditya R.', team: 'Expected Toulouse', rank: '1st' },
+      { name: 'Karan V.', team: 'Netflix & Chilwell', rank: '2nd' },
+      { name: 'Rohan P.', team: 'Ctrl Alt De Bruyne', rank: '3rd' },
+      { name: 'Sana M.', team: 'Kiwior Wasabi', rank: '4th' }
+    ];
+    const members = list.map((m, i) => {
+      const on = this.state.picked === i;
+      return {
+        ...m,
+        rowStyle: 'display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 48px; padding: 6px 12px; box-sizing: border-box; border-radius: 10px; cursor: pointer; font-family: Inter, sans-serif; text-align: left; ' + (on ? 'background: ' + t.rowOn + '; border: 1.5px solid ' + accent + ';' : 'background: transparent; border: 1px solid ' + t.border + ';'),
+        pick: () => this.setState({ picked: i })
+      };
+    });
+    return { accent, t, members };
+  }
+}
+</script>
+</body>
+</html>

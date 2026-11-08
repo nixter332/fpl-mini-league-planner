@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Transfer plans</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#A594FF}a:hover{color:#C4B8FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 1600px; box-sizing: border-box; background: {{t.bg}}; font-family: Inter, system-ui, sans-serif; color: {{t.text}}; display: flex; flex-direction: column; padding: 18px 20px 24px; gap: 14px; overflow: hidden">
+
+  <a href="Team.dc.html" style="font-size: 13px; font-weight: 600; color: {{t.link}}; text-decoration: none; display: flex; align-items: center; gap: 4px; min-height: 24px">
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+    My team
+  </a>
+
+  <div style="display: flex; flex-direction: column; gap: 4px">
+    <h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 26px">Transfer plans · GW12</h1>
+    <div style="font-size: 13px; color: {{t.text2}}">1 free transfer · £0.8m in the bank · planned over the next 4 GWs</div>
+  </div>
+
+  <div style="background: {{t.surface}}; border: 1px solid {{t.border}}; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; justify-content: space-between; align-items: baseline">
+      <div style="font-size: 13px; font-weight: 600">Strategy</div>
+      <div style="font-size: 12px; color: {{t.bad}}; font-weight: 600">You're 14 pts behind 1st</div>
+    </div>
+    <div style="display: flex; background: {{t.seg}}; border-radius: 12px; padding: 4px; gap: 4px" role="group" aria-label="Strategy">
+      <sc-for list="{{stops}}" as="s" hint-placeholder-count="3">
+        <button type="button" onClick="{{s.pick}}" style="{{s.style}}">{{s.label}}</button>
+      </sc-for>
+    </div>
+    <div style="font-size: 13px; line-height: 1.45; color: {{t.text2}}">{{desc}}</div>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap">
+      <span style="font-size: 12px; background: {{t.pill}}; border-radius: 999px; padding: 5px 10px; color: {{t.text2}}">Horizon: 4 GWs</span>
+      <span style="font-size: 12px; background: {{t.pill}}; border-radius: 999px; padding: 5px 10px; color: {{t.text2}}">Max hits: 1</span>
+      <span style="font-size: 12px; background: {{t.pill}}; border-radius: 999px; padding: 5px 10px; color: {{t.text2}}">Rivals: Office League (11)</span>
+    </div>
+  </div>
+
+  <div style="background: {{t.capBg}}; color: {{t.text}}; border: 1px solid {{t.capBorder}}; border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 3px">
+    <div style="font-size: 11.5px; font-weight: 600; color: {{t.text3}}; letter-spacing: 0.4px">CAPTAIN</div>
+    <div style="font-size: 14px; line-height: 1.4">{{captain}}</div>
+  </div>
+
+  <sc-for list="{{plans}}" as="p" hint-placeholder-count="3">
+    <div style="{{p.cardStyle}}">
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px">{{p.title}}</div>
+        <span style="{{p.tagStyle}}">{{p.tag}}</span>
+      </div>
+
+      <sc-if value="{{p.hasMoves}}" hint-placeholder-val="{{ true }}">
+        <div style="display: flex; flex-direction: column; gap: 6px">
+          <sc-for list="{{p.moves}}" as="m" hint-placeholder-count="1">
+            <div style="display: grid; grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr); align-items: center; gap: 4px; background: {{t.surface2}}; border-radius: 10px; padding: 8px 10px">
+              <div style="display: flex; flex-direction: column; gap: 1px">
+                <div style="font-size: 11px; font-weight: 600; color: {{t.out}}">OUT</div>
+                <div style="font-size: 14px; font-weight: 600">{{m.out}}</div>
+                <div style="font-size: 11.5px; color: {{t.text3}}">{{m.outMeta}}</div>
+              </div>
+              <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 5l5 5-5 5" fill="none" stroke="{{t.text3}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+              <div style="display: flex; flex-direction: column; gap: 1px">
+                <div style="font-size: 11px; font-weight: 600; color: {{t.good}}">IN</div>
+                <div style="font-size: 14px; font-weight: 600">{{m.in}}</div>
+                <div style="font-size: 11.5px; color: {{t.text3}}">{{m.inMeta}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <sc-if value="{{p.noMoves}}" hint-placeholder-val="{{ false }}">
+        <div style="background: {{t.surface2}}; border-radius: 10px; padding: 12px; font-size: 14px; font-weight: 600">No transfer. Save it: 2 free transfers in GW13.</div>
+      </sc-if>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+        <div style="display: flex; flex-direction: column; gap: 1px">
+          <div style="font-size: 11.5px; color: {{t.text3}}">Expected points (4 GWs)</div>
+          <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px">{{p.xp}}</div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1px">
+          <div style="font-size: 11.5px; color: {{t.text3}}">Points gained on rivals</div>
+          <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 18px; color: {{t.good}}">{{p.edge}}</div>
+        </div>
+      </div>
+
+      <div style="background: {{t.whyBg}}; border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px">
+        <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: {{t.whyLabel}}">
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1l1.6 3.9L12.5 6.5 8.6 8.1 7 12 5.4 8.1 1.5 6.5l3.9-1.6z" fill="none" stroke="{{t.whyLabel}}" stroke-width="1.3" stroke-linejoin="round"></path></svg>
+          Why this plan
+        </div>
+        <div style="font-size: 13px; line-height: 1.45; color: {{t.text}}">{{p.why}}</div>
+      </div>
+
+      <div style="display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; line-height: 1.4; color: {{t.warnText}}; background: {{t.warnBg}}; border-radius: 10px; padding: 8px 10px">
+        <span style="font-weight: 700">Watch out:</span>
+        <span>{{p.watch}}</span>
+      </div>
+
+      <a href="PlanDetail.dc.html" style="font-size: 14px; font-weight: 600; color: {{t.link}}; text-decoration: none; min-height: 32px; display: flex; align-items: center">View on pitch →</a>
+    </div>
+  </sc-for>
+
+  <div style="font-size: 12px; color: {{t.text3}}; text-align: center">The solver picks the transfers. AI only writes the reasons. Sample data.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"accent":{"editor":"color","default":"#5B3DF5","options":["#5B3DF5","#1F7A4D","#C2410C"]},"$preview":{"width":390,"height":1600}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { strat: 'chase' };
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#5B3DF5';
+    const strat = this.state.strat;
+    const dark = (this.props.theme ?? 'dark') === 'dark';
+    const t = dark
+      ? { bg: '#0B0F14', surface: '#151B23', surface2: '#1C2430', border: '#2A3441', text: '#F1F5F9', text2: '#B4BECB', text3: '#94A0AF', good: '#4ADE80', bad: '#FB923C', out: '#F87171', link: '#A594FF', seg: '#1C2430', pill: '#1F2937', whyBg: '#1E1A3D', whyLabel: '#B8ABFF', warnBg: '#33270B', warnText: '#FDE68A', capBg: '#1E1A3D', capBorder: '#3B2F86', freeBg: '#12301F', freeText: '#86EFAC', hitBg: '#3A1F0D', hitText: '#FDBA74', rollBg: '#263040', rollText: '#CBD5E1' }
+      : { bg: '#F5F6F2', surface: '#FFFFFF', surface2: '#F8FAFC', border: '#E2E8F0', text: '#0F172A', text2: '#334155', text3: '#64748B', good: '#15803D', bad: '#C2410C', out: '#B91C1C', link: accent, seg: '#EEF0EA', pill: '#F1F5F9', whyBg: '#F4F2FF', whyLabel: '#4328D6', warnBg: '#FEF3C7', warnText: '#78350F', capBg: '#0F172A', capBorder: '#0F172A', freeBg: '#DCFCE7', freeText: '#166534', hitBg: '#FFEDD5', hitText: '#9A3412', rollBg: '#E2E8F0', rollText: '#334155' };
+    const pillBase = 'font-size: 12px; font-weight: 600; border-radius: 999px; padding: 4px 10px; ';
+    const free = pillBase + 'background: ' + t.freeBg + '; color: ' + t.freeText;
+    const hit = pillBase + 'background: ' + t.hitBg + '; color: ' + t.hitText;
+    const roll = pillBase + 'background: ' + t.rollBg + '; color: ' + t.rollText;
+    const S = {
+      protect: {
+        label: 'Protect lead',
+        desc: 'Own what your rivals own, so their big scores can’t hurt you. Best when you’re ahead.',
+        captain: 'Salah. 9 of 11 rivals are likely to captain him, so you match the crowd.',
+        plans: [
+          { title: 'Plan 1', tag: 'Free transfer', tagStyle: free, moves: [{ out: 'Watkins', outMeta: 'AVL · £8.6m · owned 2/11', in: 'João Pedro', inMeta: 'CHE · £7.8m · owned 8/11' }], xp: '+5.2', edge: '+1.1', why: '8 of your 11 rivals own João Pedro. Owning him too removes the risk of a haul you miss, and he outscores Watkins over the next 4.', watch: 'Chelsea play Arsenal away in GW14.' },
+          { title: 'Plan 2', tag: 'Roll transfer', tagStyle: roll, moves: [], xp: '0.0', edge: '0.0', why: 'Your squad already covers 7 of the league’s 10 most-owned players. Saving gives you 2 free transfers for GW13.', watch: 'Isak is doubtful; if he’s ruled out you start Gordon.' },
+          { title: 'Plan 3', tag: 'Free transfer', tagStyle: free, moves: [{ out: 'Isak', outMeta: 'LIV · £8.8m · 75% fit', in: 'Bowen', inMeta: 'WHU · £7.6m · owned 5/11' }], xp: '+3.4', edge: '+0.6', why: 'Replaces a doubtful starter with a nailed one and frees £1.2m for later moves.', watch: 'Less upside than Plan 1 if Isak is fit.' }
+        ]
+      },
+      balanced: {
+        label: 'Balanced',
+        desc: 'Most expected points, with a nudge toward players your rivals don’t have.',
+        captain: 'Salah, with Haaland a close second (8.1 vs 7.4 expected).',
+        plans: [
+          { title: 'Plan 1', tag: 'Free transfer', tagStyle: free, moves: [{ out: 'Watkins', outMeta: 'AVL · £8.6m · owned 2/11', in: 'João Pedro', inMeta: 'CHE · £7.8m · owned 8/11' }], xp: '+5.2', edge: '+2.3', why: 'Biggest points gain available for one free transfer, from Chelsea’s home games against EVE and BHA.', watch: 'Most rivals own him, so the edge on them is small.' },
+          { title: 'Plan 2', tag: 'Free transfer', tagStyle: free, moves: [{ out: 'Isak', outMeta: 'LIV · £8.8m · 75% fit', in: 'Bowen', inMeta: 'WHU · £7.6m · owned 5/11' }], xp: '+3.9', edge: '+3.1', why: 'Isak is doubtful. Bowen starts every week and only 5 rivals own him.', watch: 'Watkins stays in your XI with two tough away games.' },
+          { title: 'Plan 3', tag: '−4 hit', tagStyle: hit, moves: [{ out: 'Watkins', outMeta: 'AVL · £8.6m', in: 'João Pedro', inMeta: 'CHE · £7.8m' }, { out: 'Mbeumo', outMeta: 'MUN · £8.0m', in: 'Semenyo', inMeta: 'BOU · £7.4m' }], xp: '+3.6 net', edge: '+4.4', why: '+7.6 expected before the hit. Worth it only over 4 GWs; over 2 GWs the hit doesn’t pay back.', watch: 'Uses next week’s flexibility; you’d have 1 free transfer in GW13.' }
+        ]
+      },
+      chase: {
+        label: 'Chase',
+        desc: 'Back players your rivals don’t own, so every point they score gains you ground. Best when you’re behind.',
+        captain: 'Haaland. Only 2 rivals are likely to captain him, so a haul gains you up to 16 pts on the rest.',
+        plans: [
+          { title: 'Plan 1', tag: 'Free transfer', tagStyle: free, moves: [{ out: 'Watkins', outMeta: 'AVL · £8.6m · owned 2/11', in: 'Thiago', inMeta: 'BRE · £7.2m · owned 1/11' }], xp: '+4.6', edge: '+4.4', why: 'Only 1 rival owns Thiago, so nearly every point he scores gains on 10 of 11 rivals. Brentford’s next 4 are among the easiest.', watch: 'Lower floor than João Pedro; more blanks likely.' },
+          { title: 'Plan 2', tag: 'Free transfer', tagStyle: free, moves: [{ out: 'Mbeumo', outMeta: 'MUN · £8.0m · owned 3/11', in: 'Semenyo', inMeta: 'BOU · £7.4m · owned 2/11' }], xp: '+3.1', edge: '+2.9', why: 'Similar ownership to Mbeumo, but higher expected points and £0.6m cheaper.', watch: 'Bournemouth play Arsenal away in GW16.' },
+          { title: 'Plan 3', tag: '−4 hit', tagStyle: hit, moves: [{ out: 'Watkins', outMeta: 'AVL · £8.6m', in: 'Thiago', inMeta: 'BRE · £7.2m' }, { out: 'Gvardiol', outMeta: 'MCI · £6.1m', in: 'Senesi', inMeta: 'BOU · £5.0m' }], xp: '+2.9 net', edge: '+5.6', why: 'Two differentials at once. The biggest swing on rivals of any plan, at the cost of a hit.', watch: 'High risk: if both blank you lose 4 pts on everyone.' }
+        ]
+      }
+    };
+    const keys = ['protect', 'balanced', 'chase'];
+    const stops = keys.map((k) => {
+      const on = k === strat;
+      return {
+        label: S[k].label,
+        style: 'flex: 1 1 0; min-height: 40px; border: none; border-radius: 9px; font-family: Inter, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; ' + (on ? 'background: ' + accent + '; color: #FFFFFF;' : 'background: transparent; color: ' + t.text2 + ';'),
+        pick: () => this.setState({ strat: k })
+      };
+    });
+    const cur = S[strat];
+    const plans = cur.plans.map((p, i) => ({
+      ...p,
+      title: i === 0 ? 'Plan 1 · Recommended' : p.title,
+      hasMoves: p.moves.length > 0,
+      noMoves: p.moves.length === 0,
+      cardStyle: 'background: ' + t.surface + '; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; ' + (i === 0 ? 'border: 2px solid ' + accent + ';' : 'border: 1px solid ' + t.border + ';')
+    }));
+    return { accent, t, stops, desc: cur.desc, captain: cur.captain, plans };
+  }
+}
+</script>
+</body>
+</html>

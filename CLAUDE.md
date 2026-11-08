@@ -1,0 +1,60 @@
+# FPL Mini-League Planner
+
+A web app that gives Fantasy Premier League managers transfer plans optimized to beat **their own mini-league rivals**, with a plain-English reason for every move.
+
+Full spec: `docs/SPEC.md`. Lessons from the old prototype: `docs/v0-lessons.md`. Screen designs: `docs/design/`.
+
+## Working with Nikhil
+
+- Nikhil is the PM and reviewer. He decides features; you write the code. Explain what you changed and why in plain language after each task.
+- Work in the current phase only (see `docs/SPEC.md` → Phases). Don't start the next phase until its gate passes and Nikhil says go.
+- Before a large change, show a short plan and wait for a yes.
+- Keep commits small, one logical change each, with clear messages.
+
+## Non-negotiable rules
+
+1. **The solver decides, the AI explains.** Transfers, captain and lineup come only from the optimizer. The Claude API only writes explanations from numbers the solver produced. Never let an LLM pick players.
+2. **Never ask for an FPL password or log in to FPL.** Only public endpoints, with team ID and league ID.
+3. **No FPL calls from the browser.** All FPL requests go through the backend, cached.
+4. **Be polite to the FPL API.** Set a clear User-Agent, throttle bulk calls, cache per gameweek, never fetch per-player data inside a request handler.
+5. **No secrets in code or the frontend.** `ANTHROPIC_API_KEY` lives in `backend/.env` (git-ignored).
+6. **Tests never hit the live API.** Use saved JSON fixtures in `backend/tests/fixtures/`.
+
+## Stack
+
+- `backend/`: Python 3.11+, FastAPI, httpx, pydantic, pandas/numpy, HiGHS (via `highspy`) or PuLP for the MILP, pytest. Anthropic Python SDK for explanations (phase 5).
+- `frontend/`: Next.js (App Router) + TypeScript + Tailwind. Mobile-first, dark mode default. Built in phase 4.
+- Hosting: frontend on Vercel; backend host decided later (Vercel Python functions vs Render).
+
+## Layout
+
+```
+backend/
+  app/
+    fpl/          # API client, caching, link parsing (team/league IDs)
+    model/        # expected-points model + backtest
+    optimizer/    # MILP, plans, league effective ownership
+    explain/      # Claude API explanations (phase 5)
+    api/          # FastAPI routes
+  scripts/        # CLI tools (snapshots, backtests)
+  tests/
+    fixtures/     # saved FPL JSON for tests
+  data/cache/     # local cache, git-ignored
+frontend/
+docs/
+```
+
+## Commands
+
+Fill these in as they're created, and keep them current:
+
+- Set up backend: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (Windows: `.venv\Scripts\activate`)
+- Run tests: `cd backend && pytest`
+- Run API: `cd backend && uvicorn app.api.main:app --reload`
+
+## Code style
+
+- Type hints everywhere; pydantic models for FPL responses we depend on.
+- FPL prices are integers in tenths of a million (e.g. 95 = £9.5m); keep them as ints internally, format only for display.
+- Small, pure functions for model and optimizer logic so they're easy to test.
+- Every model or optimizer change gets a test, including the sanity checks in `docs/SPEC.md`.

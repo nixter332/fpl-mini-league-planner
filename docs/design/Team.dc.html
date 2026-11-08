@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>My team on the pitch</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#A594FF}a:hover{color:#C4B8FF}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{t.bg}}; font-family: Inter, system-ui, sans-serif; color: {{t.text}}; display: flex; flex-direction: column; padding: 18px 20px 20px; gap: 12px; overflow: hidden">
+
+  <div style="display: flex; justify-content: space-between; align-items: flex-start">
+    <div style="display: flex; flex-direction: column; gap: 3px">
+      <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">Ctrl Alt De Bruyne</div>
+      <div style="font-size: 13px; color: {{t.text2}}">Office League · 3rd · <span style="color: {{t.bad}}; font-weight: 600">14 pts behind 1st</span></div>
+    </div>
+    <a href="Main.dc.html" style="font-size: 13px; font-weight: 600; text-decoration: none; padding: 6px 0; color: {{t.link}}">Switch</a>
+  </div>
+
+  <div style="display: flex; gap: 6px" role="group" aria-label="Gameweek">
+    <sc-for list="{{gws}}" as="g" hint-placeholder-count="5">
+      <button type="button" onClick="{{g.pick}}" style="{{g.chipStyle}}">{{g.label}}</button>
+    </sc-for>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+    <div style="background: {{t.surface}}; border: 1px solid {{t.border}}; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 11.5px; color: {{t.text3}}">Your projection</div>
+      <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">{{total}}</div>
+    </div>
+    <div style="background: {{t.surface}}; border: 1px solid {{t.border}}; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 11.5px; color: {{t.text3}}">Rivals' average</div>
+      <div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px">{{rivalAvg}}</div>
+    </div>
+    <div style="background: {{t.surface}}; border: 1px solid {{t.border}}; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px">
+      <div style="font-size: 11.5px; color: {{t.text3}}">Edge</div>
+      <div style="{{edgeStyle}}">{{edge}}</div>
+    </div>
+  </div>
+
+  <div style="display: flex; justify-content: space-between; align-items: center">
+    <div style="font-size: 12px; color: {{t.text3}}">{{deadline}}</div>
+    <div style="display: flex; background: {{t.seg}}; border-radius: 8px; padding: 3px; gap: 2px" role="group" aria-label="Show on pitch">
+      <button type="button" onClick="{{showXp}}" style="{{xpTabStyle}}">xPts</button>
+      <button type="button" onClick="{{showOwn}}" style="{{ownTabStyle}}">Rivals own</button>
+    </div>
+  </div>
+
+  <div style="position: relative; height: 404px; flex-shrink: 0; border-radius: 16px; overflow: hidden; background: repeating-linear-gradient(180deg, #2A7449 0px, #2A7449 44px, #266B43 44px, #266B43 88px)">
+    <div style="position: absolute; left: 12px; right: 12px; top: 12px; bottom: 12px; border: 1.5px solid rgba(255,255,255,0.4); border-radius: 4px"></div>
+    <div style="position: absolute; left: 12px; right: 12px; top: 50%; height: 0; border-top: 1.5px solid rgba(255,255,255,0.4)"></div>
+    <div style="position: absolute; left: 50%; top: 50%; width: 72px; height: 72px; margin-left: -36px; margin-top: -36px; border: 1.5px solid rgba(255,255,255,0.4); border-radius: 50%"></div>
+    <div style="position: absolute; left: 50%; top: 12px; width: 150px; height: 52px; margin-left: -75px; border: 1.5px solid rgba(255,255,255,0.4); border-top: none"></div>
+
+    <div style="position: relative; height: 100%; display: flex; flex-direction: column; justify-content: space-around; padding: 8px 0">
+      <sc-for list="{{rows}}" as="row" hint-placeholder-count="4">
+        <div style="display: flex; justify-content: space-evenly">
+          <sc-for list="{{row.players}}" as="p" hint-placeholder-count="3">
+            <div style="width: 78px; display: flex; flex-direction: column; align-items: center; gap: 2px">
+              <div style="position: relative; width: 42px; height: 42px">
+                <svg width="42" height="42" viewBox="0 0 40 40" aria-hidden="true">
+                  <path d="M12 4 L4 9 L7 17 L11 15.5 L11 8 Z" fill="{{p.sleeve}}" stroke="rgba(0,0,0,0.35)" stroke-width="0.8" stroke-linejoin="round"></path>
+                  <path d="M28 4 L36 9 L33 17 L29 15.5 L29 8 Z" fill="{{p.sleeve}}" stroke="rgba(0,0,0,0.35)" stroke-width="0.8" stroke-linejoin="round"></path>
+                  <path d="M12 4 C14 6.5 16.5 7.5 20 7.5 C23.5 7.5 26 6.5 28 4 L29 8 L29 36 L11 36 L11 8 Z" fill="{{p.body}}" stroke="rgba(0,0,0,0.35)" stroke-width="0.8" stroke-linejoin="round"></path>
+                  <path d="M15.5 5.2 C17 6.6 18.4 7 20 7 C21.6 7 23 6.6 24.5 5.2" fill="none" stroke="{{p.trim}}" stroke-width="1.4" stroke-linecap="round"></path>
+                </svg>
+                <sc-if value="{{p.isCap}}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; top: -3px; right: -8px; width: 19px; height: 19px; border-radius: 50%; background: #0B0F14; border: 1.5px solid #FFFFFF; color: #FFFFFF; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center">C</div>
+                </sc-if>
+                <sc-if value="{{p.flag}}" hint-placeholder-val="{{ false }}">
+                  <div style="position: absolute; top: -3px; left: -8px; width: 19px; height: 19px; border-radius: 50%; background: #F59E0B; border: 1.5px solid #FFFFFF; color: #0B0F14; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center" aria-label="Doubtful">!</div>
+                </sc-if>
+              </div>
+              <div style="width: 78px; display: flex; flex-direction: column; border-radius: 6px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.3)">
+                <div style="background: #FFFFFF; color: #0F172A; font-size: 11.5px; font-weight: 600; text-align: center; padding: 2px 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.name}}</div>
+                <div style="background: #0B0F14; color: #FFFFFF; font-size: 10.5px; text-align: center; padding: 2px 3px; white-space: nowrap">{{p.info}}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="background: {{t.surface}}; border: 1px solid {{t.border}}; border-radius: 14px; padding: 8px 6px; display: flex; flex-direction: column; gap: 6px">
+    <div style="font-size: 11.5px; font-weight: 600; color: {{t.text3}}; padding-left: 6px">BENCH</div>
+    <div style="display: flex; justify-content: space-evenly">
+      <sc-for list="{{bench}}" as="p" hint-placeholder-count="4">
+        <div style="width: 78px; display: flex; flex-direction: column; align-items: center; gap: 2px">
+          <div style="font-size: 11.5px; font-weight: 600; white-space: nowrap">{{p.name}}</div>
+          <div style="font-size: 10.5px; color: {{t.text2}}; white-space: nowrap">{{p.info}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <a href="Plans.dc.html" style="height: 48px; flex-shrink: 0; border-radius: 12px; background: {{accent}}; color: #FFFFFF; text-decoration: none; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 15px">See transfer plans</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"accent":{"editor":"color","default":"#5B3DF5","options":["#5B3DF5","#1F7A4D","#C2410C"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { gw: 0, mode: 'xp' };
+  }
+  renderVals() {
+    const accent = this.props.accent ?? '#5B3DF5';
+    const dark = (this.props.theme ?? 'dark') === 'dark';
+    const t = dark
+      ? { bg: '#0B0F14', surface: '#151B23', border: '#2A3441', text: '#F1F5F9', text2: '#B4BECB', text3: '#94A0AF', good: '#4ADE80', bad: '#FB923C', link: '#A594FF', seg: '#1C2430', segOn: '#2F3B4C', chipOnBg: '#F1F5F9', chipOnText: '#0B0F14' }
+      : { bg: '#F5F6F2', surface: '#FFFFFF', border: '#E2E8F0', text: '#0F172A', text2: '#475569', text3: '#64748B', good: '#15803D', bad: '#C2410C', link: accent, seg: '#E8EAE4', segOn: '#FFFFFF', chipOnBg: '#0F172A', chipOnText: '#FFFFFF' };
+    const gw = this.state.gw;
+    const mode = this.state.mode;
+    const fx = {
+      ARS: ['BUR (H)', 'TOT (A)', 'CHE (H)', 'AVL (A)', 'BOU (H)'],
+      MCI: ['LEE (H)', 'NEW (A)', 'FUL (H)', 'CRY (A)', 'WHU (H)'],
+      LIV: ['WHU (A)', 'SUN (H)', 'BRE (A)', 'LEE (H)', 'NFO (A)'],
+      CHE: ['EVE (H)', 'BOU (A)', 'ARS (A)', 'BHA (H)', 'TOT (H)'],
+      MUN: ['CRY (A)', 'WOL (H)', 'NEW (H)', 'FUL (A)', 'BRE (H)'],
+      AVL: ['BHA (H)', 'BUR (A)', 'WOL (H)', 'ARS (H)', 'EVE (A)'],
+      BHA: ['AVL (A)', 'FUL (H)', 'BUR (H)', 'CHE (A)', 'SUN (H)'],
+      CRY: ['MUN (H)', 'EVE (A)', 'TOT (H)', 'MCI (H)', 'LEE (A)'],
+      EVE: ['CHE (A)', 'CRY (H)', 'SUN (A)', 'WOL (H)', 'AVL (H)'],
+      NEW: ['FUL (A)', 'MCI (H)', 'MUN (A)', 'BUR (H)', 'BHA (A)']
+    };
+    const kit = {
+      ARS: ['#DB0007', '#FFFFFF', '#FFFFFF'],
+      MCI: ['#6CABDD', '#6CABDD', '#FFFFFF'],
+      LIV: ['#C8102E', '#C8102E', '#FFFFFF'],
+      CHE: ['#034694', '#034694', '#FFFFFF'],
+      MUN: ['#DA291C', '#DA291C', '#FFFFFF'],
+      AVL: ['#670E36', '#95BFE5', '#95BFE5'],
+      GK1: ['#F5C518', '#F5C518', '#111111']
+    };
+    const xi = [
+      [{ name: 'Raya', club: 'ARS', kit: 'GK1', xp: [4.6, 3.9, 4.1, 3.6, 4.8], own: 7 }],
+      [
+        { name: 'Gabriel', club: 'ARS', xp: [5.8, 4.7, 4.9, 4.2, 5.9], own: 9 },
+        { name: 'Gvardiol', club: 'MCI', xp: [5.1, 4.2, 4.9, 4.4, 5.3], own: 5 },
+        { name: 'Van Dijk', club: 'LIV', xp: [4.4, 5.2, 3.8, 5.0, 4.1], own: 6 }
+      ],
+      [
+        { name: 'Salah', club: 'LIV', xp: [7.4, 8.6, 6.2, 8.1, 6.5], own: 11 },
+        { name: 'Saka', club: 'ARS', xp: [6.9, 5.6, 5.8, 5.1, 7.2], own: 8 },
+        { name: 'Palmer', club: 'CHE', xp: [6.2, 5.1, 4.4, 6.0, 5.8], own: 7 },
+        { name: 'Mbeumo', club: 'MUN', xp: [4.1, 5.6, 5.3, 4.6, 5.5], own: 3 }
+      ],
+      [
+        { name: 'Haaland', club: 'MCI', xp: [8.1, 6.2, 7.4, 6.0, 7.9], own: 10 },
+        { name: 'Isak', club: 'LIV', xp: [5.4, 6.3, 4.6, 5.9, 4.7], own: 4, flag: true },
+        { name: 'Watkins', club: 'AVL', xp: [5.2, 3.9, 5.0, 3.4, 4.1], own: 2 }
+      ]
+    ];
+    const benchList = [
+      { name: 'Verbruggen', club: 'BHA', xp: [3.4, 3.8, 3.9, 2.6, 3.7], own: 2 },
+      { name: 'Muñoz', club: 'CRY', xp: [4.3, 3.6, 3.9, 2.9, 3.8], own: 4 },
+      { name: 'Mykolenko', club: 'EVE', xp: [2.4, 3.6, 3.2, 3.4, 3.5], own: 1 },
+      { name: 'Gordon', club: 'NEW', xp: [4.6, 3.9, 4.2, 5.1, 4.4], own: 3 }
+    ];
+    const all = xi.flat();
+    let cap = all[0];
+    all.forEach((p) => { if (p.xp[gw] > cap.xp[gw]) cap = p; });
+    const label = (p) => (mode === 'xp' ? fx[p.club][gw] + ' · ' + p.xp[gw].toFixed(1) : 'Owned ' + p.own + '/11');
+    const rows = xi.map((row) => ({
+      players: row.map((p) => {
+        const k = kit[p.kit || p.club];
+        return { name: p.name, body: k[0], sleeve: k[1], trim: k[2], isCap: p === cap, flag: !!p.flag, info: label(p) };
+      })
+    }));
+    const bench = benchList.map((p) => ({ name: p.name, info: label(p) }));
+    const totalNum = all.reduce((s, p) => s + p.xp[gw], 0) + cap.xp[gw];
+    const diffs = [4.4, -1.3, 2.1, 3.0, 0.6];
+    const edgeNum = diffs[gw];
+    const deadlines = ['GW12 deadline · Sat 6:00 pm IST', 'GW13 · in 8 days', 'GW14 · in 15 days', 'GW15 · in 22 days', 'GW16 · in 29 days'];
+    const gws = [12, 13, 14, 15, 16].map((n, i) => {
+      const on = i === gw;
+      return {
+        label: 'GW' + n,
+        chipStyle: 'flex: 1 1 0; height: 36px; border-radius: 10px; font-family: Inter, sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; ' + (on ? 'background: ' + t.chipOnBg + '; color: ' + t.chipOnText + '; border: 1px solid ' + t.chipOnBg + ';' : 'background: ' + t.surface + '; color: ' + t.text + '; border: 1px solid ' + t.border + ';'),
+        pick: () => this.setState({ gw: i })
+      };
+    });
+    const tab = (on) => 'height: 28px; padding: 0 10px; border: none; border-radius: 6px; font-family: Inter, sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; ' + (on ? 'background: ' + t.segOn + '; color: ' + t.text + ';' : 'background: transparent; color: ' + t.text3 + ';');
+    return {
+      accent,
+      t,
+      gws,
+      rows,
+      bench,
+      total: totalNum.toFixed(1),
+      rivalAvg: (totalNum - edgeNum).toFixed(1),
+      edge: (edgeNum >= 0 ? '+' : '−') + Math.abs(edgeNum).toFixed(1),
+      edgeStyle: "font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px; color: " + (edgeNum >= 0 ? t.good : t.bad),
+      deadline: deadlines[gw],
+      xpTabStyle: tab(mode === 'xp'),
+      ownTabStyle: tab(mode === 'own'),
+      showXp: () => this.setState({ mode: 'xp' }),
+      showOwn: () => this.setState({ mode: 'own' })
+    };
+  }
+}
+</script>
+</body>
+</html>
