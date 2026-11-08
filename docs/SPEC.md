@@ -4,7 +4,7 @@ The full PRD (problem, users, competitors, metrics) lives in Nikhil's PRD doc. T
 
 ## Product in one paragraph
 
-A manager pastes a team link, team ID or mini-league link. The app shows their squad on a pitch with expected points per gameweek, loads their mini-league rivals, and returns the top 3 transfer plans for a strategy they pick: Protect lead, Balanced or Chase. Each plan shows transfers, expected points gained, points gained on rivals, a captain pick, a plain-English reason and the downsides.
+A manager pastes a team link, team ID or mini-league link. The app shows their squad on a pitch with expected points per gameweek, loads their mini-league rivals, and returns the top 3 transfer plans for a strategy they pick: Protect lead, Balanced or Risky. Each plan shows transfers, expected points gained, differential points gained (points rivals won't also get), a captain pick, a plain-English reason and the downsides.
 
 ## Screens (see `docs/design/`)
 
@@ -66,14 +66,17 @@ One multi-week MILP over horizon H (default 4 GWs):
 
 - Variables per player p and GW g: in squad, starting, captain, vice, transferred in, transferred out; per GW: free transfers available, hits taken.
 - Rules: everything in `docs/v0-lessons.md` → Keep; budget with sell prices; free-transfer rollover; hits capped by the user's max-hits setting; hit buys must start.
-- Objective, with strategy weight w (Protect 0, Balanced 0.5, Chase 1) and league effective ownership EO_p:
+- Objective, with strategy weight w (Protect 0, Balanced 0.15, Risky 0.33) and league ownership split into a starting share S_p and a captaincy share C_p (each a fraction of rivals, 0–1):
 
-  maximize Σ_g decay^g · Σ_p xPts[p,g] · (1 − w·EO_p) · (start[p,g] + captain[p,g]) + small bench weight − 4 · hits
+  maximize Σ_g decay^g · Σ_p xPts[p,g] · ((1 − w·S_p) · start[p,g] + (1 − w·C_p) · captain[p,g]) + small bench weight − 4 · hits
 
-- League EO: from rivals' latest picks, EO_p = Σ rivals' multipliers for p ÷ number of rivals (captain counts 2, triple captain 3, bench 0). Use the top 20 rivals by rank, or the ones the user picks.
-- **Top 3 plans:** solve, then add a cut that forbids the first plan's GW-1 transfer set and solve again; repeat. Always include "roll the transfer" as a candidate when it's competitive.
-- Report per plan: transfers, hits, xPts gained vs no change over H, points gained on rivals, captain per GW.
-- Speed: under 5 seconds. Prune the player pool (current squad + top N per position by projected points).
+  *Changed in phase 3 (agreed with Nikhil, 8 Nov 2026):* the original used one EO (up to ~2 with captaincy) and w = 0 / 0.5 / 1, and the strategy was called Chase. That made weights negative, so Chase benched template players like Haaland, and Balanced recommended plans worse than doing nothing. In expectation, rivals' points don't depend on your team, so the dial is a **risk** dial (more differentials, more swing), hence "Risky".
+- **Do no harm:** every plan must be expected to score at least as many xPts over the horizon as making no transfers (with the best points-only lineups).
+- League ownership: from rivals' latest picks. S_p = share of rivals starting p, C_p = share captaining p; classic EO (captain 2, triple captain 3, bench 0) is kept for display. Use the top 20 rivals by rank, or the ones the user picks.
+- **Max hits** is the user's limit on −4 hits over the **whole horizon**, not per gameweek. The UI must say so.
+- **Top 3 plans:** solve, then add a cut that forbids the first plan's GW-1 transfer set and solve again; repeat. "Roll the transfer" replaces plan 3 when it's within 1.5 of the best plan's objective.
+- Report per plan: transfers (paired like-for-like), hits, xPts gained vs no change over H, differential xPts gained, captain and vice per GW.
+- Speed: under 5 seconds. Prune the player pool (current squad + top N per position by projected points). Plans 2–3 run within a time budget and may be the best found rather than proven best (they're still fully validated).
 
 ## Explanations (phase 5)
 
