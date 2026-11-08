@@ -78,6 +78,8 @@ One multi-week MILP over horizon H (default 4 GWs):
 - Report per plan: transfers (paired like-for-like), hits, xPts gained vs no change over H, differential xPts gained, captain and vice per GW.
 - Speed: under 5 seconds. Prune the player pool (current squad + top N per position by projected points). Plans 2–3 run within a time budget and may be the best found rather than proven best (they're still fully validated).
 
+- *Added 9 Nov 2026 (Nikhil):* chips. The planner plays Bench Boost and Triple Captain when a week beats keeping the chip; the user chooses Wildcard and Free Hit weeks, and the app reports what one would add this week. Details: `docs/optimizer.md` → Chips.
+
 ## Explanations (phase 5)
 
 The backend sends the Claude API a structured summary of each plan (players in/out, xPts deltas, fixtures, EO, risks) and asks for a 2–3 sentence reason and a one-line "watch out". The prompt forbids inventing facts or suggesting different players. Cache explanations per plan.

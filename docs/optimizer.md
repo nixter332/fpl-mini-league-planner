@@ -46,6 +46,28 @@ Why the dial is gentler than the original spec (0 / 0.5 / 1): at 0.5, Balanced's
 
 **Balanced and captaincy.** In this league both rivals captain Haaland, so at w = 0.15 his captain value (6.4 × 0.85 = 5.44) drops just below Van Hecke's (5.6). In bigger leagues, where captaincy shares are below 100%, Balanced moves away from the template captain less often.
 
+## Chips
+
+Added 9 Nov 2026 (Nikhil's request).
+
+**Rules (from FPL's data).** Since 2025/26, every manager gets each chip twice: Wildcard, Free Hit, Bench Boost and Triple Captain once for GW1–19 and once for GW20–38. A chip not played by the end of its half is lost, and only one chip can be played per gameweek. `chips.py` works out the chips left from `bootstrap-static.chips` and the manager's history.
+
+**Bench Boost and Triple Captain: the planner chooses the week.** Each available chip gets one yes/no decision per gameweek in the plan.
+- Triple Captain adds the captain's points again.
+- Bench Boost adds the bench's points at full value.
+
+A chip kept for later is worth something. The objective subtracts a *keep value* for each chip the plan plays: 8 xPts for Bench Boost and 6 for Triple Captain, roughly a good future use. The keep value is scaled by the weeks left in the chip's half after the plan ends (`min(1, weeks left / 6)`), so a chip about to expire is played rather than wasted. The planner only plays a chip when that week beats keeping it. Users can switch this off ("don't play").
+
+**Wildcard and Free Hit: you choose, the planner advises.** A Wildcard's benefit lasts long after a 4-week plan ends, so a 4-week model deciding on its own would be guessing. The user picks the gameweek (`wildcard=` / `freehit=` on `/api/plans`):
+- **Wildcard:** unlimited free transfers that week with no hits. The banked free transfers are kept, with no +1. The new squad stays.
+- **Free Hit:** a separate one-week squad. It must cost no more than the bank plus the squad's selling value, it takes no hits, the bank and banked free transfers are unchanged, and the old squad is back the week after.
+
+`/api/chip-advice` reports what a Wildcard or Free Hit *this week* would add: the best plan with it minus the best plan without it, over the plan's horizon. These are facts from the solver; the "chips this week" card shows them with a "Plan with it" button. For a Wildcard this undercounts, because the new squad keeps scoring after the horizon, and the card says so.
+
+**Reported numbers.** A plan's xPts gain includes chip points, and each chip week shows the points the chip adds (`chip_xpts`), so "+27.1, of which Bench Boost +12.9" is visible. `validate()` checks the chip rules independently: chips available, each used once per half, no hits in Wildcard or Free Hit weeks, Free Hit affordability, and free transfers kept.
+
+**Speed.** Chips add about a second per plan set on a laptop: 4.0 s against 2.9 s on Nikhil's squad. Plans with chips are often "best found within the time limit" rather than proven best.
+
 ## Reported numbers
 
 - **xPts gained**: plan xPts minus the best points-only lineup with no transfers, over the horizon, net of hits. The do-no-harm rule makes this ≥ 0 for every plan.
