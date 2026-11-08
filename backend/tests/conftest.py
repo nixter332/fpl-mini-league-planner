@@ -47,3 +47,28 @@ def season_with_current():
     from scripts.backtest import load_from_fixtures
 
     return load_from_fixtures(FIXTURES, finished_only=False)
+
+
+@pytest.fixture(scope="session")
+def manager_state(manifest):
+    """Nikhil's squad state from the snapshot (GW10 picks, for GW11)."""
+    from app.fpl.models import Bootstrap, EntryHistory, EntryPicks, Transfer
+    from app.optimizer.state import build_state
+
+    files = manifest["files"]
+    bootstrap = Bootstrap.model_validate(load_fixture(files["bootstrap"]))
+    return build_state(
+        manifest["team_id"],
+        EntryPicks.model_validate(load_fixture(files["picks"])),
+        manifest["latest_started_gw"],
+        EntryHistory.model_validate(load_fixture(files["history"])),
+        [Transfer.model_validate(t) for t in load_fixture(files["transfers"])],
+        {e.id: e for e in bootstrap.elements},
+    )
+
+
+@pytest.fixture(scope="session")
+def rival_picks(manifest):
+    from app.fpl.models import EntryPicks
+
+    return [EntryPicks.model_validate(load_fixture(n)) for n in manifest["files"]["rival_picks"].values()]
