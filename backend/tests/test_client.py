@@ -1,6 +1,8 @@
 """The client against a fake FPL server that serves the saved fixtures (no network)."""
 
 import copy
+import tempfile
+import time
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -209,3 +211,25 @@ def test_standings_pagination_follows_has_next(
     }
     pages = make_client().league_standings_all(league)
     assert [p["standings"]["page"] for p in pages] == [1, 2]
+
+
+def test_throttle_is_shared_across_threads() -> None:
+    """The rival prefetch runs in a background thread; FPL must still see one request at a time."""
+    import threading
+
+    stamps: list[float] = []
+    lock = threading.Lock()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        with lock:
+            stamps.append(time.monotonic())
+        return httpx.Response(200, json={"ok": True})
+
+    client = FPLClient(DiskCache(Path(tempfile.mkdtemp())), transport=httpx.MockTransport(handler), min_interval=0.05)
+    threads = [threading.Thread(target=client._get_json, args=(f"x/{i}/",)) for i in range(6)]
+    for th in threads:
+        th.start()
+    for th in threads:
+        th.join()
+    gaps = [b - a for a, b in zip(sorted(stamps), sorted(stamps)[1:])]
+    assert len(stamps) == 6 and min(gaps) >= 0.045

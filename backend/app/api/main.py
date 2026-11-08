@@ -79,8 +79,23 @@ def resolve(input: str = Query(..., min_length=1, max_length=300), svc: PlannerS
 
 
 @app.get("/api/team/{entry_id}", response_model=s.TeamResponse)
-def team(entry_id: int, league: int | None = Query(None, ge=0, description="0 = no league"), svc: PlannerService = Depends(get_service)) -> s.TeamResponse:
-    return svc.team(entry_id, league)
+def team(
+    entry_id: int,
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    wait_rivals: bool = Query(False, description="false: answer now and load rivals in the background"),
+    svc: PlannerService = Depends(get_service),
+) -> s.TeamResponse:
+    return svc.team(entry_id, league, wait_rivals)
+
+
+@app.get("/api/rivals", response_model=s.RivalsProgress)
+def rivals(
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    svc: PlannerService = Depends(get_service),
+) -> s.RivalsProgress:
+    """How many rivals' squads are loaded (and start loading them). Poll until ready."""
+    return svc.rivals_progress(team, league)
 
 
 @app.get("/api/plans", response_model=s.PlansResponse)

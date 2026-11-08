@@ -88,7 +88,7 @@ From `history.current`, roll forward a GW at a time: free transfers left = min(l
 | --- | --- |
 | `bootstrap-static`, `fixtures` | At the next deadline or after 6 h, whichever comes first |
 | `event/{gw}/live`, `entry/*/event/{gw}/picks` for a finished, data-checked GW | Never |
-| The same for an in-progress GW | 10 min (live) / 15 min (picks) |
+| The same for an in-progress GW | 10 min (live) / 6 hours (picks: squads and captains are fixed at the deadline; only auto-subs change) |
 | `entry/*`, `leagues-classic/*`, `element-summary/*` | 15 min |
 
 User-Agent: `fpl-mini-league-planner/0.1 (read-only, public endpoints, cached)`. Throttling: at least 0.25 s between live requests, and 1 s between requests during bulk fetches (rivals' picks, standings pages). Retries happen on 429, 5xx and network errors (3 retries, waiting 1 s, 2 s, then 4 s, and honouring `Retry-After`). A 404 raises `FPLNotFound` without retrying. When the game is updating, FPL returns non-JSON, which raises a clear `FPLError`.

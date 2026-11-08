@@ -9,6 +9,7 @@ Rules this module enforces (see CLAUDE.md):
 """
 
 import logging
+import threading
 import time
 from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
@@ -28,6 +29,9 @@ USER_AGENT = "fpl-mini-league-planner/0.1 (read-only, public endpoints, cached)"
 SHARED_TTL = 6 * 60 * 60  # prices and injury news change daily
 LIVE_IN_PROGRESS_TTL = 10 * 60
 SHORT_TTL = 15 * 60  # manager, league and element-summary data
+# Picks for a GW whose deadline has passed can't change (only auto-subs move multipliers as
+# games finish), so keep them for hours rather than refetching 20 rivals every 15 minutes.
+STARTED_PICKS_TTL = 6 * 60 * 60
 
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
@@ -71,6 +75,10 @@ class FPLClient:
         self._monotonic = monotonic
         self._now = now
         self._last_request: float | None = None
+        # Requests may come from several threads (API handlers, the rival prefetch); they share
+        # one throttle, so FPL still sees one request at a time at the agreed pace.
+        self._throttle_lock = threading.Lock()
+        self._local = threading.local()
         self.network_calls = 0  # handy for tests and for logging call budgets
 
     def close(self) -> None:
@@ -132,13 +140,17 @@ class FPLClient:
         if (cached := self.cache.get(key)) is not None:
             return cached
         data = self._get_json(f"entry/{entry_id}/event/{gw}/picks/")
-        # Picks for a finished GW are fixed; for the current GW they can't change after the deadline
-        # either, but auto-subs land as the GW is played, so keep those short-lived.
+        # Picks for a finished GW are fixed. For the current GW the squad and captain can't change
+        # after the deadline either; only auto-subs land as games finish, so keep them for hours.
         if self._is_final(gw):
             self.cache.set(key, data)
         else:
-            self.cache.set(key, data, ttl=SHORT_TTL)
+            self.cache.set(key, data, ttl=STARTED_PICKS_TTL)
         return data
+
+    def has_picks(self, entry_id: int, gw: int) -> bool:
+        """True if these picks are cached (so fetching them costs no request)."""
+        return self.cache.get(f"entry-{entry_id}-event-{gw}-picks") is not None
 
     def many_entry_picks(self, entry_ids: Iterable[int], gw: int) -> dict[int, dict[str, Any] | None]:
         """Bulk fetch (e.g. rivals' picks), throttled to one live request per `bulk_interval`.
@@ -182,12 +194,13 @@ class FPLClient:
         return data
 
     def _with_interval(self, interval: float, fn: Callable[..., Any], *args: Any) -> Any:
-        saved = self.min_interval
-        self.min_interval = max(saved, interval)
+        """Run fn with a longer gap before each of its live requests (this thread only)."""
+        saved = getattr(self._local, "interval", 0.0)
+        self._local.interval = max(saved, interval)
         try:
             return fn(*args)
         finally:
-            self.min_interval = saved
+            self._local.interval = saved
 
     def _events(self, bootstrap: dict[str, Any]) -> list[Event]:
         return [Event.model_validate(e) for e in bootstrap.get("events", [])]
@@ -203,11 +216,13 @@ class FPLClient:
         return False
 
     def _throttle(self) -> None:
-        if self._last_request is not None:
-            wait = self.min_interval - (self._monotonic() - self._last_request)
-            if wait > 0:
-                self._sleep(wait)
-        self._last_request = self._monotonic()
+        interval = max(self.min_interval, getattr(self._local, "interval", 0.0))
+        with self._throttle_lock:
+            if self._last_request is not None:
+                wait = interval - (self._monotonic() - self._last_request)
+                if wait > 0:
+                    self._sleep(wait)
+            self._last_request = self._monotonic()
 
     def _get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
         last_error: Exception | None = None

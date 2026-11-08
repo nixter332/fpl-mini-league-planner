@@ -89,6 +89,13 @@ class Standing(BaseModel):
     n_rivals: int
 
 
+class RivalsProgress(BaseModel):
+    league_id: int
+    loaded: int  # rivals whose squads are loaded
+    total: int
+    ready: bool
+
+
 class TeamResponse(BaseModel):
     entry: int
     team_name: str
@@ -98,6 +105,7 @@ class TeamResponse(BaseModel):
     bank: int
     leagues: list[LeagueInfo]  # private classic leagues, for the switcher
     standing: Standing | None
+    rivals: RivalsProgress | None = None  # None = no league; ready=False = still loading
     gameweeks: list[Gameweek]
     lineups: list[LineupGw]
     squad: list[int]

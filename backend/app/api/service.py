@@ -5,10 +5,12 @@ minutes; computed plan sets are kept too, so switching screens is instant. Every
 still goes through the cached, throttled client.
 """
 
+import logging
 import threading
 import time
 from collections import OrderedDict
 from collections.abc import Callable
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -17,7 +19,7 @@ import pandas as pd
 from app.api import schemas as s
 from app.api.kits import GOALKEEPER, kit_for
 from app.fpl.client import FPLClient
-from app.fpl.gameweeks import latest_finished_gameweek, next_actionable_gameweek
+from app.fpl.gameweeks import latest_finished_gameweek, latest_started_gameweek, next_actionable_gameweek
 from app.fpl.links import parse_link
 from app.fpl.models import Bootstrap, Element, Entry, EntryPicks, Event, EventLive, Fixture, LeagueStandings, Team
 from app.model.history import SeasonData
@@ -30,6 +32,8 @@ from app.optimizer.plans import Plan as OptPlan
 from app.optimizer.plans import make_plans, paired_transfers
 from app.optimizer.solver import Settings
 from app.optimizer.state import SquadState
+
+log = logging.getLogger(__name__)
 
 TEAM_VIEW_GWS = 5
 CONTEXT_TTL = 10 * 60
@@ -68,8 +72,9 @@ class SeasonContext:
 class LeagueBundle:
     standing: s.Standing
     ownership: LeagueOwnership
-    rival_picks: dict[int, EntryPicks]
+    rival_picks: dict[int, EntryPicks]  # empty while the rivals are still loading
     rows: list  # StandingRow, sorted by rank
+    progress: s.RivalsProgress
 
 
 class PlannerService:
@@ -79,6 +84,10 @@ class PlannerService:
         self._lock = threading.Lock()
         self._context: SeasonContext | None = None
         self._plans: OrderedDict[tuple, s.PlansResponse] = OrderedDict()
+        # Rivals' picks are fetched in the background, one league at a time, through the same
+        # throttled client, so the team screen can show while they load.
+        self._prefetcher = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rivals")
+        self._jobs: dict[int, Future] = {}
 
     # ---- season-wide data ------------------------------------------------------------------
 
@@ -126,9 +135,14 @@ class PlannerService:
     def resolve(self, raw: str) -> s.ResolveResponse:
         link = parse_link(raw)  # LinkParseError -> 400
         if link.type == "team":
-            Entry.model_validate(self.client.entry(link.id))  # 404 if the team doesn't exist
+            entry = Entry.model_validate(self.client.entry(link.id))  # 404 if the team doesn't exist
+            league_id = self._pick_league(None, _private_leagues(entry))
+            if league_id:
+                self._submit(league_id, lambda: self._prefetch(league_id, entry.id))
             return s.ResolveResponse(type="team", id=link.id)
         page = LeagueStandings.model_validate(self.client.league_standings(link.id))
+        # Start loading rivals while the user finds themselves in the list.
+        self._submit(link.id, lambda: self._prefetch(link.id, None))
         members = [
             s.Member(entry=r.entry, player_name=r.player_name, entry_name=r.entry_name, rank=r.rank, total=r.total)
             for r in page.standings.results
@@ -140,13 +154,15 @@ class PlannerService:
 
     # ---- team screen -----------------------------------------------------------------------
 
-    def team(self, entry_id: int, league_id: int | None) -> s.TeamResponse:
+    def team(self, entry_id: int, league_id: int | None, wait_rivals: bool = False) -> s.TeamResponse:
+        """With wait_rivals=False, rivals not yet loaded are fetched in the background and the
+        response says how far along that is (`rivals`); ask again when it's ready."""
         ctx = self.context()
         entry = Entry.model_validate(self.client.entry(entry_id))
         state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
         leagues = _private_leagues(entry)
         league_id = self._pick_league(league_id, leagues)
-        bundle = self._league(league_id, entry, state.picks_gw) if league_id else None
+        bundle = self._league(league_id, entry, state.picks_gw, wait=wait_rivals) if league_id else None
         ownership = bundle.ownership if bundle else NO_RIVALS
 
         lineups = []
@@ -165,6 +181,7 @@ class PlannerService:
             bank=state.bank,
             leagues=leagues,
             standing=bundle.standing if bundle else None,
+            rivals=bundle.progress if bundle else None,
             gameweeks=[s.Gameweek(id=g, name=ctx.events[g].name, deadline=ctx.events[g].deadline_time) for g in ctx.gws],
             lineups=lineups,
             squad=squad,
@@ -289,16 +306,84 @@ class PlannerService:
             return leagues[0].id if leagues else None
         return league_id
 
-    def _league(self, league_id: int, entry: Entry, gw: int) -> LeagueBundle:
-        """Rivals are the top N on page 1 of the standings (50 per page), so even huge leagues
-        cost one request. The user's own rank and total come from their entry."""
+    # ---- rivals ----------------------------------------------------------------------------
+
+    def _standings(self, league_id: int) -> tuple[LeagueStandings, list]:
         page = LeagueStandings.model_validate(self.client.league_standings(league_id))
         rows = sorted(page.standings.results, key=lambda r: r.rank)
         if not rows:
             raise NotFoundError("That league has no managers yet.")
-        rivals = [r.entry for r in rows if r.entry != entry.id][:N_RIVALS]
-        raw = self.client.many_entry_picks(rivals, gw)  # throttled bulk fetch, cached
-        picks = {r: EntryPicks.model_validate(v) for r, v in raw.items() if v is not None}
+        return page, rows
+
+    @staticmethod
+    def _rival_ids(rows: list, entry_id: int | None) -> list[int]:
+        """The top N on page 1, excluding the user. Without a user yet, one extra so the set
+        covers whoever it turns out to be."""
+        ids = [r.entry for r in rows if r.entry != entry_id]
+        return ids[:N_RIVALS + (1 if entry_id is None else 0)]
+
+    def _job(self, league_id: int) -> Future | None:
+        with self._lock:
+            return self._jobs.get(league_id)
+
+    def _submit(self, league_id: int, fn: Callable[[], object]) -> None:
+        """Run a background fetch for this league unless one is already running."""
+        with self._lock:
+            job = self._jobs.get(league_id)
+            if job is not None and not job.done():
+                return
+            job = self._prefetcher.submit(fn)
+            self._jobs[league_id] = job
+
+        def report(f: Future) -> None:
+            if f.exception() is not None:
+                log.warning("Rival prefetch for league %s failed: %s", league_id, f.exception())
+
+        job.add_done_callback(report)
+
+    def _prefetch(self, league_id: int, entry_id: int | None) -> None:
+        bootstrap = Bootstrap.model_validate(self.client.bootstrap())
+        started = latest_started_gameweek(bootstrap.events, self._now())
+        if started is None:
+            return
+        _, rows = self._standings(league_id)
+        self.client.many_entry_picks(self._rival_ids(rows, entry_id), started.id)
+
+    def rivals_progress(self, entry_id: int, league_id: int | None) -> s.RivalsProgress:
+        """How many rivals' squads are loaded; starts loading them if needed."""
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        if not league_id:
+            return s.RivalsProgress(league_id=0, loaded=0, total=0, ready=True)
+        ctx = self.context()
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        return self._league(league_id, entry, state.picks_gw, wait=False).progress
+
+    def _league(self, league_id: int, entry: Entry, gw: int, wait: bool = True) -> LeagueBundle:
+        """Rivals are the top N on page 1 of the standings (50 per page), so even huge leagues
+        cost one request. The user's own rank and total come from their entry.
+
+        With wait=False and some rivals not cached yet, their picks load in the background and
+        the bundle has none (progress.ready is False). A finished background fetch counts as
+        ready even if a rival has no picks for this GW (joined late)."""
+        page, rows = self._standings(league_id)
+        rivals = self._rival_ids(rows, entry.id)
+        loaded = sum(self.client.has_picks(r, gw) for r in rivals)
+        job = self._job(league_id)
+        job_finished = job is not None and job.done()
+        if not wait and loaded < len(rivals) and not job_finished:
+            self._submit(league_id, lambda: self.client.many_entry_picks(rivals, gw))
+            picks: dict[int, EntryPicks] = {}
+            progress = s.RivalsProgress(league_id=league_id, loaded=loaded, total=len(rivals), ready=False)
+        else:
+            if job is not None and not job.done():  # let it finish rather than fetch twice
+                try:
+                    job.result(timeout=120)
+                except Exception:  # the fetch below retries and reports properly
+                    pass
+            raw = self.client.many_entry_picks(rivals, gw)  # throttled bulk fetch, cached
+            picks = {r: EntryPicks.model_validate(v) for r, v in raw.items() if v is not None}
+            progress = s.RivalsProgress(league_id=league_id, loaded=len(rivals), total=len(rivals), ready=True)
         mine = next((l for l in entry.leagues.classic if l.id == league_id), None)
         my_row = next((r for r in rows if r.entry == entry.id), None)
         rank = my_row.rank if my_row else (mine.entry_rank if mine else None)
@@ -309,9 +394,9 @@ class PlannerService:
             rank=rank, total=total,
             leader_name=leader.player_name, leader_entry_name=leader.entry_name,
             gap_to_first=(leader.total - total) if total is not None else None,
-            n_rivals=len(picks),
+            n_rivals=len(picks) if progress.ready else len(rivals),
         )
-        return LeagueBundle(standing, league_ownership(picks.values()), picks, rows)
+        return LeagueBundle(standing, league_ownership(picks.values()), picks, rows, progress)
 
     def _lineup(self, squad, gw: int, ctx: SeasonContext) -> Lineup:
         position = {p: ctx.elements[p].element_type for p in squad}

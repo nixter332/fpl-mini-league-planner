@@ -36,7 +36,7 @@ def test_unknown_team_is_a_404(api: TestClient) -> None:
 
 
 def test_team_screen(api: TestClient) -> None:
-    body = api.get(f"/api/team/{TEAM}").json()  # no league given: the smallest private league
+    body = api.get(f"/api/team/{TEAM}", params={"wait_rivals": True}).json()  # no league: the smallest private one
     assert body["standing"]["league"]["id"] == LEAGUE
     assert body["leagues"][0]["id"] == LEAGUE
     sizes = [l["size"] for l in body["leagues"]]
