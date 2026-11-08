@@ -61,6 +61,7 @@ class Element(FPLModel):
     can_transact: bool
     status: str  # a available, d doubtful, i injured, s suspended, u unavailable
     chance_of_playing_next_round: int | None
+    chance_of_playing_this_round: int | None = None
     news: str
     news_added: datetime | None
     selected_by_percent: float

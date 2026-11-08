@@ -1,0 +1,43 @@
+# Saves FPL's injury news for the upcoming deadline every 4 hours, so future backtests know what
+# managers knew at each deadline (FPL only shows today's news). One public request per run.
+# Commits backend/data/news/gw{N}.json only when the news changed. See backend/scripts/archive_news.py.
+name: Archive injury news
+
+on:
+  schedule:
+    - cron: "17 */4 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: archive-news
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install (FPL client only)
+        run: pip install "httpx>=0.27" "pydantic>=2.6"
+      - name: Save news
+        working-directory: backend
+        run: python -m scripts.archive_news
+      - name: Commit if changed
+        run: |
+          git add backend/data/news
+          if git diff --cached --quiet; then
+            echo "No change"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Archive FPL injury news"
+            git pull --rebase
+            git push
+          fi

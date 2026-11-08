@@ -60,4 +60,7 @@ Against the 8 managers who used no wildcard or free hit, Protect with no hits sc
 
 ## Next
 
+From GW11, FPL's injury news is saved before every deadline (`backend/data/news/`, by a scheduled GitHub Action), so later backtests can switch injury news back on with exactly what managers knew. Give the simulated planner the same chips in the same weeks as each real manager (chip-matching), so the comparison is fair.
+
+
 Rerun at GW15 or later, when there will be twice as many weeks. Add Sticks and Stones (39 managers) for a bigger sample; it takes about 20 more minutes the first time. Check whether a margin on hits (for example, only take a hit when the projected gain is 6 or more) beats "no hits".
