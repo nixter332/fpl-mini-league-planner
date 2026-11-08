@@ -106,6 +106,15 @@ def make_plans(
             cuts.append(Cut(frozenset(sol.first.transfers_in), frozenset(sol.first.transfers_out)))
         roll = roll_job.result() if roll_job else None
 
+    # A solve that hit its time limit can hand back its warm start: "keep the squad", no better
+    # than the baseline. That isn't a plan, so drop it (seen on the half-CPU server, 9 Nov 2026).
+    def stalled(sol: Solution) -> bool:
+        return not sol.proven_optimal and score(sol, players, ownership, points_only)[0] <= floor + 1e-6
+
+    solutions = [s for i, s in enumerate(solutions) if i == 0 or not stalled(s)]
+    if roll is not None and stalled(roll):
+        roll = None
+
     if solutions and roll is not None and not any(_is_roll(s) for s in solutions):
         if roll.objective >= solutions[0].objective - roll_margin:
             solutions = [*solutions[: n_plans - 1], roll]

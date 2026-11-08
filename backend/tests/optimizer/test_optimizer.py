@@ -220,3 +220,21 @@ def test_a_tiny_gain_is_not_worth_a_free_transfer(pool, manager_state) -> None:
     # And with saving made worthless, the solver is free to make smaller moves again.
     loose = solve(pool, manager_state, Settings(gw, strategy="protect", ft_value=0.0))
     assert plan_xpts(loose) >= plan_xpts(best) - 1e-6
+
+
+def test_a_timed_out_do_nothing_plan_is_dropped(pool, manager_state, monkeypatch) -> None:
+    """On a slow server a later solve can time out and return its warm start (keep the squad).
+    That isn't a real plan, so it's dropped rather than shown as 'roll, +0.0'."""
+    import app.optimizer.plans as plans_mod
+
+    real_solve = plans_mod.solve
+
+    def slow_solve(*args, cuts=(), warm_start=None, **kwargs):
+        if len(cuts) == 2 and warm_start is not None:  # the third plan in the chain "times out"
+            return replace(warm_start, proven_optimal=False)
+        return real_solve(*args, cuts=cuts, warm_start=warm_start, **kwargs)
+
+    monkeypatch.setattr(plans_mod, "solve", slow_solve)
+    ps = make_plans(pool, manager_state, Settings(GWS, strategy="protect"))
+    assert len(ps.plans) == 2
+    assert all(p.xpts_gain > 0 for p in ps.plans)
