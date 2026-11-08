@@ -58,6 +58,7 @@ class Element(FPLModel):
     element_type: int
     now_cost: int
     cost_change_start: int
+    can_transact: bool
     status: str  # a available, d doubtful, i injured, s suspended, u unavailable
     chance_of_playing_next_round: int | None
     news: str
