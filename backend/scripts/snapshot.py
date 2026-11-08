@@ -3,7 +3,8 @@
 Usage (from backend/):
     python -m scripts.snapshot --team 5179483 --league 1883627 [--rivals 20] [--out tests/fixtures]
 
-Fetches every endpoint the app uses for the latest started gameweek and writes the raw JSON,
+Fetches every endpoint the app uses for the latest started gameweek (plus live data for
+every gameweek so far, used by the model backtest) and writes the raw JSON,
 plus a manifest.json describing what was saved. Requests go through the normal client, so
 they're cached, throttled and retried.
 """
@@ -48,7 +49,7 @@ def snapshot(team_id: int, league_id: int, rivals: int, out: Path) -> dict[str, 
         if started is None:
             sys.exit("No gameweek has started yet this season; nothing to snapshot.")
 
-        live_gws = sorted({gw.id for gw in (started, finished) if gw is not None})
+        live_gws = list(range(1, started.id + 1))  # every GW so far, for the model backtest
         files["event_live"] = {
             str(gw): save(out, f"event-{gw}-live", client.event_live(gw)) for gw in live_gws
         }
