@@ -60,3 +60,30 @@ def test_advance_carries_squad_bank_and_free_transfers() -> None:
 
     rolled = advance(state, GameweekSolution(5, (), (), 1, 0, 10, tuple(POS), tuple(XI), tuple(BENCH), 10, 6), pool)
     assert rolled.free_transfers == 2
+
+
+def test_bench_boost_counts_all_fifteen() -> None:
+    w = score_week(XI, BENCH, 10, 6, POS, {p: 90 for p in POS}, {p: 2 for p in POS}, chip="bboost")
+    assert w.points == 15 * 2 + 2
+
+
+def test_triple_captain_scores_three_times() -> None:
+    pts = {**{p: 2 for p in POS}, 10: 8}
+    w = score_week(XI, BENCH, 10, 6, POS, {p: 90 for p in POS}, pts, chip="3xc")
+    assert w.points == 10 * 2 + 8 * 3
+
+
+def test_chips_in_advance() -> None:
+    from app.optimizer.chips import ChipWindow
+
+    chips = (ChipWindow("freehit", 5, 19), ChipWindow("wildcard", 5, 19), ChipWindow("bboost", 5, 19))
+    state = SquadState(1, 4, tuple(OwnedPlayer(p, 50, 52) for p in POS), bank=10, free_transfers=2, chips=chips)
+    pool = {16: PoolPlayer(16, MID, 1, 60, 60, {})}
+    squad = tuple(p for p in POS if p != 14) + (16,)
+    fh = GameweekSolution(5, (16,), (14,), 2, 0, 10, squad, tuple(XI), (12, 13, 16, 15), 10, 6, chip="freehit")
+    after_fh = advance(state, fh, pool)
+    assert after_fh.element_ids == set(POS)  # the squad reverts
+    assert after_fh.free_transfers == 2 and {c.name for c in after_fh.chips} == {"wildcard", "bboost"}
+    wc = GameweekSolution(5, (16,), (14,), 2, 0, 2, squad, tuple(XI), (12, 13, 16, 15), 10, 6, chip="wildcard")
+    after_wc = advance(state, wc, pool)
+    assert after_wc.element_ids == set(squad) and after_wc.free_transfers == 2  # kept, no +1

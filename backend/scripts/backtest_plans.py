@@ -10,7 +10,12 @@ Usage (from backend/; uses the cached FPL API, ~150 throttled requests the first
     python -m scripts.backtest_plans --leagues 1883627 1863820 1145494 --from 5 --to 10
 
 Limits (see docs/backtest-plans.md): injury news is switched off, because today's news would
-leak the future; prices are today's; chips aren't simulated.
+leak the future; prices are today's.
+
+Chips: "chips matched" gives the planner the same chip in the same week as the real manager (a
+fair comparison of everything but chip timing). "planner chips" lets it play Bench Boost and
+Triple Captain itself, and a Wildcard/Free Hit when the best plan with it beats the best plan
+without it by CHIP_PLAY_THRESHOLD over the horizon (the app's "chips this week" advice).
 """
 
 import argparse
@@ -25,6 +30,7 @@ from app.fpl.models import Bootstrap, EntryHistory, EntryPicks, LeagueStandings,
 from app.model.history import SeasonData
 from app.model.project import project
 from app.optimizer.inputs import build_pool
+from app.optimizer.chips import FREE_HIT, WILDCARD, window_for
 from app.optimizer.lineup import best_lineup
 from app.optimizer.ownership import NO_RIVALS, league_ownership
 from app.optimizer.plans import score
@@ -42,7 +48,12 @@ CONFIGS = {  # name -> Settings overrides (strategy, ft_value)
     "protect, no hits": {"strategy": "protect", "max_hits": 0},
     "balanced, no hits": {"strategy": "balanced", "max_hits": 0},
     "protect, no hits, saved FT worth 0": {"strategy": "protect", "max_hits": 0, "ft_value": 0.0},
+    "protect, no hits, chips matched": {"strategy": "protect", "max_hits": 0, "chips": "matched"},
+    "balanced, no hits, chips matched": {"strategy": "balanced", "max_hits": 0, "chips": "matched"},
+    "protect, no hits, planner chips": {"strategy": "protect", "max_hits": 0, "chips": "planner"},
 }
+# Play a Wildcard / Free Hit when it beats the best plan without it by this many xPts over the horizon.
+CHIP_PLAY_THRESHOLD = {WILDCARD: 6.0, FREE_HIT: 4.0}
 
 
 def truncated_history(history: EntryHistory, through: int) -> EntryHistory:
@@ -68,10 +79,31 @@ def start_state(entry: int, gw_before: int, picks: dict[int, EntryPicks], histor
 def plan_one(pool, state, settings, ownership):
     """The app's Plan 1: the best plan under the strategy, never worse than no transfers."""
     players = {p.element: p for p in pool}
-    baseline = solve(pool, state, replace(settings, strategy="protect"), ownership, no_transfers=True)
+    baseline = solve(pool, state, replace(settings, strategy="protect").without_chips(), ownership, no_transfers=True)
     floor, _ = score(baseline, players, ownership, settings)
     best = solve(pool, state, settings, ownership, warm_start=baseline, min_xpts=floor)
     return best or baseline
+
+
+def choose(pool, state, settings: Settings, ownership, chip_mode: str | None, real_chip: str | None, gw: int):
+    """This week's plan under a chip mode (see the module docstring)."""
+    players = {p.element: p for p in pool}
+    if chip_mode is None:
+        return plan_one(pool, state, settings, ownership)
+    settings = replace(settings, chips=state.chips)
+    if chip_mode == "matched":
+        forced = ((gw, real_chip),) if real_chip and window_for(state.chips, real_chip, gw) else ()
+        return plan_one(pool, state, replace(settings, auto_chips=frozenset(), forced_chips=forced), ownership)
+    best = plan_one(pool, state, settings, ownership)
+    best_x = score(best, players, ownership, settings)[0]
+    for chip in (WILDCARD, FREE_HIT):
+        if window_for(state.chips, chip, gw) is None:
+            continue
+        alt = plan_one(pool, state, replace(settings, forced_chips=((gw, chip),)), ownership)
+        alt_x = score(alt, players, ownership, settings)[0]
+        if alt_x - best_x >= CHIP_PLAY_THRESHOLD[chip]:
+            best, best_x = alt, alt_x - CHIP_PLAY_THRESHOLD[chip]  # the next chip must beat this by its own margin
+    return best
 
 
 def report(path: Path) -> str:
@@ -136,6 +168,7 @@ def main() -> None:
     elements = {e.id: e for e in bootstrap.elements}
     position = {e.id: e.element_type for e in bootstrap.elements}
     live = {gw: {el.id: el.stats for el in data.live[gw].elements} for gw in gws}
+    exists = {gw: {el.id for el in data.live[gw].elements} for gw in gws}  # players in the game that week
 
     # ---- managers, their leagues, picks and histories (cached after the first run) ----------
     t0 = time.perf_counter()
@@ -190,22 +223,27 @@ def main() -> None:
         row["sims"]["no transfers"] = {"points": hold, "hits": {}, "moves": {}}
 
         for name, overrides in configs.items():
+            opts = dict(overrides)
+            chip_mode = opts.pop("chips", None)
             state = first
-            pts, hits, moves = {}, {}, {}
+            pts, hits, moves, played = {}, {}, {}, {}
             for gw in gws:
                 targets = tuple(g for g in range(gw, gw + HORIZON) if g <= len(bootstrap.events))
                 ownership = league_ownership(picks[r][gw - 1] for r in rivals if gw - 1 in picks[r]) if rivals else NO_RIVALS
-                pool = build_pool(bootstrap, projections[gw], state, targets)
-                settings = Settings(targets, **{"max_hits": args.max_hits, "time_limit": 3.0, **overrides})
-                sol = plan_one(pool, state, settings, ownership).first
+                pool = build_pool(bootstrap, projections[gw], state, targets, available=exists[gw])
+                settings = Settings(targets, **{"max_hits": args.max_hits, "time_limit": 3.0, **opts})
+                sol = choose(pool, state, settings, ownership, chip_mode, chips.get(gw), gw).first
                 stats = live[gw]
                 week = score_week(sol.starting, sol.bench, sol.captain, sol.vice, position,
-                                  {e: s.minutes for e, s in stats.items()}, {e: s.total_points for e, s in stats.items()})
+                                  {e: s.minutes for e, s in stats.items()}, {e: s.total_points for e, s in stats.items()},
+                                  chip=sol.chip)
+                if sol.chip:
+                    played[gw] = sol.chip
                 pts[gw] = week.points - 4 * sol.hits
                 hits[gw] = sol.hits
                 moves[gw] = [[o, i] for o, i in zip(sol.transfers_out, sol.transfers_in)]
                 state = advance(state, sol, {p.element: p for p in pool})
-            row["sims"][name] = {"points": pts, "hits": hits, "moves": moves}
+            row["sims"][name] = {"points": pts, "hits": hits, "moves": moves, "chips": played}
         results.append(row)
         sims = "  ".join(f"{k}: {sum(v['points'].values())}" for k, v in row["sims"].items())
         print(f"{names[m][:22]:<22} actual: {sum(actual.values())}  {sims}  ({time.perf_counter() - t1:.0f}s)", flush=True)

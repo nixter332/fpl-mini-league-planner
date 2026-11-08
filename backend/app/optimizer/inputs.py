@@ -1,6 +1,6 @@
 """Assemble optimizer inputs: the manager's state, rivals' picks and the pruned player pool."""
 
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import datetime
 
 import pandas as pd
@@ -25,17 +25,24 @@ def build_pool(
     *,
     sizes: dict[int, int] = POOL_SIZES,
     cheapest: int = CHEAPEST_PER_POSITION,
+    available: Collection[int] | None = None,
 ) -> list[PoolPlayer]:
-    """Current squad + the best and cheapest buyable players per position."""
+    """Current squad + the best and cheapest buyable players per position.
+
+    `available` (backtests): the players who existed in the game at that deadline. Today's
+    status would leak the future, so it replaces the status checks."""
     owned = state.element_ids
     totals = projection[projection.index.get_level_values("gw").isin(gws)].groupby("element")["xpts"].sum()
-    buyable = [e for e in bootstrap.elements if e.status != "u" and e.can_transact]
+    if available is None:
+        buyable = [e for e in bootstrap.elements if e.status != "u" and e.can_transact]
+    else:
+        buyable = [e for e in bootstrap.elements if e.id in available]
 
     chosen = set(owned)
     for pos, n in sizes.items():
         in_pos = [e for e in buyable if e.element_type == pos]
         chosen.update(e.id for e in sorted(in_pos, key=lambda e: -totals.get(e.id, 0.0))[:n])
-        fit_cheap = [e for e in in_pos if e.status == "a"]
+        fit_cheap = [e for e in in_pos if e.status == "a" or available is not None]
         chosen.update(e.id for e in sorted(fit_cheap, key=lambda e: (e.now_cost, -totals.get(e.id, 0.0)))[:cheapest])
 
     sell = {p.element: p.sell_price for p in state.players}
