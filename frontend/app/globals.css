@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+/* Design tokens from docs/design (dark is the default; [data-theme="light"] overrides). */
+:root {
+  --accent: #5b3df5;
+  --bg: #0b0f14;
+  --surface: #151b23;
+  --surface2: #1c2430;
+  --border: #2a3441;
+  --input: #0f141b;
+  --input-border: #3a4656;
+  --text: #f1f5f9;
+  --text2: #b4becb;
+  --text3: #94a0af;
+  --good: #4ade80;
+  --bad: #fb923c;
+  --out: #f87171;
+  --link: #a594ff;
+  --seg: #1c2430;
+  --seg-on: #2f3b4c;
+  --pill: #1f2937;
+  --why-bg: #1e1a3d;
+  --why-label: #b8abff;
+  --warn-bg: #33270b;
+  --warn-text: #fde68a;
+  --cap-bg: #1e1a3d;
+  --cap-border: #3b2f86;
+  --free-bg: #12301f;
+  --free-text: #86efac;
+  --hit-bg: #3a1f0d;
+  --hit-text: #fdba74;
+  --roll-bg: #263040;
+  --roll-text: #cbd5e1;
+  --accent-line: #3b2f86;
+  --row-on: #221c45;
+  --chip-on-bg: #f1f5f9;
+  --chip-on-text: #0b0f14;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f5f6f2;
+  --surface: #ffffff;
+  --surface2: #f8fafc;
+  --border: #e2e8f0;
+  --input: #ffffff;
+  --input-border: #cbd5e1;
+  --text: #0f172a;
+  --text2: #475569;
+  --text3: #64748b;
+  --good: #15803d;
+  --bad: #c2410c;
+  --out: #b91c1c;
+  --link: #5b3df5;
+  --seg: #e8eae4;
+  --seg-on: #ffffff;
+  --pill: #f1f5f9;
+  --why-bg: #f4f2ff;
+  --why-label: #4328d6;
+  --warn-bg: #fef3c7;
+  --warn-text: #78350f;
+  --cap-bg: #f4f2ff;
+  --cap-border: #c9c0ff;
+  --free-bg: #dcfce7;
+  --free-text: #166534;
+  --hit-bg: #ffedd5;
+  --hit-text: #9a3412;
+  --roll-bg: #e2e8f0;
+  --roll-text: #334155;
+  --accent-line: #c9c0ff;
+  --row-on: #eeebff;
+  --chip-on-bg: #0f172a;
+  --chip-on-text: #ffffff;
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-accent: var(--accent);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface2);
+  --color-line: var(--border);
+  --color-input: var(--input);
+  --color-input-line: var(--input-border);
+  --color-text: var(--text);
+  --color-text2: var(--text2);
+  --color-text3: var(--text3);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
+  --color-out: var(--out);
+  --color-link: var(--link);
+  --color-seg: var(--seg);
+  --color-seg-on: var(--seg-on);
+  --color-pill: var(--pill);
+  --color-why-bg: var(--why-bg);
+  --color-why-label: var(--why-label);
+  --color-warn-bg: var(--warn-bg);
+  --color-warn-text: var(--warn-text);
+  --color-cap-bg: var(--cap-bg);
+  --color-cap-line: var(--cap-border);
+  --color-free-bg: var(--free-bg);
+  --color-free-text: var(--free-text);
+  --color-hit-bg: var(--hit-bg);
+  --color-hit-text: var(--hit-text);
+  --color-roll-bg: var(--roll-bg);
+  --color-roll-text: var(--roll-text);
+  --color-accent-line: var(--accent-line);
+  --color-row-on: var(--row-on);
+  --color-chip-on-bg: var(--chip-on-bg);
+  --color-chip-on-text: var(--chip-on-text);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-display: var(--font-space-grotesk), system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+@layer base {
+  a {
+    color: var(--link);
+  }
+}
+
+.pitch {
+  background: repeating-linear-gradient(180deg, #2a7449 0px, #2a7449 44px, #266b43 44px, #266b43 88px);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
