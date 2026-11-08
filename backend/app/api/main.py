@@ -89,7 +89,7 @@ def plans(
     league: int | None = Query(None, ge=0, description="0 = no league"),
     strategy: Literal["protect", "balanced", "risky"] = "balanced",
     horizon: int = Query(4, ge=1, le=5),
-    max_hits: int = Query(1, ge=0, le=4, description="Most -4 hits over the whole horizon"),
+    max_hits: int = Query(0, ge=0, le=4, description="Most -4 hits over the whole horizon"),
     svc: PlannerService = Depends(get_service),
 ) -> s.PlansResponse:
     if horizon < 1:
@@ -103,7 +103,7 @@ async def explain(
     league: int | None = Query(None, ge=0, description="0 = no league"),
     strategy: Literal["protect", "balanced", "risky"] = "balanced",
     horizon: int = Query(4, ge=1, le=5),
-    max_hits: int = Query(1, ge=0, le=4),
+    max_hits: int = Query(0, ge=0, le=4),
     rank: int = Query(..., ge=1, le=3),
     svc: PlannerService = Depends(get_service),
     explainer: Explainer = Depends(get_explainer),

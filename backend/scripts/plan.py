@@ -1,7 +1,7 @@
 """Print the top 3 transfer plans for a manager.
 
 Usage (from backend/):
-    python -m scripts.plan --team 5179483 --league 1883627 --strategy balanced --horizon 4 --max-hits 1
+    python -m scripts.plan --team 5179483 --league 1883627 --strategy balanced --horizon 4 --max-hits 0
     python -m scripts.plan --offline ...     # use the saved fixtures instead of the FPL API
 
 --max-hits is the most -4 hits you'll accept over the whole horizon, not per gameweek.
@@ -93,7 +93,7 @@ def main() -> None:
     parser.add_argument("--league", type=int, help="Classic league ID (rivals' ownership); omit for points only")
     parser.add_argument("--strategy", choices=list(STRATEGY_WEIGHTS), default="balanced")
     parser.add_argument("--horizon", type=int, default=4, help="Gameweeks to plan over (default 4)")
-    parser.add_argument("--max-hits", type=int, default=1, help="Most -4 hits over the whole horizon (default 1)")
+    parser.add_argument("--max-hits", type=int, default=0, help="Most -4 hits over the whole horizon (default 0)")
     parser.add_argument("--rivals", type=int, default=20, help="Top N rivals by rank (default 20)")
     parser.add_argument("--offline", action="store_true", help="Use saved fixtures (team must match)")
     args = parser.parse_args()

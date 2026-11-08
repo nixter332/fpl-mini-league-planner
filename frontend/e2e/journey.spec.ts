@@ -70,7 +70,7 @@ test.describe("reasons", () => {
   test.skip(!process.env.E2E_CLAUDE, "Set E2E_CLAUDE=1 to include Claude reasons (costs a few cents the first time).");
   test("Claude reasons on the plans and plan detail", async ({ page }) => {
     test.setTimeout(240_000);
-    await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=balanced&horizon=4&hits=1`);
+    await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=balanced&horizon=4&hits=0`);
     await expect(page.getByTestId("plan-card")).toHaveCount(3);
     await expect(page.getByTestId("why")).toHaveCount(3, { timeout: 180_000 });
     await shot(page, "11-plans-reasons");

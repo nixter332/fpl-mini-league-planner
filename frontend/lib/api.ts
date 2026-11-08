@@ -44,7 +44,7 @@ export function readPlanParams(search: URLSearchParams): PlanParams {
     league: league === null ? null : Number(league),
     strategy: strategy === "protect" || strategy === "risky" ? strategy : "balanced",
     horizon: Math.min(5, Math.max(1, Number(search.get("horizon") ?? 4) || 4)),
-    hits: Math.min(4, Math.max(0, Number(search.get("hits") ?? 1) || 0)),
+    hits: Math.min(4, Math.max(0, Number(search.get("hits") ?? 0) || 0)),
   };
 }
 
