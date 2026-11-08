@@ -51,6 +51,7 @@ Fill these in as they're created, and keep them current:
 - Set up backend: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (Windows: `.venv\Scripts\activate`)
 - Run tests: `cd backend && pytest`
 - Run API: `cd backend && uvicorn app.api.main:app --reload`
+- Refresh test fixtures (calls the live FPL API, ~12 throttled requests): `cd backend && python -m scripts.snapshot --team 5179483 --league 1883627`. Tests read `tests/fixtures/manifest.json`, so they follow whatever GW was snapshotted. Update `docs/fpl-api-notes.md` if field names change.
 
 ## Code style
 
