@@ -72,7 +72,9 @@ function TeamScreen() {
     };
   };
 
-  const plansHref = `/plans?team=${entry}&league=${activeLeague}&strategy=balanced&horizon=4&hits=1`;
+  // Leaders start on Protect lead: differentials only add swing, and swing helps the chasers.
+  const defaultStrategy = standing?.rank === 1 ? "protect" : "balanced";
+  const plansHref = `/plans?team=${entry}&league=${activeLeague}&strategy=${defaultStrategy}&horizon=4&hits=1`;
   const gap = standing?.gap_to_first ?? null;
 
   return (

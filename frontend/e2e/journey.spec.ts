@@ -32,7 +32,8 @@ test("league link → pick yourself → team → plans → plan detail", async (
 
   await page.getByRole("link", { name: "See transfer plans" }).click();
   await expect(page.getByTestId("plan-card")).toHaveCount(3);
-  await shot(page, "05-plans-balanced");
+  await expect(page).toHaveURL(/strategy=protect/); // Nikhil is 1st, so plans start on Protect lead
+  await shot(page, "05-plans-protect");
 
   await page.getByRole("group", { name: "Strategy" }).getByRole("button", { name: "Risky" }).click();
   await expect(page).toHaveURL(/strategy=risky/);
