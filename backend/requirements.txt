@@ -6,3 +6,5 @@ pytest>=8.0
 pandas>=2.2
 numpy>=1.26
 pulp>=3.3,<4  # PuLP 4 drops the bundled CBC solver we use (see app/optimizer/solver.py)
+anthropic>=1.17,<2
+python-dotenv>=1.0

@@ -263,6 +263,20 @@ class PlannerService:
             head_to_head=self._head_to_head(first, g0, ctx, bundle, after_xpts) if bundle else None,
         )
 
+    def plan(self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, rank: int) -> tuple[s.PlansResponse, s.Plan]:
+        resp = self.plans(entry_id, league_id, strategy, horizon, max_hits)
+        plan = next((p for p in resp.plans if p.rank == rank), None)
+        if plan is None:
+            raise NotFoundError("That plan isn't available any more.")
+        return resp, plan
+
+    def known_names(self) -> frozenset[str]:
+        """Every player and club name this season, for the explanation trust check."""
+        ctx = self.context()
+        names = {e.web_name for e in ctx.elements.values()}
+        names |= {t.name for t in ctx.teams.values()} | {t.short_name for t in ctx.teams.values()}
+        return frozenset(names)
+
     # ---- helpers ---------------------------------------------------------------------------
 
     @staticmethod
@@ -369,6 +383,7 @@ class PlannerService:
                 price=e.now_cost, sell_price=sell.get(pid), status=e.status, news=e.news,
                 doubtful=e.status in DOUBT_STATUSES or (e.chance_of_playing_next_round not in (None, 100)),
                 rivals_owned=ownership.owned.get(pid, 0),
+                rivals_captained=round(ownership.captain_share(pid) * ownership.n_rivals),
                 gws=[s.PlayerGw(gw=g, fixture=ctx.fixture_labels.get((e.team, g), "—"), xpts=ctx.xpts.get(pid, {}).get(g, 0.0)) for g in ctx.gws],
             )
         return out

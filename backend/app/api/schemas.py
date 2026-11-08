@@ -58,6 +58,7 @@ class Player(BaseModel):
     news: str
     doubtful: bool  # show the "!" flag
     rivals_owned: int  # rivals with him in their 15
+    rivals_captained: int = 0  # rivals who captained him in the GW their picks are from
     gws: list[PlayerGw]
 
 
@@ -173,3 +174,10 @@ class PlansResponse(BaseModel):
     clubs: dict[str, Club]
     facts: list[str]
     seconds: float
+
+
+class ExplainResponse(BaseModel):
+    rank: int
+    status: Literal["ok", "unavailable", "off"]  # off = no API key configured
+    why: str | None = None
+    watch_out: str | None = None

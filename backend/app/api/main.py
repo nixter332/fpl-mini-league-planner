@@ -1,18 +1,25 @@
 """FastAPI app. The frontend calls these routes; the browser never talks to FPL directly."""
 
-from collections.abc import Callable
+from pathlib import Path
 from typing import Literal
 
+from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.api import schemas as s
 from app.api.service import NotFoundError, PlannerService
+from app.explain.explainer import Explainer
+from app.explain.summary import build_summary
 from app.fpl.client import FPLClient, FPLError, FPLNotFound
 from app.fpl.links import LinkParseError
 
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ANTHROPIC_API_KEY; real env vars win
+
 app = FastAPI(title="FPL Mini-League Planner")
 _service: PlannerService | None = None
+_explainer: Explainer | None = None
 
 
 def get_service() -> PlannerService:
@@ -26,6 +33,19 @@ def set_service(service: PlannerService | None) -> None:
     """For tests: swap in a service backed by saved fixtures."""
     global _service
     _service = service
+
+
+def get_explainer() -> Explainer:
+    global _explainer
+    if _explainer is None:
+        _explainer = Explainer.from_env()
+    return _explainer
+
+
+def set_explainer(explainer: Explainer | None) -> None:
+    """For tests: swap in an explainer with a fake Claude client."""
+    global _explainer
+    _explainer = explainer
 
 
 @app.exception_handler(LinkParseError)
@@ -75,3 +95,25 @@ def plans(
     if horizon < 1:
         raise HTTPException(400, "Horizon must be at least 1 gameweek.")
     return svc.plans(team, league, strategy, horizon, max_hits)
+
+
+@app.get("/api/explain", response_model=s.ExplainResponse)
+async def explain(
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    strategy: Literal["protect", "balanced", "risky"] = "balanced",
+    horizon: int = Query(4, ge=1, le=5),
+    max_hits: int = Query(1, ge=0, le=4),
+    rank: int = Query(..., ge=1, le=3),
+    svc: PlannerService = Depends(get_service),
+    explainer: Explainer = Depends(get_explainer),
+) -> s.ExplainResponse:
+    """A Claude-written reason for one plan. The plan itself comes from the (cached) optimizer run."""
+    if not explainer.enabled:
+        return s.ExplainResponse(rank=rank, status="off")
+    resp, plan = await run_in_threadpool(svc.plan, team, league, strategy, horizon, max_hits, rank)
+    known = await run_in_threadpool(svc.known_names)
+    result = await explainer.explain(build_summary(resp, plan), known)
+    if result is None:
+        return s.ExplainResponse(rank=rank, status="unavailable")
+    return s.ExplainResponse(rank=rank, status="ok", why=result.why, watch_out=result.watch_out)

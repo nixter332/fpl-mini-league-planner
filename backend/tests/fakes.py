@@ -1,5 +1,7 @@
-"""A fake FPL API that serves the saved fixtures (tests never hit the live API)."""
+"""Fakes for tests: an FPL API serving the saved fixtures, and a Claude client (no live calls)."""
 
+import json
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
@@ -49,3 +51,34 @@ class FakeFPL:
         if key not in self.routes:
             return httpx.Response(404, json={"detail": "Not found."})
         return httpx.Response(200, json=self.routes[key])
+
+
+class FakeClaude:
+    """Stands in for anthropic.AsyncAnthropic: returns canned replies and records each request.
+
+    A reply is a dict ({"why", "watch_out"}), an Exception to raise, or a full response object.
+    """
+
+    def __init__(self, *replies: Any) -> None:
+        self.replies = list(replies)
+        self.calls: list[dict[str, Any]] = []
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=self._create))
+
+    async def _create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        reply = self.replies.pop(0) if len(self.replies) > 1 else self.replies[0]
+        if isinstance(reply, Exception):
+            raise reply
+        if isinstance(reply, dict):
+            return claude_reply(json.dumps(reply))
+        return reply
+
+
+def claude_reply(text: str | None, stop_reason: str = "end_turn") -> SimpleNamespace:
+    content = [SimpleNamespace(type="thinking", thinking="")]
+    if text is not None:
+        content.append(SimpleNamespace(type="text", text=text))
+    return SimpleNamespace(
+        stop_reason=stop_reason, stop_details=None, content=content,
+        usage=SimpleNamespace(input_tokens=900, output_tokens=120),
+    )

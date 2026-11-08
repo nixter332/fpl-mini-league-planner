@@ -1,33 +1,11 @@
 """API routes on the saved fixtures (fake FPL server, no network)."""
 
-from collections.abc import Iterator
-from datetime import datetime
-from pathlib import Path
-from typing import Any
-
-import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.main import app, set_service
 from app.api.service import PlannerService
-from app.fpl.cache import DiskCache
-from app.fpl.client import FPLClient
-from tests.fakes import FakeFPL, fixture_routes
 
 TEAM, LEAGUE = 5179483, 1883627
-
-
-@pytest.fixture(scope="module")
-def api(manifest: dict[str, Any], snapshot_time: datetime, tmp_path_factory: pytest.TempPathFactory) -> Iterator[TestClient]:
-    fake = FakeFPL(fixture_routes(manifest))
-    client = FPLClient(
-        DiskCache(tmp_path_factory.mktemp("cache"), clock=lambda: snapshot_time.timestamp()),
-        transport=httpx.MockTransport(fake), sleep=lambda _: None, now=lambda: snapshot_time,
-    )
-    set_service(PlannerService(client, now=lambda: snapshot_time))
-    yield TestClient(app)
-    set_service(None)
 
 
 def test_resolve_team_id_and_links(api: TestClient) -> None:

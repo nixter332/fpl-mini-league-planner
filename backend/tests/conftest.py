@@ -1,6 +1,7 @@
 """Shared test setup. Tests read saved fixtures only; any real network call fails."""
 
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,10 @@ import httpx
 import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
+
+# Never use a real Claude key in tests, even if backend/.env has one: an empty value here
+# stops load_dotenv from filling it in, so the app's explainer stays switched off.
+os.environ["ANTHROPIC_API_KEY"] = ""
 
 
 def load_fixture(name: str) -> Any:
@@ -72,3 +77,24 @@ def rival_picks(manifest):
     from app.fpl.models import EntryPicks
 
     return [EntryPicks.model_validate(load_fixture(n)) for n in manifest["files"]["rival_picks"].values()]
+
+
+@pytest.fixture(scope="session")
+def api(manifest: dict[str, Any], snapshot_time: datetime, tmp_path_factory: pytest.TempPathFactory):
+    """The FastAPI app on a fake FPL server built from the saved fixtures (shared: plans are slow)."""
+    from fastapi.testclient import TestClient
+
+    from app.api.main import app, set_service
+    from app.api.service import PlannerService
+    from app.fpl.cache import DiskCache
+    from app.fpl.client import FPLClient
+    from tests.fakes import FakeFPL, fixture_routes
+
+    fake = FakeFPL(fixture_routes(manifest))
+    client = FPLClient(
+        DiskCache(tmp_path_factory.mktemp("cache"), clock=lambda: snapshot_time.timestamp()),
+        transport=httpx.MockTransport(fake), sleep=lambda _: None, now=lambda: snapshot_time,
+    )
+    set_service(PlannerService(client, now=lambda: snapshot_time))
+    yield TestClient(app)
+    set_service(None)
