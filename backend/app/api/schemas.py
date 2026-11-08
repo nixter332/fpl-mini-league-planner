@@ -89,6 +89,16 @@ class Standing(BaseModel):
     n_rivals: int
 
 
+ChipName = Literal["wildcard", "freehit", "bboost", "3xc"]
+
+
+class ChipLeft(BaseModel):
+    name: ChipName
+    label: str  # "Bench Boost"
+    start: int  # first GW it can be played
+    stop: int  # last GW (lost after this)
+
+
 class RivalsProgress(BaseModel):
     league_id: int
     loaded: int  # rivals whose squads are loaded
@@ -112,6 +122,7 @@ class TeamResponse(BaseModel):
     players: dict[int, Player]
     clubs: dict[str, Club]
     facts: list[str]
+    chips_left: list[ChipLeft] = []
 
 
 class Move(BaseModel):
@@ -123,12 +134,14 @@ class Move(BaseModel):
 
 class PlanGw(BaseModel):
     gw: int
-    moves: list[Move]
+    moves: list[Move]  # with a Free Hit: this week's one-off changes (the squad reverts after)
     hits: int
     free_transfers: int
     bank: int
     captain: int
     vice: int
+    chip: ChipName | None = None
+    chip_xpts: float | None = None  # expected points the chip adds (Bench Boost: the bench; Triple Captain: the captain again)
 
 
 class Threat(BaseModel):
@@ -157,7 +170,8 @@ class Plan(BaseModel):
     proven_optimal: bool
     hits: int
     xpts: float
-    xpts_gain: float
+    xpts_gain: float  # includes chip points
+    chip_xpts: float = 0.0  # the part of xpts_gain that comes from chips
     differential_gain: float
     summary: str
     gameweeks: list[PlanGw]
@@ -172,6 +186,10 @@ class PlansResponse(BaseModel):
     strategy: Literal["protect", "balanced", "risky"]
     horizon: int
     max_hits: int
+    chips_left: list[ChipLeft] = []
+    wildcard_gw: int | None = None  # the user chose to play these
+    freehit_gw: int | None = None
+    auto_chips: bool = True  # the planner may play Bench Boost / Triple Captain
     gws: list[int]
     free_transfers: int
     bank: int
@@ -189,3 +207,13 @@ class ExplainResponse(BaseModel):
     status: Literal["ok", "unavailable", "off"]  # off = no API key configured
     why: str | None = None
     watch_out: str | None = None
+
+
+class ChipAdvice(BaseModel):
+    """What playing a Wildcard or Free Hit this week would add, from the optimizer."""
+
+    chip: ChipName
+    label: str
+    gw: int
+    xpts_gain: float  # the best plan with the chip, vs no transfers
+    vs_best_plan: float  # minus the best plan without it (over the horizon only)

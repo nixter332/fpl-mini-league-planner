@@ -29,6 +29,9 @@ from app.optimizer.inputs import build_pool, load_state
 from app.optimizer.lineup import Lineup, best_lineup
 from app.optimizer.ownership import NO_RIVALS, LeagueOwnership, league_ownership
 from app.optimizer.plans import Plan as OptPlan
+from app.optimizer.chips import (
+    AUTO_CHIPS, BENCH_BOOST, CHIP_LABELS, FREE_HIT, TRIPLE_CAPTAIN, WILDCARD, ChipWindow, window_for,
+)
 from app.optimizer.plans import make_plans, paired_transfers
 from app.optimizer.solver import Settings
 from app.optimizer.state import SquadState
@@ -51,6 +54,14 @@ def _private_leagues(entry: Entry) -> list[s.LeagueInfo]:
 
 class NotFoundError(LookupError):
     """Something the user asked for doesn't exist (message is safe to show)."""
+
+
+class InvalidRequestError(ValueError):
+    """The request can't be planned as asked, e.g. a chip that's already used (safe to show)."""
+
+
+def _chips_left(chips: tuple[ChipWindow, ...]) -> list[s.ChipLeft]:
+    return [s.ChipLeft(name=c.name, label=CHIP_LABELS[c.name], start=c.start, stop=c.stop) for c in chips]
 
 
 @dataclass(frozen=True)
@@ -188,14 +199,20 @@ class PlannerService:
             players=self._players(squad, ctx, ownership, state),
             clubs=self._clubs(ctx),
             facts=self._facts(state, bundle),
+            chips_left=_chips_left(state.chips),
         )
 
     # ---- plans -----------------------------------------------------------------------------
 
-    def plans(self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int) -> s.PlansResponse:
+    def plans(
+        self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int,
+        *, wildcard: int | None = None, freehit: int | None = None, chips: bool = True,
+    ) -> s.PlansResponse:
+        """wildcard / freehit: the GW the user chose to play that chip in. chips: whether the
+        planner may play Bench Boost and Triple Captain when they're worth it."""
         ctx = self.context()
         horizon = max(1, min(horizon, len(ctx.gws)))
-        key = (entry_id, league_id, strategy, horizon, max_hits, ctx.built_at)
+        key = (entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx.built_at)
         with self._lock:
             if key in self._plans:
                 self._plans.move_to_end(key)
@@ -209,8 +226,23 @@ class PlannerService:
         ownership = bundle.ownership if bundle else NO_RIVALS
 
         gws = ctx.gws[:horizon]
+        forced = []
+        for name, gw in ((WILDCARD, wildcard), (FREE_HIT, freehit)):
+            if gw is None:
+                continue
+            if gw not in gws:
+                raise InvalidRequestError(f"GW{gw} isn't in this plan (GW{gws[0]} to GW{gws[-1]}).")
+            if window_for(state.chips, name, gw) is None:
+                raise InvalidRequestError(f"You don't have a {CHIP_LABELS[name]} to play in GW{gw}.")
+            forced.append((gw, name))
+        if wildcard is not None and wildcard == freehit:
+            raise InvalidRequestError("Only one chip can be played per gameweek.")
+        settings = Settings(
+            gws, strategy=strategy, max_hits=max_hits, chips=state.chips,
+            auto_chips=AUTO_CHIPS if chips else frozenset(), forced_chips=tuple(forced),
+        )
         pool = build_pool(ctx.data.bootstrap, ctx.projection, state, gws)
-        plan_set = make_plans(pool, state, Settings(gws, strategy=strategy, max_hits=max_hits), ownership)
+        plan_set = make_plans(pool, state, settings, ownership)
         g0 = gws[0]
         rivals_avg = self._rivals_avg(bundle, g0, ctx) if bundle else None
         before = self._lineup_gw(g0, self._lineup(state.element_ids, g0, ctx), rivals_avg)
@@ -230,6 +262,7 @@ class PlannerService:
 
         response = s.PlansResponse(
             entry=entry_id, strategy=strategy, horizon=horizon, max_hits=max_hits, gws=list(gws),
+            chips_left=_chips_left(state.chips), wildcard_gw=wildcard, freehit_gw=freehit, auto_chips=chips,
             free_transfers=state.free_transfers, bank=state.bank,
             standing=bundle.standing if bundle else None,
             captain_note=self._captain_note(plans[0], ctx, ownership) if plans else "",
@@ -254,12 +287,17 @@ class PlannerService:
                 s.Move(player_out=o, player_in=i, out_price=sell.get(o, pool_by_id[o].sell_price), in_price=pool_by_id[i].buy_price)
                 for o, i in paired_transfers(gw, pool_by_id)
             ]
+            chip_x = self._chip_xpts(gw, ctx)
             gws.append(s.PlanGw(gw=gw.gw, moves=moves, hits=gw.hits, free_transfers=gw.free_transfers,
-                                bank=gw.bank, captain=gw.captain, vice=gw.vice))
-            for o, i in paired_transfers(gw, pool_by_id):
-                sell[i] = pool_by_id[i].buy_price  # bought in the plan: sells for what was paid
+                                bank=gw.bank, captain=gw.captain, vice=gw.vice,
+                                chip=gw.chip, chip_xpts=round(chip_x, 2) if gw.chip else None))
+            if gw.chip != FREE_HIT:
+                for o, i in paired_transfers(gw, pool_by_id):
+                    sell[i] = pool_by_id[i].buy_price  # bought in the plan: sells for what was paid
         g0 = first.gw
-        after_xpts = sum(ctx.xpts.get(p, {}).get(g0, 0.0) for p in first.starting) + ctx.xpts.get(first.captain, {}).get(g0, 0.0)
+        chip_total = sum(g.chip_xpts or 0.0 for g in gws)
+        after_xpts = (sum(ctx.xpts.get(p, {}).get(g0, 0.0) for p in first.starting) + ctx.xpts.get(first.captain, {}).get(g0, 0.0)
+                      + self._chip_xpts(first, ctx))
         after = s.LineupGw(
             gw=g0, starting=list(first.starting), bench=list(first.bench), captain=first.captain, vice=first.vice,
             xpts=round(after_xpts, 2), rivals_avg=rivals_avg,
@@ -272,16 +310,56 @@ class PlannerService:
         else:
             summary = f"{plan.xpts_gain:+.1f} xPts over {horizon} GW{'s' if horizon > 1 else ''} vs making no transfers"
             summary += f", after {4 * plan.hits} pts of hits." if plan.hits else "."
+        chip_weeks = [g for g in gws if g.chip]
+        if chip_weeks:
+            summary += " Chips: " + ", ".join(
+                f"{CHIP_LABELS[g.chip]} in GW{g.gw}" + (f" (+{g.chip_xpts:.1f})" if g.chip in (BENCH_BOOST, TRIPLE_CAPTAIN) else "")
+                for g in chip_weeks
+            ) + "."
         return s.Plan(
             rank=plan.rank, tag=tag, is_roll=plan.is_roll, proven_optimal=sol.proven_optimal, hits=plan.hits,
-            xpts=round(plan.xpts, 2), xpts_gain=round(plan.xpts_gain, 2), differential_gain=round(plan.differential_gain, 2),
+            xpts=round(plan.xpts, 2), xpts_gain=round(plan.xpts_gain, 2), chip_xpts=round(chip_total, 2),
+            differential_gain=round(plan.differential_gain, 2),
             summary=summary, gameweeks=gws, before=before, after=after,
             threats=self._threats(set(first.squad), g0, ctx, bundle) if bundle else [],
             head_to_head=self._head_to_head(first, g0, ctx, bundle, after_xpts) if bundle else None,
         )
 
-    def plan(self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, rank: int) -> tuple[s.PlansResponse, s.Plan]:
-        resp = self.plans(entry_id, league_id, strategy, horizon, max_hits)
+    @staticmethod
+    def _chip_xpts(gw, ctx: SeasonContext) -> float:
+        """Expected points a Bench Boost or Triple Captain adds that week (0 otherwise)."""
+        x = lambda p: ctx.xpts.get(p, {}).get(gw.gw, 0.0)
+        if gw.chip == BENCH_BOOST:
+            return sum(x(p) for p in gw.bench)
+        if gw.chip == TRIPLE_CAPTAIN:
+            return x(gw.captain)
+        return 0.0
+
+    def chip_advice(self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, chips: bool = True) -> list[s.ChipAdvice]:
+        """For each Wildcard / Free Hit the user could play this week: the best plan with it,
+        compared with the best plan without it. Facts from the optimizer, not a recommendation;
+        a Wildcard's value beyond the horizon isn't counted."""
+        base = self.plans(entry_id, league_id, strategy, horizon, max_hits, chips=chips)
+        if not base.plans:
+            return []
+        g0 = base.gws[0]
+        best = base.plans[0].xpts_gain
+        out = []
+        for c in base.chips_left:
+            if c.name not in (WILDCARD, FREE_HIT) or not c.start <= g0 <= c.stop:
+                continue
+            kw = {"wildcard": g0} if c.name == WILDCARD else {"freehit": g0}
+            with_chip = self.plans(entry_id, league_id, strategy, horizon, max_hits, chips=chips, **kw)
+            if with_chip.plans:
+                gain = with_chip.plans[0].xpts_gain
+                out.append(s.ChipAdvice(chip=c.name, label=c.label, gw=g0, xpts_gain=round(gain, 2), vs_best_plan=round(gain - best, 2)))
+        return out
+
+    def plan(
+        self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, rank: int,
+        *, wildcard: int | None = None, freehit: int | None = None, chips: bool = True,
+    ) -> tuple[s.PlansResponse, s.Plan]:
+        resp = self.plans(entry_id, league_id, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips)
         plan = next((p for p in resp.plans if p.rank == rank), None)
         if plan is None:
             raise NotFoundError("That plan isn't available any more.")

@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.api import schemas as s
 from app.api.limits import RateLimiter, client_key
-from app.api.service import NotFoundError, PlannerService
+from app.api.service import InvalidRequestError, NotFoundError, PlannerService
 from app.explain.explainer import Explainer
 from app.explain.summary import build_summary
 from app.fpl.client import FPLClient, FPLError, FPLNotFound
@@ -69,6 +69,11 @@ def _not_found(_: Request, exc: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 
 
+@app.exception_handler(InvalidRequestError)
+def _invalid(_: Request, exc: InvalidRequestError) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
 @app.exception_handler(FPLError)
 def _fpl_down(_: Request, exc: FPLError) -> JSONResponse:
     return JSONResponse(status_code=503, content={"detail": "FPL isn't responding right now (it may be updating). Try again in a few minutes."})
@@ -113,13 +118,33 @@ def plans(
     strategy: Literal["protect", "balanced", "risky"] = "balanced",
     horizon: int = Query(4, ge=1, le=5),
     max_hits: int = Query(0, ge=0, le=4, description="Most -4 hits over the whole horizon"),
+    wildcard: int | None = Query(None, ge=1, le=38, description="Play your Wildcard in this GW"),
+    freehit: int | None = Query(None, ge=1, le=38, description="Play your Free Hit in this GW"),
+    chips: bool = Query(True, description="Let the planner play Bench Boost / Triple Captain when worth it"),
     svc: PlannerService = Depends(get_service),
 ) -> s.PlansResponse:
     if horizon < 1:
         raise HTTPException(400, "Horizon must be at least 1 gameweek.")
     if not plans_limiter.allow(client_key(request)):
         raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
-    return svc.plans(team, league, strategy, horizon, max_hits)
+    return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips)
+
+
+@app.get("/api/chip-advice", response_model=list[s.ChipAdvice])
+def chip_advice(
+    request: Request,
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    strategy: Literal["protect", "balanced", "risky"] = "balanced",
+    horizon: int = Query(4, ge=1, le=5),
+    max_hits: int = Query(0, ge=0, le=4),
+    chips: bool = Query(True),
+    svc: PlannerService = Depends(get_service),
+) -> list[s.ChipAdvice]:
+    """What a Wildcard / Free Hit this week would add over the best plan without it."""
+    if not plans_limiter.allow(client_key(request)):
+        raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
+    return svc.chip_advice(team, league, strategy, horizon, max_hits, chips)
 
 
 @app.get("/api/explain", response_model=s.ExplainResponse)
@@ -130,6 +155,9 @@ async def explain(
     strategy: Literal["protect", "balanced", "risky"] = "balanced",
     horizon: int = Query(4, ge=1, le=5),
     max_hits: int = Query(0, ge=0, le=4),
+    wildcard: int | None = Query(None, ge=1, le=38),
+    freehit: int | None = Query(None, ge=1, le=38),
+    chips: bool = Query(True),
     rank: int = Query(..., ge=1, le=3),
     svc: PlannerService = Depends(get_service),
     explainer: Explainer = Depends(get_explainer),
@@ -139,7 +167,9 @@ async def explain(
         return s.ExplainResponse(rank=rank, status="off")
     if not explain_limiter.allow(client_key(request)):
         return s.ExplainResponse(rank=rank, status="unavailable")  # the plan still shows, without a reason
-    resp, plan = await run_in_threadpool(svc.plan, team, league, strategy, horizon, max_hits, rank)
+    resp, plan = await run_in_threadpool(
+        lambda: svc.plan(team, league, strategy, horizon, max_hits, rank, wildcard=wildcard, freehit=freehit, chips=chips)
+    )
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_summary(resp, plan), known)
     if result is None:
