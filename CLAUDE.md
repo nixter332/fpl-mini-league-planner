@@ -24,7 +24,7 @@ Full spec: `docs/SPEC.md`. Lessons from the old prototype: `docs/v0-lessons.md`.
 
 - `backend/`: Python 3.11+, FastAPI, httpx, pydantic, pandas/numpy, HiGHS (via `highspy`) or PuLP for the MILP, pytest. Anthropic Python SDK for explanations (phase 5).
 - `frontend/`: Next.js (App Router) + TypeScript + Tailwind. Mobile-first, dark mode default. Built in phase 4.
-- Hosting: frontend on Vercel (root `frontend`, env `BACKEND_URL`); backend on Render's free tier via `render.yaml`. Steps: `docs/deploy.md`.
+- Hosting: frontend on Vercel (root `frontend`, env `BACKEND_URL`); backend in a free Hugging Face Space (Docker, `backend/Dockerfile`), deployed by `.github/workflows/deploy-hf-space.yml`. Render (`render.yaml`) is the fallback. Steps: `docs/deploy.md`.
 
 ## Layout
 
@@ -59,6 +59,7 @@ Fill these in as they're created, and keep them current:
 - Plan explanations (Claude): put `ANTHROPIC_API_KEY=...` in `backend/.env`. Preview the facts Claude gets: `cd backend && python -m scripts.explain --team 5179483 --league 1883627 --offline`; add `--call` (and drop `--offline`) for a real, billed Claude call. Method and guardrails: `docs/explanations.md`.
 - Run the app locally (two terminals): `cd backend && uvicorn app.api.main:app --port 8000`, then `cd frontend && npm install && npm run dev` and open http://localhost:3000. Next.js proxies `/api/*` to the backend (`BACKEND_URL`, default http://127.0.0.1:8000).
 - Frontend checks: `cd frontend && npm run typecheck && npm run build`.
+- Live check after a deploy (same journey against the deployed site; may write a few Claude reasons): `cd frontend && npm run screenshots:live`.
 - Screenshot journey (Playwright, phone-sized; starts both servers itself; uses live cached FPL data for team 5179483 / league 1883627): `cd frontend && npx playwright install chromium` once, then `npm run build && npm run screenshots`. Images land in `frontend/e2e/screenshots/` (git-ignored). Claude is switched off in this run (free); `E2E_CLAUDE=1 npx playwright test -g reasons` screenshots real reasons for the Balanced plans (billed the first time, then cached).
 
 ## Code style

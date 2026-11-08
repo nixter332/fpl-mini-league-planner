@@ -10,6 +10,7 @@ Balanced and Risky, which trade some points for differentials.
 """
 
 from collections import Counter
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Sequence
@@ -23,9 +24,12 @@ from app.optimizer.solver import (
 from app.optimizer.state import SquadState
 
 ROLL_MARGIN = 1.5
-TIME_BUDGET = 3.5  # seconds for the whole set; the phase 3 gate is 5 s including projection
-FIRST_PLAN_LIMIT = 2.0
-MIN_SOLVE_LIMIT = 0.5
+# Solver time limits, tuned on a laptop core. A slower server sets SOLVER_TIME_SCALE (e.g. 3)
+# so the solver gets enough time to find good plans there; see docs/deploy.md.
+TIME_SCALE = float(os.environ.get("SOLVER_TIME_SCALE", "1"))
+TIME_BUDGET = 3.5 * TIME_SCALE  # seconds for the whole set; the phase 3 gate is 5 s including projection
+FIRST_PLAN_LIMIT = 2.0 * TIME_SCALE
+MIN_SOLVE_LIMIT = 0.5 * TIME_SCALE
 
 
 @dataclass(frozen=True)

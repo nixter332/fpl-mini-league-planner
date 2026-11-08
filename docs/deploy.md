@@ -1,18 +1,44 @@
 # Deploying (free tier)
 
-- **Backend:** FastAPI on Render's free web service, configured by `render.yaml` in the repo root.
-- **Frontend:** Next.js on Vercel's free Hobby plan. Vercel forwards `/api/*` to Render, so browsers only ever talk to Vercel.
+- **Backend:** FastAPI in a free Hugging Face Space (Docker, 2 vCPU, 16 GB). GitHub copies `backend/` to the Space on every push.
+- **Frontend:** Next.js on Vercel's free Hobby plan. Vercel forwards `/api/*` to the backend, so browsers only ever talk to Vercel.
 
-Free-tier facts to know:
-- Render puts the backend to sleep after about 15 minutes with no visitors. The next visit takes up to a minute while it wakes. The start page pings the backend as it opens and explains the wait if it's slow.
-- Render's disk is wiped on every restart, so the FPL cache and saved reasons start empty again. The first plans after a restart take a few seconds longer and may call Claude again.
+**Why not Render's free tier?** We tried it first (`render.yaml` is still in the repo as a fallback). Its free server gets a tenth of a CPU. The solver's time budget is tuned for a laptop core, and on Render it ran out of time and returned "roll, +0.0" where a laptop finds +14.2 (8 Nov 2026). Render Starter ($7/month) is the paid fallback. On any slower server, set `SOLVER_TIME_SCALE` (for example `3`) so the solver gets proportionally more time.
+
+Facts to know:
+- The Space sleeps after 48 hours with no visitors. The next visit waits while it wakes. The start page pings the backend as it opens and explains the wait if it's slow.
+- The Space's disk is wiped on every restart or redeploy, so the FPL cache and saved reasons start empty again. The first plans after a restart take a few seconds longer and may call Claude again.
 - Protection for the Claude credit:
   - each visitor gets at most 60 reason requests an hour
   - the whole app makes at most 200 new Claude calls a day (`EXPLAIN_DAILY_CALLS`)
   - each visitor can build at most 120 plan sets an hour
   - the prepaid Console balance is the hard cap
 
-## 1. Backend on Render
+## 1. Backend on Hugging Face Spaces
+
+1. Create an account at https://huggingface.co/join.
+2. Create the Space at https://huggingface.co/new-space:
+   - Space name: `fpl-planner-api`
+   - License: MIT, or any
+   - SDK: **Docker**, with the **Blank** template
+   - Hardware: **CPU basic · 2 vCPU · 16 GB · FREE**
+   - Visibility: **Public**. Vercel can't reach a private Space, and the code is already public on GitHub.
+   - Click **Create Space**.
+3. In the Space, open **Settings**, then **Variables and secrets**, then **New secret**. Name it `ANTHROPIC_API_KEY` and paste your Claude key as the value.
+4. Create a token so GitHub can upload to the Space:
+   - Go to https://huggingface.co/settings/tokens and click **Create new token**.
+   - Token type: **Write**. Name: `github-deploy`.
+   - Click **Create** and copy the token.
+5. On GitHub, open the repo's **Settings**, then **Secrets and variables**, then **Actions**:
+   - On the **Secrets** tab, click **New repository secret**. Name it `HF_TOKEN` and paste the token.
+   - On the **Variables** tab, click **New repository variable**. Name it `HF_SPACE` and set it to `<your-hf-username>/fpl-planner-api`.
+6. Start the first deploy: go to **Actions**, then **Deploy backend to Hugging Face**, then **Run workflow**. After that, every push that changes `backend/` deploys automatically.
+7. On the Space page, wait until the status goes from **Building** to **Running**, about 3–5 minutes the first time. The backend URL is `https://<your-hf-username>-fpl-planner-api.hf.space`. Check two links:
+   - `<url>/health` should show `{"status":"ok"}`
+   - `<url>/api/team/5179483` should show your team
+
+## 1b. Fallback: backend on Render
+
 
 1. Push your latest commits to GitHub. Render reads `render.yaml` from GitHub, not from your laptop.
 2. Go to https://dashboard.render.com and click **New** (top right), then **Blueprint**.
@@ -47,7 +73,7 @@ If Render asks for a card for Blueprints: cancel, and instead use **New**, then 
 3. Next to **Root Directory**, click **Edit** and choose `frontend`. The framework should show **Next.js**.
 4. Open **Environment Variables** and add:
    - Name: `BACKEND_URL`
-   - Value: your Render URL from step 1.7, with no slash at the end, for example `https://fpl-planner-api.onrender.com`
+   - Value: the backend URL from step 1.7, with no slash at the end, for example `https://<your-hf-username>-fpl-planner-api.hf.space`
 5. Click **Deploy** and wait about 1–2 minutes.
 6. Open the Vercel URL, for example `https://fpl-mini-league-planner.vercel.app`, and try your team ID.
 

@@ -1,0 +1,46 @@
+# Copies backend/ to the Hugging Face Space on every push that changes it; the Space then
+# rebuilds the container. Needs the repository secret HF_TOKEN (a Hugging Face "write" token)
+# and the repository variable HF_SPACE (e.g. "your-hf-username/fpl-planner-api").
+name: Deploy backend to Hugging Face
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", "deploy/hf-space/**", ".github/workflows/deploy-hf-space.yml"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-hf-space
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install "huggingface_hub>=0.25"
+      - name: Upload backend to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          python - <<'PY'
+          import os, shutil, tempfile
+          from huggingface_hub import HfApi
+          # Stage backend/ (without tests, caches or secrets) plus the Space card, then upload
+          # it as one commit so the Space rebuilds once.
+          stage = tempfile.mkdtemp()
+          shutil.copytree("backend", stage, dirs_exist_ok=True, ignore=shutil.ignore_patterns(
+              ".venv", ".env", "*.env", "cache", "__pycache__", ".pytest_cache", "tests"))
+          shutil.copy("deploy/hf-space/README.md", os.path.join(stage, "README.md"))
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          space = os.environ["HF_SPACE"]
+          api.upload_folder(folder_path=stage, repo_id=space, repo_type="space",
+                            delete_patterns=["app/**", "scripts/**", "data/news/**"],
+                            commit_message=f"Deploy {os.environ.get('GITHUB_SHA', '')[:7]}")
+          print("Uploaded to", space)
+          PY

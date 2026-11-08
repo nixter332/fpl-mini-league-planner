@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "screenshots": "playwright test"
+    "screenshots": "playwright test",
+    "screenshots:live": "playwright test --config playwright.live.config.ts"
   },
   "dependencies": {
     "next": "16.4.3",

@@ -131,7 +131,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         top["expected_points_more_than_your_captain"] = r1(_xpts(resp, best, first.gw) - _xpts(resp, first.captain, first.gw))
         plan_facts["highest_projected_player_in_your_team"] = top
     if not plan.proven_optimal:
-        plan_facts["note"] = "best plan found within the time limit"
+        plan_facts["note"] = "the solver ran out of time, so a better plan may exist"
 
     summary: dict[str, Any] = {
         "strategy": STRATEGY_MEANING[resp.strategy],
