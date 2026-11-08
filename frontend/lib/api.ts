@@ -1,4 +1,4 @@
-import type { ExplainResponse, PlansResponse, ResolveResponse, Strategy, TeamResponse } from "./types";
+import type { ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -27,6 +27,27 @@ export const resolveInput = (input: string) =>
 
 export const getTeam = (entry: number, league: number | null) =>
   getJSON<TeamResponse>(`/api/team/${entry}${league !== null ? `?league=${league}` : ""}`);
+
+export const getRivals = (entry: number, league: number | null) =>
+  getJSON<RivalsProgress>(`/api/rivals?team=${entry}${league !== null ? `&league=${league}` : ""}`);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Polls until the rivals' squads are loaded (the backend fetches them politely, ~1 a second). */
+export async function waitForRivals(
+  entry: number,
+  league: number | null,
+  onProgress: (p: RivalsProgress) => void,
+  isLive: () => boolean = () => true,
+): Promise<void> {
+  for (;;) {
+    const progress = await getRivals(entry, league);
+    if (!isLive()) return;
+    onProgress(progress);
+    if (progress.ready) return;
+    await sleep(1000);
+  }
+}
 
 export interface PlanParams {
   team: number;

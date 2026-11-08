@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BackLink, ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
-import { ApiError, getPlans, planQuery, readPlanParams, type PlanParams } from "@/lib/api";
+import { ApiError, getPlans, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
 import { STRATEGIES, money, signed } from "@/lib/format";
-import type { Plan, PlansResponse, Strategy } from "@/lib/types";
+import type { Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
 
 export default function PlansPage() {
   return (
@@ -24,11 +24,14 @@ function PlansScreen() {
   const key = planQuery(params);
   const [data, setData] = useState<PlansResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rivals, setRivals] = useState<RivalsProgress | null>(null);
 
   useEffect(() => {
     let live = true;
     setError(null);
-    getPlans(params)
+    // Plans need every rival's squad; wait for the background load first so we can show progress.
+    waitForRivals(params.team, params.league, (p) => live && setRivals(p), () => live)
+      .then(() => getPlans(params))
       .then((d) => {
         if (!live) return;
         setData(d);
@@ -116,7 +119,15 @@ function PlansScreen() {
       </div>
 
       {error && <ErrorBox message={error} />}
-      {!current && !error && <Loading message="Building your plans. This takes a few seconds…" />}
+      {!current && !error && (
+        <Loading
+          message={
+            rivals && !rivals.ready
+              ? `Loading your rivals' teams: ${rivals.loaded} of ${rivals.total}…`
+              : "Building your plans. This takes a few seconds…"
+          }
+        />
+      )}
 
       {current && (
         <>

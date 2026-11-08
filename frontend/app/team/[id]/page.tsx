@@ -5,9 +5,9 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
-import { ApiError, getTeam } from "@/lib/api";
+import { ApiError, getTeam, waitForRivals } from "@/lib/api";
 import { deadlineLabel, gwOf, ordinal, pts, signed } from "@/lib/format";
-import type { Position, TeamResponse } from "@/lib/types";
+import type { Position, RivalsProgress, TeamResponse } from "@/lib/types";
 
 export default function TeamPage() {
   return (
@@ -29,14 +29,26 @@ function TeamScreen() {
   const [error, setError] = useState<string | null>(null);
   const [gwIndex, setGwIndex] = useState(0);
   const [mode, setMode] = useState<"xp" | "own">("xp");
+  const [progress, setProgress] = useState<RivalsProgress | null>(null);
 
   useEffect(() => {
     let live = true;
     setData(null);
     setError(null);
+    setProgress(null);
+    const fail = (e: unknown) => live && setError(e instanceof ApiError ? e.message : "Couldn't load your team.");
     getTeam(entry, league)
-      .then((d) => live && setData(d))
-      .catch((e) => live && setError(e instanceof ApiError ? e.message : "Couldn't load your team."));
+      .then(async (d) => {
+        if (!live) return;
+        setData(d);
+        if (d.rivals && !d.rivals.ready) {
+          // Show the team now; fill in the rival numbers once their squads are loaded.
+          setProgress(d.rivals);
+          await waitForRivals(entry, d.rivals.league_id, setProgress, () => live);
+          if (live) setData(await getTeam(entry, d.rivals.league_id));
+        }
+      })
+      .catch(fail);
     return () => {
       live = false;
     };
@@ -56,6 +68,8 @@ function TeamScreen() {
   const standing = data.standing;
   const nRivals = standing?.n_rivals ?? 0;
   const activeLeague = standing?.league.id ?? 0;
+  const rivalsLoading = !!data.rivals && !data.rivals.ready;
+  const loaded = progress?.loaded ?? data.rivals?.loaded ?? 0;
 
   const token = (pid: number): PitchPlayer => {
     const p = data.players[pid];
@@ -63,7 +77,7 @@ function TeamScreen() {
     return {
       id: pid,
       name: p.name,
-      info: mode === "xp" ? g.fixture : `Owned ${p.rivals_owned}/${nRivals}`,
+      info: mode === "xp" ? g.fixture : rivalsLoading ? "Loading…" : `Owned ${p.rivals_owned}/${nRivals}`,
       value: mode === "xp" ? pts(g.xpts) : undefined,
       isCaptain: pid === lineup.captain,
       doubtful: p.doubtful,
@@ -124,6 +138,15 @@ function TeamScreen() {
         </select>
       </label>
 
+      {rivalsLoading && (
+        <div className="flex items-center gap-2 text-xs text-text3" role="status" data-testid="rivals-progress">
+          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-seg">
+            <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.round((100 * loaded) / Math.max(1, data.rivals!.total))}%` }} />
+          </div>
+          Loading rivals&apos; teams: {loaded} of {data.rivals!.total}
+        </div>
+      )}
+
       <div className="flex gap-1.5" role="group" aria-label="Gameweek">
         {data.gameweeks.map((g, i) => (
           <button
@@ -142,10 +165,10 @@ function TeamScreen() {
 
       <div className="grid grid-cols-3 gap-2">
         <Tile label="Your projection" value={pts(lineup.xpts)} />
-        <Tile label="Rivals' average" value={lineup.rivals_avg !== null ? pts(lineup.rivals_avg) : "—"} />
+        <Tile label="Rivals' average" value={lineup.rivals_avg !== null ? pts(lineup.rivals_avg) : rivalsLoading ? "…" : "—"} />
         <Tile
           label="Edge"
-          value={lineup.edge !== null ? signed(lineup.edge) : "—"}
+          value={lineup.edge !== null ? signed(lineup.edge) : rivalsLoading ? "…" : "—"}
           tone={lineup.edge === null ? undefined : lineup.edge >= 0 ? "good" : "bad"}
         />
       </div>

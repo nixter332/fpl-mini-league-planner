@@ -54,6 +54,13 @@ export interface Standing {
   n_rivals: number;
 }
 
+export interface RivalsProgress {
+  league_id: number;
+  loaded: number;
+  total: number;
+  ready: boolean;
+}
+
 export interface TeamResponse {
   entry: number;
   team_name: string;
@@ -63,6 +70,7 @@ export interface TeamResponse {
   bank: number;
   leagues: LeagueInfo[];
   standing: Standing | null;
+  rivals: RivalsProgress | null; // null = no league; ready false = still loading in the background
   gameweeks: Gameweek[];
   lineups: LineupGw[];
   squad: number[];
