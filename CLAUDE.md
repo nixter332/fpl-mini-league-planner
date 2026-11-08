@@ -24,7 +24,7 @@ Full spec: `docs/SPEC.md`. Lessons from the old prototype: `docs/v0-lessons.md`.
 
 - `backend/`: Python 3.11+, FastAPI, httpx, pydantic, pandas/numpy, HiGHS (via `highspy`) or PuLP for the MILP, pytest. Anthropic Python SDK for explanations (phase 5).
 - `frontend/`: Next.js (App Router) + TypeScript + Tailwind. Mobile-first, dark mode default. Built in phase 4.
-- Hosting: frontend on Vercel (root `frontend`, env `BACKEND_URL`); backend in a free Hugging Face Space (Docker, `backend/Dockerfile`), deployed by `.github/workflows/deploy-hf-space.yml`. Render (`render.yaml`) is the fallback. Steps: `docs/deploy.md`.
+- Hosting: frontend on Vercel (root `frontend`, env `BACKEND_URL`); backend on Render Starter via `render.yaml` (free tiers are too slow for the solver; a Docker/Hugging Face alternative is in `backend/Dockerfile`). Steps: `docs/deploy.md`.
 
 ## Layout
 

@@ -1,3 +1,5 @@
+# Optional alternative host (Docker Spaces need Hugging Face PRO since 2026). Skipped unless the
+# repository variable HF_SPACE is set.
 # Copies backend/ to the Hugging Face Space on every push that changes it; the Space then
 # rebuilds the container. Needs the repository secret HF_TOKEN (a Hugging Face "write" token)
 # and the repository variable HF_SPACE (e.g. "your-hf-username/fpl-planner-api").
@@ -15,6 +17,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: ${{ vars.HF_SPACE != '' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

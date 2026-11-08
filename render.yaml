@@ -1,11 +1,12 @@
-# Render Blueprint for the FastAPI backend (free plan). The frontend is on Vercel and proxies
+# Render Blueprint for the FastAPI backend (Starter plan, $7/month: the free plan's 0.1 CPU is too
+# slow for the solver, see docs/deploy.md). The frontend is on Vercel and proxies
 # /api/* here, so browsers never call this service or FPL directly.
 # Setup steps: docs/deploy.md. The Claude key is entered in Render's dashboard, never committed.
 services:
   - type: web
     name: fpl-planner-api
     runtime: python
-    plan: free
+    plan: starter
     rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT
@@ -18,3 +19,5 @@ services:
         sync: false # asked for when the Blueprint is created
       - key: EXPLAIN_DAILY_CALLS
         value: "200"
+      - key: SOLVER_TIME_SCALE # Starter has about half a laptop core; give the solver twice the time
+        value: "2"
