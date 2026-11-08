@@ -52,11 +52,13 @@ Added 9 Nov 2026 (Nikhil's request).
 
 **Rules (from FPL's data).** Since 2025/26, every manager gets each chip twice: Wildcard, Free Hit, Bench Boost and Triple Captain once for GW1–19 and once for GW20–38. A chip not played by the end of its half is lost, and only one chip can be played per gameweek. `chips.py` works out the chips left from `bootstrap-static.chips` and the manager's history.
 
-**Bench Boost and Triple Captain: the planner chooses the week.** Each available chip gets one yes/no decision per gameweek in the plan.
-- Triple Captain adds the captain's points again.
-- Bench Boost adds the bench's points at full value.
+**Bench Boost and Triple Captain: the planner chooses the week, after solving.** First the transfers, lineups and captains are solved. Then, for each Bench Boost or Triple Captain left, every week of the plan gets a value:
+- Bench Boost: the bench's points
+- Triple Captain: the captain's points again
 
-A chip kept for later is worth something. The objective subtracts a *keep value* for each chip the plan plays: 8 xPts for Bench Boost and 6 for Triple Captain, roughly a good future use. The keep value is scaled by the weeks left in the chip's half after the plan ends (`min(1, weeks left / 6)`), so a chip about to expire is played rather than wasted. The planner only plays a chip when that week beats keeping it. Users can switch this off ("don't play").
+Each is weighted like the objective (strategy weight, decay). The chip is played in its best week, best first, with one chip per week, but only if that beats the chip's *keep value*: 8 xPts for Bench Boost and 6 for Triple Captain, roughly a good future use. The keep value is scaled by the weeks left in the chip's half after the plan ends (`min(1, weeks left / 6)`), so a chip about to expire is played rather than wasted. Users can switch this off ("don't play").
+
+*Why after, not inside the model (9 Nov 2026):* the first version decided these chips inside the MILP. That made it much harder to solve. On Render's half CPU, Plan 1's transfers dropped from +14.2 to about +0.7, with the Bench Boost hiding it, and one plan came back as "roll +0.0". Deciding them afterwards costs no solver time. What's lost is buying bench players just for a Bench Boost week, which is a small loss.
 
 **Wildcard and Free Hit: you choose, the planner advises.** A Wildcard's benefit lasts long after a 4-week plan ends, so a 4-week model deciding on its own would be guessing. The user picks the gameweek (`wildcard=` / `freehit=` on `/api/plans`):
 - **Wildcard:** unlimited free transfers that week with no hits. The banked free transfers are kept, with no +1. The new squad stays.
@@ -66,7 +68,7 @@ A chip kept for later is worth something. The objective subtracts a *keep value*
 
 **Reported numbers.** A plan's xPts gain includes chip points, and each chip week shows the points the chip adds (`chip_xpts`), so "+27.1, of which Bench Boost +12.9" is visible. `validate()` checks the chip rules independently: chips available, each used once per half, no hits in Wildcard or Free Hit weeks, Free Hit affordability, and free transfers kept.
 
-**Speed.** Chips add about a second per plan set on a laptop: 4.0 s against 2.9 s on Nikhil's squad. Plans with chips are often "best found within the time limit" rather than proven best.
+**Speed.** Bench Boost and Triple Captain cost nothing extra, since they're decided after solving. A chosen Free Hit adds a one-week squad to the model: about 4 s against 3 s on a laptop.
 
 ## Reported numbers
 

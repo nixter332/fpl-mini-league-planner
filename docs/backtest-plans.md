@@ -83,6 +83,8 @@ What it means:
    The real managers played only Wildcards (8) and one Free Hit in this window, and still hold Bench Boost and Triple Captain for GW10–19. So the planner has simply spent more chips. The fair comparison is at GW19, when everyone must have used their first-half chips.
 3. **The Wildcard bar is too low.** "Play it if it beats the best plan by 6 xPts over the horizon" fires almost every week early in the season, because a rebuild after a few weeks of data always looks better on paper. The "chips this week" card in the app only reports the number and doesn't recommend playing. Its threshold should still be raised before it's used as advice, and the GW19 rerun is how we'll tune it, along with the Bench Boost and Triple Captain keep values (8 and 6).
 
+*Note:* this run decided Bench Boost and Triple Captain inside the model. The app now decides them after solving (see `docs/optimizer.md` → Chips), so the GW19 rerun will measure that version.
+
 **Next for chips:** rerun after GW19 over GW5–19, with chips matched and with the planner choosing. By then every first-half chip has been used, and saved injury news covers GW11 onwards.
 
 ## Next

@@ -8,14 +8,16 @@ ownership split agreed with Nikhil):
                                                  + bench_weight_p * (squad[p,g] - start[p,g]) )
               - hit_cost * sum_g hits[g]
               + ft_value * free transfers still held after the last GW
-              + chip points (Triple Captain: the captain again; Bench Boost: the bench)
-              - keep value of each chip the plan plays
+              + chip points for chips played in forced weeks (Triple Captain: the captain
+                again; Bench Boost: the bench)
 
-Chips (docs/optimizer.md -> Chips): Bench Boost and Triple Captain are played when the planner
-finds a week worth more than keeping the chip; a kept chip is worth `chip_keep` points, scaled
-down as its window runs out (use it or lose it). Wildcard and Free Hit are only played in the
-gameweeks the user chooses (`forced_chips`): their value lasts beyond the horizon, so a 4-week
-model would be guessing. A Free Hit week has its own squad, and the squad reverts afterwards.
+Chips (docs/optimizer.md -> Chips): Wildcard and Free Hit are only played in the gameweeks the
+user chooses (`forced_chips`), inside the model: their value lasts beyond the horizon, so a 4-week
+model would be guessing when to play them. A Free Hit week has its own squad, which reverts.
+Bench Boost and Triple Captain are assigned *after* solving (`assign_chips`): once the plan's
+squads are fixed, the best week for each is simple arithmetic. Deciding them inside the model
+made it much harder to solve, and on the half-CPU server plans got worse (9 Nov 2026). A chip is
+played only if its week beats keeping it (`chip_keep`, scaled down as its window runs out).
 
 bench_weight_p is 0 for goalkeepers: a backup keeper almost never plays, so upgrading him is
 worth nothing. Without ft_value a spare free transfer looked free, so the solver spent it on
@@ -203,8 +205,6 @@ def solve(
                 continue
             if forced.get(g) == win.name:
                 use[wi, g] = 1
-            elif win.name in settings.auto_chips and g not in forced:
-                use[wi, g] = prob.add_variable(f"chip_{wi}_{g}", cat="Binary")
     for wi in range(len(settings.chips)):
         played = [use[wi, g] for g in G if (wi, g) in use]
         if played:
@@ -253,14 +253,7 @@ def solve(
                 terms.append(d * x * cap_w * tcap[p, g])
             if (p, g) in bbp:
                 terms.append(d * x * (start_w - bench_w) * bbp[p, g])
-    keep_cost = [
-        settings.keep_value(win) * use[wi, g]
-        for (wi, g), _ in use.items()
-        for win in [settings.chips[wi]]
-        if win.name in settings.auto_chips and forced.get(g) != win.name
-    ]
-    prob += (pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values()) + settings.ft_value * ft_end
-             - pulp.lpSum(keep_cost))
+    prob += pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values()) + settings.ft_value * ft_end
 
     for g in tc_gws:
         prob += pulp.lpSum(tcap[p, g] for p in P) == pulp.lpSum(chip_at(TRIPLE_CAPTAIN, g))
@@ -373,12 +366,7 @@ def solve(
         return (var.value() or 0) > 0.5
 
     def played(g: int) -> str | None:
-        if g in forced:
-            return forced[g]
-        for (wi, gg), v in use.items():
-            if gg == g and not isinstance(v, int) and on(v):
-                return settings.chips[wi].name
-        return None
+        return forced.get(g)
 
     gameweeks = []
     ft_now = min(state.free_transfers, settings.max_free_transfers)
@@ -414,7 +402,46 @@ def solve(
         if chip not in TRANSFER_CHIPS:
             free_used = len(ins) - gameweeks[-1].hits
             ft_now = min(ft_now - free_used + 1, settings.max_free_transfers)
+    gameweeks = assign_chips(gameweeks, players, settings, ownership)
     return Solution(tuple(gameweeks), float(pulp.value(prob.objective)), float(prob.solutionTime), proven)
+
+
+def assign_chips(
+    gameweeks: list[GameweekSolution], players: dict[int, PoolPlayer], settings: Settings, ownership: LeagueOwnership = NO_RIVALS,
+) -> list[GameweekSolution]:
+    """Play Bench Boost / Triple Captain in the plan's best weeks, if those beat keeping them.
+
+    A week's value is what the chip adds there (the bench, or the captain again), weighted like
+    the objective (strategy weight, decay). Greedy, best first: one chip per week, each chip once."""
+    w = settings.weight
+    used_windows = {
+        i for i, win in enumerate(settings.chips) for g in gameweeks if g.chip == win.name and win.covers(g.gw)
+    }
+    options = []
+    for wi, win in enumerate(settings.chips):
+        if win.name not in settings.auto_chips or wi in used_windows:
+            continue
+        for k, g in enumerate(gameweeks):
+            if g.chip is not None or not win.covers(g.gw):
+                continue
+            x = lambda p: players[p].xpts.get(g.gw, 0.0)
+            if win.name == TRIPLE_CAPTAIN:
+                value = x(g.captain) * (1 - w * min(ownership.captain_share(g.captain), 1.0))
+            elif win.name == BENCH_BOOST:
+                value = sum(x(p) * (1 - w * min(ownership.start_share(p), 1.0)) for p in g.bench)
+            else:
+                continue
+            gain = settings.decay**k * value - settings.keep_value(win)
+            if gain > 0:
+                options.append((gain, wi, k))
+    chosen: dict[int, str] = {}
+    windows: set[int] = set()
+    for gain, wi, k in sorted(options, reverse=True):
+        if k in chosen or wi in windows:
+            continue
+        chosen[k] = settings.chips[wi].name
+        windows.add(wi)
+    return [replace(g, chip=chosen[k]) if k in chosen else g for k, g in enumerate(gameweeks)]
 
 
 def _set_initial_values(ws: Solution, P, G, squad, start, cap, buy, sell, benched_buy, ft, hits, took_hit, bank) -> None:
