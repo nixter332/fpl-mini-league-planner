@@ -58,6 +58,33 @@ Against the 8 managers who used no wildcard or free hit, Protect with no hits sc
 3. **Saving free transfers (worth 1.5):** no measurable effect either way. With no hits it made the same number of transfers (107). We keep it because it stops the transfers Nikhil flagged, such as swapping a backup keeper who never plays.
 4. **Transfers in general** add only a few points over five weeks compared with keeping the squad, and without injury news the planner gives back some of that gain. In the app, with live injury news, it should do better. We'll know more once more weeks are played.
 
+## Chips (9 Nov 2026)
+
+The same 17 managers, GW5–GW9, no hits. The run also fixed a leak: simulated squads may now only contain players who existed that week. Wildcards had let the planner buy players added to the game later. Earlier runs had none of these: 0 of 891 transfers.
+
+| Way of playing | Avg points | vs real manager | vs no transfers | Beat the real manager |
+| --- | --- | --- | --- | --- |
+| What managers really did | 258.8 | | +10.4 | |
+| Keep the GW4 squad | 248.4 | −10.4 | 0.0 | 7 of 17 |
+| Protect, no hits, no chips | 253.2 | −5.5 | +4.8 | 6 of 17 |
+| **Protect, no hits, chips matched** | **258.9** | **+0.1** (±15) | +10.5 | 6 of 17 |
+| Balanced, no hits, chips matched | 254.9 | −3.9 | +6.5 | 7 of 17 |
+| Protect, no hits, planner chooses chips | 273.5 | +14.8 (±19) | +25.1 | 11 of 17 |
+
+The scorer also matched FPL exactly on every real Bench Boost and Triple Captain week in these leagues (6 of 6), on top of the 113 normal weeks.
+
+What it means:
+
+1. **Chips matched is the fair test.** The planner gets the same chip in the same week as each real manager. It then scores level with the real managers. With chip timing taken out, its transfers, XI and captains are as good as these managers' were.
+2. **"Planner chooses chips" isn't a fair win yet.**
+   - It played a Wildcard in GW5 for 16 of the 17 managers.
+   - It played Bench Boost in GW6 and Triple Captain in GW7 for 10 of them.
+
+   The real managers played only Wildcards (8) and one Free Hit in this window, and still hold Bench Boost and Triple Captain for GW10–19. So the planner has simply spent more chips. The fair comparison is at GW19, when everyone must have used their first-half chips.
+3. **The Wildcard bar is too low.** "Play it if it beats the best plan by 6 xPts over the horizon" fires almost every week early in the season, because a rebuild after a few weeks of data always looks better on paper. The "chips this week" card in the app only reports the number and doesn't recommend playing. Its threshold should still be raised before it's used as advice, and the GW19 rerun is how we'll tune it, along with the Bench Boost and Triple Captain keep values (8 and 6).
+
+**Next for chips:** rerun after GW19 over GW5–19, with chips matched and with the planner choosing. By then every first-half chip has been used, and saved injury news covers GW11 onwards.
+
 ## Next
 
 From GW11, FPL's injury news is saved before every deadline (`backend/data/news/`, by a scheduled GitHub Action), so later backtests can switch injury news back on with exactly what managers knew. Give the simulated planner the same chips in the same weeks as each real manager (chip-matching), so the comparison is fair.
