@@ -31,14 +31,14 @@ test("league link → pick yourself → team → plans → plan detail", async (
   await shot(page, "04-team-gw2-rivals-own");
 
   await page.getByRole("link", { name: "See transfer plans" }).click();
-  await expect(page.getByTestId("plan-card")).toHaveCount(3);
+  await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
   await expect(page).toHaveURL(/strategy=protect/); // Nikhil is 1st, so plans start on Protect lead
   await shot(page, "05-plans-protect");
 
   await page.getByRole("group", { name: "Strategy" }).getByRole("button", { name: "Risky" }).click();
   await expect(page).toHaveURL(/strategy=risky/);
   await expect(page.getByRole("heading", { name: /Transfer plans · GW/ })).toBeVisible();
-  await expect(page.getByTestId("plan-card")).toHaveCount(3);
+  await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
   await shot(page, "06-plans-risky");
 
   await page.getByRole("link", { name: "View on pitch →" }).first().click();
@@ -71,7 +71,7 @@ test.describe("reasons", () => {
   test("Claude reasons on the plans and plan detail", async ({ page }) => {
     test.setTimeout(240_000);
     await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=balanced&horizon=4&hits=0`);
-    await expect(page.getByTestId("plan-card")).toHaveCount(3);
+    await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
     await expect(page.getByTestId("why")).toHaveCount(3, { timeout: 180_000 });
     await shot(page, "11-plans-reasons");
     await page.getByRole("link", { name: "View on pitch →" }).first().click();
@@ -86,7 +86,7 @@ test("chips: chips left, advice and playing your Free Hit", async ({ page }) => 
   await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
   await expect(page.getByTestId("chips-left")).toContainText("Free Hit");
   await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
-  await expect(page.getByTestId("plan-card")).toHaveCount(3);
+  await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
   await expect(page.getByTestId("chip-controls")).toBeVisible();
   await expect(page.getByTestId("chip-advice")).toBeVisible({ timeout: 120_000 });
   await shot(page, "13-plans-chips");
