@@ -217,6 +217,7 @@ class EntryClassicLeague(FPLModel):
     name: str
     league_type: str  # "x" private, "s" system (overall, country, club)
     entry_rank: int | None
+    rank_count: int | None = None  # number of managers in the league
 
 
 class EntryLeagues(FPLModel):
