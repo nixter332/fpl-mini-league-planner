@@ -3,6 +3,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 const python = path.resolve(__dirname, "../backend/.venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
 
+// Claude reasons cost money, so the backend runs with the key blanked unless E2E_CLAUDE=1.
+const backendEnv: Record<string, string> = { ...(process.env as Record<string, string>) };
+if (!process.env.E2E_CLAUDE) backendEnv.ANTHROPIC_API_KEY = "";
+
 // Walks the real journey on a phone-sized screen and saves screenshots to e2e/screenshots/.
 // Starts the FastAPI backend (cached FPL client) and the built Next.js app.
 export default defineConfig({
@@ -21,6 +25,7 @@ export default defineConfig({
     {
       command: `"${python}" -m uvicorn app.api.main:app --port 8000`,
       cwd: "../backend",
+      env: backendEnv,
       url: "http://127.0.0.1:8000/health",
       reuseExistingServer: true,
       timeout: 60_000,

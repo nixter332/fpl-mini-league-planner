@@ -5,7 +5,10 @@ const TEAM = process.env.E2E_TEAM ?? "5179483";
 const LEAGUE = process.env.E2E_LEAGUE ?? "1883627";
 const shot = (page: Page, name: string) => page.screenshot({ path: `e2e/screenshots/${name}.png`, fullPage: true });
 
+const claudeOnly = !!process.env.E2E_CLAUDE; // with E2E_CLAUDE=1 only the reasons test runs, to keep Claude calls few
+
 test("league link → pick yourself → team → plans → plan detail", async ({ page }) => {
+  test.skip(claudeOnly);
   await page.goto("/");
   await expect(page.getByRole("heading", { name: /Beat your mini-league/ })).toBeVisible();
   await shot(page, "01-main");
@@ -32,6 +35,8 @@ test("league link → pick yourself → team → plans → plan detail", async (
   await shot(page, "05-plans-balanced");
 
   await page.getByRole("group", { name: "Strategy" }).getByRole("button", { name: "Risky" }).click();
+  await expect(page).toHaveURL(/strategy=risky/);
+  await expect(page.getByRole("heading", { name: /Transfer plans · GW/ })).toBeVisible();
   await expect(page.getByTestId("plan-card")).toHaveCount(3);
   await shot(page, "06-plans-risky");
 
@@ -44,6 +49,7 @@ test("league link → pick yourself → team → plans → plan detail", async (
 });
 
 test("team ID, light theme and a bad link", async ({ page }) => {
+  test.skip(claudeOnly);
   await page.goto("/");
   await page.getByLabel("Paste a link or team ID").fill("https://example.com/not-fpl");
   await page.getByRole("button", { name: "Find" }).click();
@@ -55,4 +61,20 @@ test("team ID, light theme and a bad link", async ({ page }) => {
   await expect(page.getByTestId("pitch-player")).toHaveCount(11);
   await page.getByRole("button", { name: "Switch to light mode" }).click();
   await shot(page, "10-team-light");
+});
+
+// E2E_CLAUDE=1 npx playwright test -g reasons
+// Uses real Claude reasons for the Balanced plans (cached after the first run).
+test.describe("reasons", () => {
+  test.skip(!process.env.E2E_CLAUDE, "Set E2E_CLAUDE=1 to include Claude reasons (costs a few cents the first time).");
+  test("Claude reasons on the plans and plan detail", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=balanced&horizon=4&hits=1`);
+    await expect(page.getByTestId("plan-card")).toHaveCount(3);
+    await expect(page.getByTestId("why")).toHaveCount(3, { timeout: 180_000 });
+    await shot(page, "11-plans-reasons");
+    await page.getByRole("link", { name: "View on pitch →" }).first().click();
+    await expect(page.getByTestId("why")).toHaveCount(1);
+    await shot(page, "12-plan-detail-reason");
+  });
 });
