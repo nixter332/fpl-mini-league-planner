@@ -188,3 +188,35 @@ def test_transfers_pair_like_for_like(plan_sets, pool) -> None:
                 pairs = paired_transfers(gw, players)
                 assert len(pairs) == len(gw.transfers_in)
                 assert all(players[o].position == players[i].position for o, i in pairs)
+
+
+# ---- bench and free transfers (Nikhil's feedback, 8 Nov 2026) ------------------------------
+
+
+def _bench_gk(sol, pool) -> int:
+    players = _players(pool)
+    return next(p for p in sol.squad if players[p].position == 1 and p not in sol.starting)
+
+
+def test_no_transfer_is_spent_on_the_backup_keeper(plan_sets, pool, manager_state) -> None:
+    """A backup keeper never plays, so no plan should buy one to sit on the bench."""
+    players = _players(pool)
+    for ps in plan_sets.values():
+        for plan in ps.plans:
+            for gw in plan.solution.gameweeks:
+                for p in gw.transfers_in:
+                    if players[p].position == 1:
+                        assert p in gw.starting, f"GW{gw.gw}: bought keeper {p} for the bench"
+
+
+def test_a_tiny_gain_is_not_worth_a_free_transfer(pool, manager_state) -> None:
+    """With one free transfer and a one-week horizon, a move must beat the value of saving it."""
+    gw = GWS[:1]
+    keep = solve(pool, manager_state, Settings(gw, strategy="protect"), no_transfers=True)
+    best = solve(pool, manager_state, Settings(gw, strategy="protect"))
+    plan_xpts = lambda s: sum(_players(pool)[p].xpts.get(gw[0], 0) for p in s.first.starting) + _players(pool)[s.first.captain].xpts.get(gw[0], 0)
+    if best.first.transfers_in:
+        assert plan_xpts(best) - plan_xpts(keep) >= Settings(gw).ft_value - 1e-6
+    # And with saving made worthless, the solver is free to make smaller moves again.
+    loose = solve(pool, manager_state, Settings(gw, strategy="protect", ft_value=0.0))
+    assert plan_xpts(loose) >= plan_xpts(best) - 1e-6

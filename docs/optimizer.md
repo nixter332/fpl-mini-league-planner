@@ -26,16 +26,21 @@ Code: `backend/app/optimizer/`. Command-line tool: `python -m scripts.plan` (see
 ```
 maximise  Σ_g 0.9^g · Σ_p xPts[p,g] · ( (1 − w·start_share_p) · start[p,g]
                                       + (1 − w·captain_share_p) · captain[p,g]
-                                      + 0.1 · bench[p,g] )
+                                      + 0.1 · bench[p,g] )          (bench weight 0 for goalkeepers)
           − 4 · hits
+          + 1.5 · free transfers still held after the last gameweek
 subject to  plan xPts (XI + captain − 4·hits, undiscounted) ≥ no-transfer baseline xPts   (do no harm)
 ```
 
 | Strategy | w | What it does on Nikhil's squad (GW11–14, 2 rivals) |
 | --- | --- | --- |
-| Protect | 0 | Pure points. Captains Haaland every week. **+16.7 xPts** compared with no transfers. |
-| Balanced | 0.15 | Same first transfers as Protect, but captains differentials (Van Hecke, De Cuyper, Tavernier). +10.7 xPts. |
-| Risky | 0.33 | Takes a −4 hit for an extra differential and captains differentials. +6.6 xPts, with the most differential points. |
+| Protect | 0 | Pure points. Captains Haaland every week, keeps Raya and Bentley, and goes into GW14 with 2 free transfers. **+14.2 xPts** compared with no transfers. |
+| Balanced | 0.15 | Takes a −4 hit for an extra differential and captains differentials (Van Hecke, De Cuyper, Tavernier). +10.7 xPts. |
+| Risky | 0.33 | A −4 hit that also swaps Raya for Trafford, and differential captains. +7.5 xPts, with the most differential points. |
+
+**Bench and saved transfers** (changed 8 Nov 2026 after Nikhil's review). The bench counts for 10% of its xPts because outfield subs do come on, but a backup goalkeeper counts 0: he almost never plays. Each free transfer still held after the horizon is worth 1.5 xPts. Before this, a spare free transfer was worth nothing to the solver, so it spent one swapping the injured backup keeper Bentley for Trafford, who would also never play. Now a transfer has to beat the value of saving it. The 1.5 is a common rule of thumb; the plan backtest (`docs/backtest-plans.md`) checks it.
+
+**Default strategy.** The app starts managers who are 1st in their league on Protect lead and everyone else on Balanced. In expectation, rivals' points don't depend on your team, so a differential captain gives up expected points for swing. That suits a chaser, not a leader. In Nikhil's league, captaining Van Hecke (5.6) over Haaland (6.4), whom both rivals captain, costs about 0.8 points against both rivals on average.
 
 Why the dial is gentler than the original spec (0 / 0.5 / 1): at 0.5, Balanced's best plan was 2.6 xPts *worse* than doing nothing, and at 1, Risky benched Haaland every week, because both rivals start him and that made his weight 0. The decision was made with Nikhil on 8 Nov 2026 and is recorded in `docs/SPEC.md`.
 

@@ -5,8 +5,13 @@ ownership split agreed with Nikhil):
 
     maximise  sum_g decay^g * sum_p xPts[p,g] * ( (1 - w*start_p) * start[p,g]
                                                  + (1 - w*captain_p) * captain[p,g]
-                                                 + bench_weight * (squad[p,g] - start[p,g]) )
+                                                 + bench_weight_p * (squad[p,g] - start[p,g]) )
               - hit_cost * sum_g hits[g]
+              + ft_value * free transfers still held after the last GW
+
+bench_weight_p is 0 for goalkeepers: a backup keeper almost never plays, so upgrading him is
+worth nothing. Without ft_value a spare free transfer looked free, so the solver spent it on
+bench upgrades (Nikhil, 8 Nov 2026: "I don't want to waste a transfer on a player I never use").
 
 w is the strategy weight: Protect 0 (pure points), Balanced 0.15, Risky 0.33. The vice-captain is
 picked after solving as the best other starter (keeping him out of the MILP makes it faster).
@@ -55,7 +60,8 @@ class Settings:
     strategy: str = "balanced"
     max_hits: int = 0  # total over the whole horizon, not per GW
     decay: float = 0.9
-    bench_weight: float = 0.1
+    bench_weight: float = 0.1  # outfield subs only; backup goalkeepers count 0
+    ft_value: float = 1.5  # xPts per free transfer still held after the horizon
     hit_cost: int = 4
     max_free_transfers: int = MAX_FREE_TRANSFERS
     time_limit: float = 20.0  # per solve; make_plans sets tighter limits from its budget
@@ -153,6 +159,11 @@ def solve(
     took_hit = {g: prob.add_variable(f"took_hit_{g}", cat="Binary") for g in G}
     bank = {g: prob.add_variable(f"bank_{g}", 0) for g in G}
 
+    # Free transfers carried past the horizon (same rule as between GWs; maximising keeps it tight)
+    g_last = G[-1]
+    ft_end = prob.add_variable("ft_end", 0, settings.max_free_transfers)
+    prob += ft_end <= ft[g_last] - (pulp.lpSum(buy[p, g_last] for p in P) - hits[g_last]) + 1
+
     # Objective
     terms = []
     for k, g in enumerate(G):
@@ -161,11 +172,11 @@ def solve(
             x = players[p].xpts.get(g, 0.0)
             start_w = 1 - w * min(ownership.start_share(p), 1.0)
             cap_w = 1 - w * min(ownership.captain_share(p), 1.0)
+            bench_w = 0.0 if players[p].position == GKP else settings.bench_weight
             terms.append(
-                d * x * (start_w * start[p, g] + cap_w * cap[p, g]
-                         + settings.bench_weight * (squad[p, g] - start[p, g]))
+                d * x * (start_w * start[p, g] + cap_w * cap[p, g] + bench_w * (squad[p, g] - start[p, g]))
             )
-    prob += pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values())
+    prob += pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values()) + settings.ft_value * ft_end
 
     for k, g in enumerate(G):
         n_transfers = pulp.lpSum(buy[p, g] for p in P)
