@@ -22,6 +22,7 @@ class LeagueOwnership:
     start: dict[int, float] = field(default_factory=dict)
     captain: dict[int, float] = field(default_factory=dict)
     eo: dict[int, float] = field(default_factory=dict)  # classic: sum of multipliers / rivals
+    owned: dict[int, int] = field(default_factory=dict)  # rivals with him anywhere in their 15 (for "owned x/N")
 
     def start_share(self, element: int) -> float:
         return self.start.get(element, 0.0)
@@ -40,8 +41,10 @@ def league_ownership(rival_picks: Iterable[EntryPicks]) -> LeagueOwnership:
     starts: Counter[int] = Counter()
     captains: Counter[int] = Counter()
     multipliers: Counter[int] = Counter()
+    owned: Counter[int] = Counter()
     for team in picks:
         for p in team.picks:
+            owned[p.element] += 1
             multipliers[p.element] += p.multiplier
             if p.multiplier >= 1:
                 starts[p.element] += 1
@@ -53,4 +56,5 @@ def league_ownership(rival_picks: Iterable[EntryPicks]) -> LeagueOwnership:
         start={e: c / n for e, c in starts.items()},
         captain={e: c / n for e, c in captains.items()},
         eo={e: m / n for e, m in multipliers.items()},
+        owned=dict(owned),
     )
