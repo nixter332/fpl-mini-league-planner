@@ -8,8 +8,10 @@ export interface Club { id: number; short_name: string; name: string; kit: Kit }
 
 export interface Member { entry: number; player_name: string; entry_name: string; rank: number; total: number }
 export interface ResolveResponse {
-  type: "team" | "league";
+  type: "team" | "league" | "choice"; // choice: a number that is both a team and a league
   id: number;
+  team_name: string | null;
+  manager_name: string | null;
   league_name: string | null;
   members: Member[];
   more_members: boolean;

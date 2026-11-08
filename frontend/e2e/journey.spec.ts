@@ -13,7 +13,7 @@ test("league link → pick yourself → team → plans → plan detail", async (
   await expect(page.getByRole("heading", { name: /Beat your mini-league/ })).toBeVisible();
   await shot(page, "01-main");
 
-  await page.getByLabel("Paste a link or team ID").fill(`fantasy.premierleague.com/leagues/${LEAGUE}/standings/c`);
+  await page.getByLabel("Paste a link or ID").fill(`fantasy.premierleague.com/leagues/${LEAGUE}/standings/c`);
   await page.getByRole("button", { name: "Find" }).click();
   const members = page.getByTestId("league-members");
   await expect(members).toBeVisible();
@@ -52,12 +52,12 @@ test("league link → pick yourself → team → plans → plan detail", async (
 test("team ID, light theme and a bad link", async ({ page }) => {
   test.skip(claudeOnly);
   await page.goto("/");
-  await page.getByLabel("Paste a link or team ID").fill("https://example.com/not-fpl");
+  await page.getByLabel("Paste a link or ID").fill("https://example.com/not-fpl");
   await page.getByRole("button", { name: "Find" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "We accept" })).toBeVisible();
   await shot(page, "09-main-bad-link");
 
-  await page.getByLabel("Paste a link or team ID").fill(TEAM);
+  await page.getByLabel("Paste a link or ID").fill(TEAM);
   await page.getByRole("button", { name: "Find" }).click();
   await expect(page.getByTestId("pitch-player")).toHaveCount(11);
   await page.getByRole("button", { name: "Switch to light mode" }).click();
@@ -96,4 +96,25 @@ test("chips: chips left, advice and playing your Free Hit", async ({ page }) => 
   await expect(page).toHaveURL(new RegExp(`freehit=${firstGw}`));
   await expect(page.getByTestId("plan-chips").first()).toContainText(`Free Hit · GW${firstGw}`, { timeout: 120_000 });
   await shot(page, "14-plans-free-hit");
+});
+
+test("league by new-style link and by number", async ({ page }) => {
+  test.skip(claudeOnly);
+  await page.goto("/");
+  await page.getByLabel("Paste a link or ID").fill(`https://fantasy.premierleague.com/en/leagues/${LEAGUE}/standings/c`);
+  await page.getByRole("button", { name: "Find" }).click();
+  await expect(page.getByTestId("league-members")).toBeVisible();
+
+  await page.getByLabel("Paste a link or ID").fill(LEAGUE);
+  await page.getByRole("button", { name: "Find" }).click();
+  // The number may also be someone's team ID; then the app asks which was meant.
+  const choice = page.getByTestId("resolve-choice");
+  const members = page.getByTestId("league-members");
+  await expect(choice.or(members)).toBeVisible();
+  if (await choice.isVisible()) {
+    await shot(page, "15-main-team-or-league");
+    await choice.getByRole("button", { name: /League/ }).click();
+  }
+  await expect(members).toBeVisible();
+  await expect(members).toContainText("Nikhil");
 });

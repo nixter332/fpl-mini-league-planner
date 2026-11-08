@@ -14,6 +14,7 @@ export default function MainPage() {
   const [error, setError] = useState<string | null>(null);
   const [league, setLeague] = useState<ResolveResponse | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
+  const [choice, setChoice] = useState<ResolveResponse | null>(null);
   const [slow, setSlow] = useState(false);
 
   // Free hosting sleeps when idle; start waking the backend while the user pastes their link.
@@ -28,10 +29,12 @@ export default function MainPage() {
     const timer = setTimeout(() => setSlow(true), 4000);
     setError(null);
     setLeague(null);
+    setChoice(null);
     setPicked(null);
     try {
       const res = await resolveInput(input.trim());
       if (res.type === "team") router.push(`/team/${res.id}`);
+      else if (res.type === "choice") setChoice(res);
       else setLeague(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
@@ -55,7 +58,7 @@ export default function MainPage() {
       </div>
 
       <form onSubmit={find} className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-4">
-        <label htmlFor="team-link" className="text-[13px] font-semibold">Paste a link or team ID</label>
+        <label htmlFor="team-link" className="text-[13px] font-semibold">Paste a link or ID</label>
         <div className="flex gap-2">
           <input
             id="team-link"
@@ -71,7 +74,7 @@ export default function MainPage() {
             {busy ? "Finding…" : "Find"}
           </button>
         </div>
-        <div className="text-[12.5px] leading-[1.45] text-text3">Works with your team link, your team ID, or your mini-league&apos;s link.</div>
+        <div className="text-[12.5px] leading-[1.45] text-text3">Works with your team or mini-league link, or just the ID number.</div>
         {busy && slow && (
           <div className="text-[12.5px] leading-[1.45] text-text2" role="status">
             Waking up the server. It sleeps when nobody&apos;s used it for a while, so the first visit can take up to a minute.
@@ -81,10 +84,35 @@ export default function MainPage() {
 
       {error && <ErrorBox message={error} />}
 
+      {choice && (
+        <div className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-accent-line bg-surface px-3.5 pb-3 pt-3.5" data-testid="resolve-choice">
+          <div className="text-[15px] font-semibold">{choice.id} is both a team and a league. Which did you mean?</div>
+          <button
+            type="button"
+            onClick={() => router.push(`/team/${choice.id}`)}
+            className="flex min-h-12 w-full flex-col items-start justify-center rounded-[10px] border border-line px-3 py-1.5 text-left"
+          >
+            <span className="text-xs text-text3">Team</span>
+            <span className="text-sm font-semibold text-text">{choice.team_name} · {choice.manager_name}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setLeague({ ...choice, type: "league" });
+              setChoice(null);
+            }}
+            className="flex min-h-12 w-full flex-col items-start justify-center rounded-[10px] border border-line px-3 py-1.5 text-left"
+          >
+            <span className="text-xs text-text3">League</span>
+            <span className="text-sm font-semibold text-text">{choice.league_name}</span>
+          </button>
+        </div>
+      )}
+
       {league && (
         <div className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-accent-line bg-surface px-3.5 pb-3 pt-3.5" data-testid="league-members">
           <div className="flex flex-col gap-0.5">
-            <div className="text-xs font-semibold text-good">League link found</div>
+            <div className="text-xs font-semibold text-good">League found</div>
             <div className="text-[15px] font-semibold">
               {league.league_name} · {league.members.length}
               {league.more_members ? "+" : ""} managers. Which one is you?
