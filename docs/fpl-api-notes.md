@@ -15,6 +15,8 @@ Base URL: `https://fantasy.premierleague.com/api/`. Every endpoint below is publ
 | Team strength | `strength` is **null** and `strength_attack_*` / `strength_defence_*` are **all 0** this season. Only `strength_overall_home` / `_away` (1–5) have values. The `win`, `draw`, `loss`, `points` and `played` fields are 0 too. Team strength must be built from fixture results. |
 | Free-transfer cap | `game_config.rules.max_extra_free_transfers = 4`, so at most 5 can be banked. |
 | Sell-on fee | `game_config.rules.transfers_sell_on_fee = 0.5` and `element_sell_at_purchase_price = false`, so you keep half of any price rise. |
+| `ep_next` and `form` | `ep_next` = `form` × `chance_of_playing_next_round` / 100 (669/671 players). `form` = the player's points in GWs whose **deadline** fell in the last 30 days ÷ the number of fixtures his team had in those GWs (671/671 exact, including the in-progress GW). So FPL's `ep_next` can be rebuilt for any past GW from live data (see `docs/model.md`). |
+| `ep_this` | After the deadline it equals `ep_next` for 660/671 players, so it's **not** a frozen pre-deadline prediction for the current GW. Don't use it as a benchmark. |
 | Decimal fields | Many are **strings**, e.g. `expected_goals: "0.45"`, `selected_by_percent`, `form`, `ep_next`, `influence`. The `*_per_90` fields are real numbers. The models convert the strings to float. |
 
 ## Endpoints

@@ -51,7 +51,8 @@ Fill these in as they're created, and keep them current:
 - Set up backend: `cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt` (Windows: `.venv\Scripts\activate`)
 - Run tests: `cd backend && pytest`
 - Run API: `cd backend && uvicorn app.api.main:app --reload`
-- Refresh test fixtures (calls the live FPL API, ~12 throttled requests): `cd backend && python -m scripts.snapshot --team 5179483 --league 1883627`. Tests read `tests/fixtures/manifest.json`, so they follow whatever GW was snapshotted. Update `docs/fpl-api-notes.md` if field names change.
+- Refresh test fixtures (calls the live FPL API, ~10-20 throttled requests; finished GWs come from the cache after the first run): `cd backend && python -m scripts.snapshot --team 5179483 --league 1883627`. Tests read `tests/fixtures/manifest.json`, so they follow whatever GW was snapshotted. Update `docs/fpl-api-notes.md` if field names change.
+- Backtest the xPts model: `cd backend && python -m scripts.backtest` (offline from fixtures; `--live` uses the cached API; `--from 4 --to 9`). Results and method: `docs/model.md`.
 
 ## Code style
 
