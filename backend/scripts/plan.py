@@ -55,6 +55,7 @@ def load_offline(team: int) -> tuple[SeasonData, SquadState, LeagueOwnership, da
         EntryHistory.model_validate(load_fixture(files["history"])),
         [Transfer.model_validate(t) for t in load_fixture(files["transfers"])],
         {e.id: e for e in data.bootstrap.elements},
+        chip_defs=data.bootstrap.chips,
     )
     ownership = league_ownership(EntryPicks.model_validate(load_fixture(n)) for n in files["rival_picks"].values())
     return data, state, ownership, datetime.fromisoformat(manifest["fetched_at"])

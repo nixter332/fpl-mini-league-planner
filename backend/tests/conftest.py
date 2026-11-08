@@ -69,6 +69,7 @@ def manager_state(manifest):
         EntryHistory.model_validate(load_fixture(files["history"])),
         [Transfer.model_validate(t) for t in load_fixture(files["transfers"])],
         {e.id: e for e in bootstrap.elements},
+        chip_defs=bootstrap.chips,
     )
 
 

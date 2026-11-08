@@ -61,7 +61,7 @@ def start_state(entry: int, gw_before: int, picks: dict[int, EntryPicks], histor
     rules = bootstrap.game_config.rules
     state = build_state(entry, picks[gw], gw, truncated_history(history, gw_before),
                         [t for t in transfers if t.event <= gw_before], elements,
-                        rules.transfers_sell_on_fee, rules.max_extra_free_transfers + 1)
+                        rules.transfers_sell_on_fee, rules.max_extra_free_transfers + 1, bootstrap.chips)
     return replace(state, bank=picks[gw_before].entry_history.bank)
 
 

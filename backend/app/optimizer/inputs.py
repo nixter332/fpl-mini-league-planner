@@ -64,7 +64,7 @@ def load_state(client: FPLClient, entry_id: int, bootstrap: Bootstrap, now: date
     elements = {e.id: e for e in bootstrap.elements}
     rules = bootstrap.game_config.rules
     return build_state(entry_id, picks, gw, history, transfers, elements,
-                       rules.transfers_sell_on_fee, rules.max_extra_free_transfers + 1)
+                       rules.transfers_sell_on_fee, rules.max_extra_free_transfers + 1, bootstrap.chips)
 
 
 def top_rivals(client: FPLClient, league_id: int, entry_id: int, n: int = 20) -> list[int]:

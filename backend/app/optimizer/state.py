@@ -4,9 +4,11 @@ The public picks endpoint has no purchase prices, so they're derived from the tr
 history (see docs/fpl-api-notes.md). Transfers made since the last deadline aren't visible.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.fpl.models import Element, EntryHistory, EntryPicks, Transfer
+from app.fpl.models import ChipDef, Element, EntryHistory, EntryPicks, Transfer
+from app.optimizer.chips import ChipWindow, chips_left
 
 MAX_FREE_TRANSFERS = 5
 TRANSFER_CHIPS = {"wildcard", "freehit"}
@@ -26,6 +28,7 @@ class SquadState:
     players: tuple[OwnedPlayer, ...]
     bank: int
     free_transfers: int  # available for the next actionable GW
+    chips: tuple[ChipWindow, ...] = ()  # chips left, with the GWs each can be played in
 
     @property
     def element_ids(self) -> set[int]:
@@ -85,6 +88,7 @@ def build_state(
     elements: dict[int, Element],
     sell_on_fee: float = 0.5,
     max_free: int = MAX_FREE_TRANSFERS,
+    chip_defs: Iterable[ChipDef] = (),
 ) -> SquadState:
     """`picks` must be the manager's real squad: if the latest GW was a free hit, pass the
     previous GW's picks instead (the squad reverts)."""
@@ -99,4 +103,5 @@ def build_state(
         players=players,
         bank=picks.entry_history.bank,
         free_transfers=free_transfers_after(history, max_free),
+        chips=chips_left(chip_defs, history.chips, max((r.event for r in history.current), default=0) + 1),
     )

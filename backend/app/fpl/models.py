@@ -107,12 +107,24 @@ class GameConfig(FPLModel):
     scoring: dict[str, Any]
 
 
+class ChipDef(FPLModel):
+    """One chip and the gameweeks it can be played in (each chip comes twice a season)."""
+
+    id: int
+    name: str  # wildcard, freehit, bboost, 3xc
+    number: int
+    start_event: int
+    stop_event: int
+    chip_type: str
+
+
 class Bootstrap(FPLModel):
     events: list[Event]
     teams: list[Team]
     element_types: list[ElementType]
     elements: list[Element]
     game_config: GameConfig
+    chips: list[ChipDef] = []
 
 
 # ---- fixtures/ --------------------------------------------------------------------------
