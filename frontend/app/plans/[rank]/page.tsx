@@ -6,7 +6,7 @@ import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { BackLink, ErrorBox, Loading, Segmented, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
 import { ApiError, getPlans, readPlanParams } from "@/lib/api";
-import { gwOf, pts, strategyLabel } from "@/lib/format";
+import { CHIP_LABELS, gwOf, pts, strategyLabel } from "@/lib/format";
 import type { PlansResponse, Position } from "@/lib/types";
 
 export default function PlanDetailPage() {
@@ -70,7 +70,7 @@ function PlanDetail() {
 
   const subtitle = [
     first.moves.length ? first.moves.map((m) => `${name(m.player_out)} → ${name(m.player_in)}`).join(", ") : "Roll the transfer",
-    plan.tag === "hit" ? `−${4 * first.hits} hit` : plan.tag === "free" ? "free transfer" : null,
+    first.chip ? CHIP_LABELS[first.chip] : plan.tag === "hit" ? `−${4 * first.hits} hit` : plan.tag === "free" ? "free transfer" : null,
     `captain ${name(first.captain)}`,
   ].filter(Boolean).join(" · ");
 
@@ -89,6 +89,9 @@ function PlanDetail() {
           {strategyLabel(data.strategy)} · Plan {plan.rank}
         </h1>
         <div className="text-[13px] text-text2">{subtitle}</div>
+        {first.chip === "freehit" && (
+          <div className="text-[12.5px] text-text3">A one-week Free Hit squad: your team comes back in GW{first.gw + 1}.</div>
+        )}
       </div>
 
       <Why explanation={explanation} />
@@ -170,6 +173,7 @@ function PlanDetail() {
               <span className="text-right">
                 {g.moves.length ? g.moves.map((m) => `${name(m.player_out)} → ${name(m.player_in)}`).join(", ") : "No transfers"}
                 {g.hits ? ` (−${4 * g.hits})` : ""} · C {name(g.captain)}
+                {g.chip ? ` · ${CHIP_LABELS[g.chip]}` : ""}
               </span>
             </div>
           ))}

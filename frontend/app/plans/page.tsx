@@ -5,9 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BackLink, ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
-import { ApiError, getPlans, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
-import { STRATEGIES, money, signed } from "@/lib/format";
-import type { Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
+import { ApiError, getChipAdvice, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
+import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
+import type { ChipAdvice, ChipName, Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
 
 export default function PlansPage() {
   return (
@@ -22,9 +22,11 @@ function PlansScreen() {
   const search = useSearchParams();
   const params = readPlanParams(search);
   const key = planQuery(params);
-  const [data, setData] = useState<PlansResponse | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; data: PlansResponse } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rivals, setRivals] = useState<RivalsProgress | null>(null);
+  const [advice, setAdvice] = useState<ChipAdvice[] | null>(null);
+  const data = loaded?.data ?? null;
 
   useEffect(() => {
     let live = true;
@@ -34,9 +36,13 @@ function PlansScreen() {
       .then(() => getPlans(params))
       .then((d) => {
         if (!live) return;
-        setData(d);
+        setLoaded({ key, data: d });
         // Warm the other strategies so the dial switches instantly.
         for (const s of STRATEGIES) if (s.key !== params.strategy) getPlans({ ...params, strategy: s.key }).catch(() => {});
+        // Would a Wildcard or Free Hit this week help? (Only when you haven't chosen one.)
+        setAdvice(null);
+        const canPlay = d.chips_left.some((c) => (c.name === "wildcard" || c.name === "freehit") && c.start <= d.gws[0] && d.gws[0] <= c.stop);
+        if (canPlay && params.wildcard === null && params.freehit === null) getChipAdvice(params).then((a) => live && setAdvice(a));
       })
       .catch((e) => live && setError(e instanceof ApiError ? e.message : "Couldn't build plans."));
     return () => {
@@ -45,15 +51,15 @@ function PlansScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  const go = (patch: Partial<PlanParams>) => {
-    const next = { ...params, ...patch };
-    const q = new URLSearchParams({ team: String(next.team), strategy: next.strategy, horizon: String(next.horizon), hits: String(next.hits) });
-    if (next.league !== null) q.set("league", String(next.league));
-    router.replace(`/plans?${q}`);
-  };
+  const go = (patch: Partial<PlanParams>) => router.replace(`/plans?${pageQuery({ ...params, ...patch })}`);
 
   const teamHref = `/team/${params.team}${params.league !== null ? `?league=${params.league}` : ""}`;
-  const current = data && planQuery({ ...params }) === key && data.strategy === params.strategy && data.horizon === params.horizon && data.max_hits === params.hits ? data : null;
+  const current = loaded?.key === key ? loaded.data : null;
+  // Chip choices: only chips you still have, in GWs of this plan.
+  const gws = data?.gws ?? [];
+  const chipGws = (name: ChipName) =>
+    gws.filter((g) => (data?.chips_left ?? []).some((c) => c.name === name && c.start <= g && g <= c.stop));
+  const hasAuto = (data?.chips_left ?? []).some((c) => (c.name === "bboost" || c.name === "3xc") && gws.some((g) => c.start <= g && g <= c.stop));
   const strategy = STRATEGIES.find((s) => s.key === params.strategy)!;
   const gap = data?.standing?.gap_to_first ?? null;
 
@@ -116,7 +122,40 @@ function PlansScreen() {
             </span>
           )}
         </div>
+        {(chipGws("wildcard").length > 0 || chipGws("freehit").length > 0 || hasAuto) && (
+          <div className="flex flex-wrap gap-1.5" data-testid="chip-controls">
+            {(["wildcard", "freehit"] as const).map((name) =>
+              chipGws(name).length > 0 ? (
+                <PillSelect
+                  key={name}
+                  label={CHIP_LABELS[name]}
+                  value={params[name] ?? 0}
+                  options={[
+                    { value: 0, label: `${CHIP_LABELS[name]}: not playing` },
+                    ...chipGws(name)
+                      .filter((g) => g !== (name === "wildcard" ? params.freehit : params.wildcard))
+                      .map((g) => ({ value: g, label: `${CHIP_LABELS[name]}: GW${g}` })),
+                  ]}
+                  onChange={(g) => go({ [name]: g || null })}
+                />
+              ) : null,
+            )}
+            {hasAuto && (
+              <PillSelect
+                label="Bench Boost and Triple Captain"
+                value={params.chips ? 1 : 0}
+                options={[
+                  { value: 1, label: "Bench Boost / Triple Captain: planner decides" },
+                  { value: 0, label: "Bench Boost / Triple Captain: don't play" },
+                ]}
+                onChange={(v) => go({ chips: v === 1 })}
+              />
+            )}
+          </div>
+        )}
       </div>
+
+      {current && advice && advice.length > 0 && <ChipAdviceCard advice={advice} horizon={current.horizon} onPlan={(a) => go({ [a.chip]: a.gw })} />}
 
       {error && <ErrorBox message={error} />}
       {!current && !error && (
@@ -143,6 +182,30 @@ function PlansScreen() {
         </>
       )}
     </main>
+  );
+}
+
+function ChipAdviceCard({ advice, horizon, onPlan }: { advice: ChipAdvice[]; horizon: number; onPlan: (a: ChipAdvice) => void }) {
+  return (
+    <div className="flex flex-col gap-2 rounded-[14px] border border-line bg-surface px-3.5 py-3" data-testid="chip-advice">
+      <div className="text-[11.5px] font-semibold tracking-[0.4px] text-text3">CHIPS THIS WEEK</div>
+      {advice.map((a) => (
+        <div key={a.chip} className="flex items-center justify-between gap-3">
+          <div className="text-[13px] leading-[1.4]">
+            <span className="font-semibold">{a.label} in GW{a.gw}:</span>{" "}
+            {a.vs_best_plan > 0.05
+              ? `${signed(a.vs_best_plan)} xPts over ${horizon} GWs compared with your best plan without it.`
+              : `adds nothing over ${horizon} GWs compared with your best plan, so it's worth saving.`}
+            {a.chip === "wildcard" && a.vs_best_plan > 0.05 ? " A new squad keeps paying after that, which this doesn't count." : ""}
+          </div>
+          {a.vs_best_plan > 0.05 && (
+            <button type="button" onClick={() => onPlan(a)} className="shrink-0 rounded-lg bg-pill px-2.5 py-1.5 text-xs font-semibold text-link">
+              Plan with it
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -189,7 +252,21 @@ function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansRespons
         <div className="font-display text-base font-bold">{plan.rank === 1 ? "Plan 1 · Recommended" : `Plan ${plan.rank}`}</div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${tag.cls}`}>{plan.tag === "hit" && plan.hits > 1 ? `−${4 * plan.hits} hits` : tag.label}</span>
       </div>
+      {plan.gameweeks.some((g) => g.chip) && (
+        <div className="flex flex-wrap gap-1.5" data-testid="plan-chips">
+          {plan.gameweeks.filter((g) => g.chip).map((g) => (
+            <span key={g.gw} className="rounded-full bg-cap-bg px-2.5 py-1 text-xs font-semibold text-why-label">
+              {CHIP_LABELS[g.chip!]} · GW{g.gw}{g.chip_xpts ? ` · ${signed(g.chip_xpts)}` : ""}
+            </span>
+          ))}
+        </div>
+      )}
 
+      {first.chip === "freehit" && (
+        <div className="text-[12.5px] leading-[1.4] text-text2">
+          Free Hit squad for GW{first.gw} only. Your team comes back in GW{first.gw + 1}.
+        </div>
+      )}
       {first.moves.length ? (
         <div className="flex flex-col gap-1.5">
           {first.moves.map((m) => (

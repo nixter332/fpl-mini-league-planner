@@ -1,5 +1,7 @@
 import type { Player, Strategy } from "./types";
 
+export const CHIP_LABELS: Record<string, string> = { wildcard: "Wildcard", freehit: "Free Hit", bboost: "Bench Boost", "3xc": "Triple Captain" };
+
 export const money = (tenths: number) => `£${(tenths / 10).toFixed(1)}m`;
 export const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}`;
 export const pts = (n: number) => n.toFixed(1);

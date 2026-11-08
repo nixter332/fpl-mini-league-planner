@@ -198,6 +198,16 @@ function TeamScreen() {
       <div className="text-center text-xs text-text3">
         {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
       </div>
+      {data.chips_left.length > 0 && (
+        <div className="text-center text-xs text-text3" data-testid="chips-left">
+          Chips left:{" "}
+          {Object.entries(
+            data.chips_left.reduce<Record<number, string[]>>((acc, c) => ({ ...acc, [c.stop]: [...(acc[c.stop] ?? []), c.label] }), {}),
+          )
+            .map(([stop, labels]) => `${labels.join(", ")} (until GW${stop})`)
+            .join("; ")}
+        </div>
+      )}
       <Facts facts={data.facts} />
     </main>
   );

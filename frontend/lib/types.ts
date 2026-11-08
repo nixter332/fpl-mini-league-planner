@@ -77,10 +77,24 @@ export interface TeamResponse {
   players: Record<string, Player>;
   clubs: Record<string, Club>;
   facts: string[];
+  chips_left: ChipLeft[];
 }
 
 export interface Move { player_out: number; player_in: number; out_price: number; in_price: number }
-export interface PlanGw { gw: number; moves: Move[]; hits: number; free_transfers: number; bank: number; captain: number; vice: number }
+export type ChipName = "wildcard" | "freehit" | "bboost" | "3xc";
+export interface ChipLeft { name: ChipName; label: string; start: number; stop: number }
+export interface ChipAdvice { chip: ChipName; label: string; gw: number; xpts_gain: number; vs_best_plan: number }
+export interface PlanGw {
+  gw: number;
+  moves: Move[];
+  hits: number;
+  free_transfers: number;
+  bank: number;
+  captain: number;
+  vice: number;
+  chip: ChipName | null;
+  chip_xpts: number | null;
+}
 export interface Threat { player: number; rivals_starting: number; xpts: number }
 export interface HeadToHead {
   opponent_name: string;
@@ -102,6 +116,7 @@ export interface Plan {
   hits: number;
   xpts: number;
   xpts_gain: number;
+  chip_xpts: number;
   differential_gain: number;
   summary: string;
   gameweeks: PlanGw[];
@@ -115,6 +130,10 @@ export interface PlansResponse {
   strategy: Strategy;
   horizon: number;
   max_hits: number;
+  chips_left: ChipLeft[];
+  wildcard_gw: number | null;
+  freehit_gw: number | null;
+  auto_chips: boolean;
   gws: number[];
   free_transfers: number;
   bank: number;

@@ -1,4 +1,4 @@
-import type { ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -55,7 +55,12 @@ export interface PlanParams {
   strategy: Strategy;
   horizon: number;
   hits: number;
+  wildcard: number | null; // the GW you chose to play it in
+  freehit: number | null;
+  chips: boolean; // let the planner play Bench Boost / Triple Captain
 }
+
+const gwParam = (v: string | null) => (v && Number(v) > 0 ? Number(v) : null);
 
 export function readPlanParams(search: URLSearchParams): PlanParams {
   const league = search.get("league");
@@ -66,13 +71,46 @@ export function readPlanParams(search: URLSearchParams): PlanParams {
     strategy: strategy === "protect" || strategy === "risky" ? strategy : "balanced",
     horizon: Math.min(5, Math.max(1, Number(search.get("horizon") ?? 4) || 4)),
     hits: Math.min(4, Math.max(0, Number(search.get("hits") ?? 0) || 0)),
+    wildcard: gwParam(search.get("wildcard")),
+    freehit: gwParam(search.get("freehit")),
+    chips: search.get("chips") !== "0",
   };
 }
 
+/** Query for the backend API. */
 export function planQuery(p: PlanParams): string {
   const q = new URLSearchParams({ team: String(p.team), strategy: p.strategy, horizon: String(p.horizon), max_hits: String(p.hits) });
   if (p.league !== null) q.set("league", String(p.league));
+  if (p.wildcard !== null) q.set("wildcard", String(p.wildcard));
+  if (p.freehit !== null) q.set("freehit", String(p.freehit));
+  if (!p.chips) q.set("chips", "false");
   return q.toString();
+}
+
+/** Query for the plans page URL (shareable). */
+export function pageQuery(p: PlanParams): string {
+  const q = new URLSearchParams({ team: String(p.team), strategy: p.strategy, horizon: String(p.horizon), hits: String(p.hits) });
+  if (p.league !== null) q.set("league", String(p.league));
+  if (p.wildcard !== null) q.set("wildcard", String(p.wildcard));
+  if (p.freehit !== null) q.set("freehit", String(p.freehit));
+  if (!p.chips) q.set("chips", "0");
+  return q.toString();
+}
+
+const adviceCache = new Map<string, Promise<ChipAdvice[]>>();
+
+/** What a Wildcard / Free Hit this week would add (computed lazily: it builds extra plan sets). */
+export function getChipAdvice(p: PlanParams): Promise<ChipAdvice[]> {
+  const key = planQuery({ ...p, wildcard: null, freehit: null });
+  let pending = adviceCache.get(key);
+  if (!pending) {
+    pending = getJSON<ChipAdvice[]>(`/api/chip-advice?${key}`).catch(() => {
+      adviceCache.delete(key);
+      return [];
+    });
+    adviceCache.set(key, pending);
+  }
+  return pending;
 }
 
 // Plan sets are cached for the session so the detail screen, going back, and switching

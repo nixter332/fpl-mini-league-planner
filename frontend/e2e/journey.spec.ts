@@ -79,3 +79,21 @@ test.describe("reasons", () => {
     await shot(page, "12-plan-detail-reason");
   });
 });
+
+test("chips: chips left, advice and playing your Free Hit", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("chips-left")).toContainText("Free Hit");
+  await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
+  await expect(page.getByTestId("plan-card")).toHaveCount(3);
+  await expect(page.getByTestId("chip-controls")).toBeVisible();
+  await expect(page.getByTestId("chip-advice")).toBeVisible({ timeout: 120_000 });
+  await shot(page, "13-plans-chips");
+  const freeHit = page.getByLabel("Free Hit", { exact: true });
+  const firstGw = await freeHit.locator("option").nth(1).getAttribute("value");
+  await freeHit.selectOption(firstGw!);
+  await expect(page).toHaveURL(new RegExp(`freehit=${firstGw}`));
+  await expect(page.getByTestId("plan-chips").first()).toContainText(`Free Hit · GW${firstGw}`, { timeout: 120_000 });
+  await shot(page, "14-plans-free-hit");
+});
