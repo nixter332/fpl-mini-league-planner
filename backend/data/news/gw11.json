@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-08T17:35:06.484661+00:00",
+"captured_at": "2026-11-08T23:41:53.094697+00:00",
 "deadline": "2026-11-21T11:00:00+00:00",
 "gw": 11,
 "players": {
@@ -1719,11 +1719,11 @@
 "status": "u"
 },
 "32": {
-"chance_of_playing_next_round": 0,
+"chance_of_playing_next_round": 100,
 "chance_of_playing_this_round": 0,
-"news": "Suspended until 21 Nov",
+"news": "",
 "news_added": "2026-10-31T22:00:07.593621+00:00",
-"status": "s"
+"status": "a"
 },
 "320": {
 "chance_of_playing_next_round": null,
@@ -2489,11 +2489,11 @@
 "status": "a"
 },
 "419": {
-"chance_of_playing_next_round": 0,
+"chance_of_playing_next_round": 100,
 "chance_of_playing_this_round": 0,
-"news": "Suspended until 22 Nov",
+"news": "",
 "news_added": "2026-10-31T14:00:08.592593+00:00",
-"status": "s"
+"status": "a"
 },
 "42": {
 "chance_of_playing_next_round": null,
@@ -3464,7 +3464,7 @@
 "544": {
 "chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": null,
-"news": "Unspecified injury - 75% chance of playing",
+"news": "Calf injury - 75% chance of playing",
 "news_added": "2026-11-08T14:30:09.504002+00:00",
 "status": "d"
 },
@@ -4449,6 +4449,13 @@
 "status": "a"
 },
 "671": {
+"chance_of_playing_next_round": null,
+"chance_of_playing_this_round": null,
+"news": "",
+"news_added": null,
+"status": "a"
+},
+"672": {
 "chance_of_playing_next_round": null,
 "chance_of_playing_this_round": null,
 "news": "",
