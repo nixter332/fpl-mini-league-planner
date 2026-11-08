@@ -6,8 +6,11 @@ from app.fpl.links import LinkParseError, ParsedLink, parse_link
 @pytest.mark.parametrize(
     "raw, expected",
     [
-        ("5179483", ParsedLink(type="team", id=5179483)),
-        ("  5179483  ", ParsedLink(type="team", id=5179483)),
+        ("5179483", ParsedLink(type="number", id=5179483)),
+        ("  5179483  ", ParsedLink(type="number", id=5179483)),
+        ("https://fantasy.premierleague.com/en/leagues/1883627/standings/c", ParsedLink(type="league", id=1883627)),
+        ("fantasy.premierleague.com/en/entry/5179483/event/10", ParsedLink(type="team", id=5179483)),
+        ("https://fantasy.premierleague.com/en-gb/entry/5179483/history", ParsedLink(type="team", id=5179483)),
         ("https://fantasy.premierleague.com/entry/5179483/event/10", ParsedLink(type="team", id=5179483)),
         ("fantasy.premierleague.com/entry/5179483/event/10/", ParsedLink(type="team", id=5179483)),
         ("https://fantasy.premierleague.com/entry/5179483/history", ParsedLink(type="team", id=5179483)),
@@ -36,6 +39,7 @@ def test_valid_inputs(raw: str, expected: ParsedLink) -> None:
         "https://fantasy.premierleague.com/entry/abc/history",
         "https://fantasy.premierleague.com/entry/5179483/transfers",
         "https://fantasy.premierleague.com.evil.com/entry/5179483/history",
+        "https://fantasy.premierleague.com/english/leagues/1883627/standings/c",
     ],
 )
 def test_invalid_inputs_raise_friendly_error(raw: str) -> None:

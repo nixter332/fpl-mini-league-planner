@@ -28,8 +28,11 @@ class Member(BaseModel):
 
 
 class ResolveResponse(BaseModel):
-    type: Literal["team", "league"]
+    # choice: a bare number that is both a team and a league; the user picks which they meant
+    type: Literal["team", "league", "choice"]
     id: int
+    team_name: str | None = None  # for "choice"
+    manager_name: str | None = None
     league_name: str | None = None
     members: list[Member] = []
     more_members: bool = False  # the league has more than one page of standings

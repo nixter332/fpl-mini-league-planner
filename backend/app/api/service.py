@@ -18,7 +18,7 @@ import pandas as pd
 
 from app.api import schemas as s
 from app.api.kits import GOALKEEPER, kit_for
-from app.fpl.client import FPLClient
+from app.fpl.client import FPLClient, FPLNotFound
 from app.fpl.gameweeks import latest_finished_gameweek, latest_started_gameweek, next_actionable_gameweek
 from app.fpl.links import parse_link
 from app.fpl.models import Bootstrap, Element, Entry, EntryPicks, Event, EventLive, Fixture, LeagueStandings, Team
@@ -145,21 +145,50 @@ class PlannerService:
 
     def resolve(self, raw: str) -> s.ResolveResponse:
         link = parse_link(raw)  # LinkParseError -> 400
+        if link.type == "number":
+            # A bare number can be a team ID or a league ID (often both exist): look up both.
+            entry = self._maybe(lambda: Entry.model_validate(self.client.entry(link.id)))
+            page = self._maybe(lambda: LeagueStandings.model_validate(self.client.league_standings(link.id)))
+            if entry and page:
+                return s.ResolveResponse(
+                    type="choice", id=link.id, team_name=entry.name,
+                    manager_name=f"{entry.player_first_name} {entry.player_last_name}", league_name=page.league.name,
+                    members=self._members(page), more_members=page.standings.has_next,
+                )
+            if page:
+                return self._league_response(link.id, page)
+            if not entry:
+                raise FPLNotFound(f"No team or league {link.id}")
+            return self._team_response(entry)
         if link.type == "team":
-            entry = Entry.model_validate(self.client.entry(link.id))  # 404 if the team doesn't exist
-            league_id = self._pick_league(None, _private_leagues(entry))
-            if league_id:
-                self._submit(league_id, lambda: self._prefetch(league_id, entry.id))
-            return s.ResolveResponse(type="team", id=link.id)
-        page = LeagueStandings.model_validate(self.client.league_standings(link.id))
-        # Start loading rivals while the user finds themselves in the list.
-        self._submit(link.id, lambda: self._prefetch(link.id, None))
-        members = [
+            return self._team_response(Entry.model_validate(self.client.entry(link.id)))  # 404 if it doesn't exist
+        return self._league_response(link.id, LeagueStandings.model_validate(self.client.league_standings(link.id)))
+
+    @staticmethod
+    def _maybe(fetch: Callable[[], object]):
+        try:
+            return fetch()
+        except FPLNotFound:
+            return None
+
+    @staticmethod
+    def _members(page: LeagueStandings) -> list[s.Member]:
+        return [
             s.Member(entry=r.entry, player_name=r.player_name, entry_name=r.entry_name, rank=r.rank, total=r.total)
             for r in page.standings.results
         ]
+
+    def _team_response(self, entry: Entry) -> s.ResolveResponse:
+        league_id = self._pick_league(None, _private_leagues(entry))
+        if league_id:
+            self._submit(league_id, lambda: self._prefetch(league_id, entry.id))
+        return s.ResolveResponse(type="team", id=entry.id)
+
+    def _league_response(self, league_id: int, page: LeagueStandings) -> s.ResolveResponse:
+        # Start loading rivals while the user finds themselves in the list.
+        self._submit(league_id, lambda: self._prefetch(league_id, None))
         return s.ResolveResponse(
-            type="league", id=link.id, league_name=page.league.name, members=members,
+            type="league", id=league_id, league_name=page.league.name, members=self._members(page),
             more_members=page.standings.has_next,
         )
 

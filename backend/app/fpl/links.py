@@ -7,19 +7,21 @@ from urllib.parse import urlsplit
 from pydantic import BaseModel
 
 SUPPORTED_FORMATS = (
-    "a team ID (e.g. 1234567), "
+    "a team or league ID (e.g. 1234567), "
     "a team link (fantasy.premierleague.com/entry/1234567/event/10 or /entry/1234567/history), "
     "or a league link (fantasy.premierleague.com/leagues/123456/standings/c)"
 )
 
 FPL_HOSTS = {"fantasy.premierleague.com", "www.fantasy.premierleague.com"}
 
-_TEAM_PATH = re.compile(r"^/entry/(\d+)(?:/(?:event/\d+|history))?/?$")
-_LEAGUE_PATH = re.compile(r"^/leagues/(\d+)(?:/standings(?:/c)?)?/?$")
+# FPL's newer links start with a language, e.g. /en/leagues/123/standings/c.
+_LANG = r"(?:/[a-z]{2}(?:-[a-z]{2})?)?"
+_TEAM_PATH = re.compile(rf"^{_LANG}/entry/(\d+)(?:/(?:event/\d+|history))?/?$", re.IGNORECASE)
+_LEAGUE_PATH = re.compile(rf"^{_LANG}/leagues/(\d+)(?:/standings(?:/c)?)?/?$", re.IGNORECASE)
 
 
 class ParsedLink(BaseModel):
-    type: Literal["team", "league"]
+    type: Literal["team", "league", "number"]  # number: a bare ID, could be a team or a league
     id: int
 
 
@@ -33,7 +35,7 @@ def parse_link(raw: str) -> ParsedLink:
         raise LinkParseError(f"Please paste something. We accept {SUPPORTED_FORMATS}.")
 
     if text.isdigit():
-        return ParsedLink(type="team", id=_positive(text))
+        return ParsedLink(type="number", id=_positive(text))
 
     url = text if "://" in text else f"https://{text}"
     parts = urlsplit(url)

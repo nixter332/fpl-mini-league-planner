@@ -9,11 +9,17 @@ TEAM, LEAGUE = 5179483, 1883627
 
 
 def test_resolve_team_id_and_links(api: TestClient) -> None:
-    assert api.get("/api/resolve", params={"input": str(TEAM)}).json() == {
-        "type": "team", "id": TEAM, "league_name": None, "members": [], "more_members": False,
-    }
+    body = api.get("/api/resolve", params={"input": str(TEAM)}).json()  # no league with this number
+    assert body["type"] == "team" and body["id"] == TEAM and body["members"] == []
     body = api.get("/api/resolve", params={"input": f"https://fantasy.premierleague.com/entry/{TEAM}/history"}).json()
     assert body["type"] == "team"
+
+
+def test_resolve_league_number_and_new_style_link(api: TestClient) -> None:
+    by_number = api.get("/api/resolve", params={"input": str(LEAGUE)}).json()  # no team with this number
+    assert by_number["type"] == "league" and by_number["id"] == LEAGUE and by_number["members"]
+    link = api.get("/api/resolve", params={"input": f"https://fantasy.premierleague.com/en/leagues/{LEAGUE}/standings/c"}).json()
+    assert link["type"] == "league" and link["id"] == LEAGUE
 
 
 def test_resolve_league_lists_members(api: TestClient) -> None:
