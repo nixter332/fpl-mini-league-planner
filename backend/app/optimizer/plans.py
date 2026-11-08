@@ -18,7 +18,7 @@ from dataclasses import dataclass, replace
 from app.optimizer.ownership import NO_RIVALS, LeagueOwnership
 from app.optimizer.solver import (
     MAX_PER_CLUB, SQUAD_BY_POSITION, SQUAD_SIZE, XI_MAX, XI_MIN, XI_SIZE,
-    Cut, PoolPlayer, Settings, Solution, solve,
+    Cut, GameweekSolution, PoolPlayer, Settings, Solution, solve,
 )
 from app.optimizer.state import SquadState
 
@@ -182,3 +182,13 @@ def validate(sol: Solution, players: dict[int, PoolPlayer], state: SquadState, s
 
 def _is_roll(sol: Solution) -> bool:
     return not sol.first.transfers_in
+
+
+def paired_transfers(gw: GameweekSolution, players: dict[int, PoolPlayer]) -> list[tuple[int, int]]:
+    """(out, in) pairs, matched by position (FPL swaps are always like-for-like), then by price."""
+    pairs: list[tuple[int, int]] = []
+    for pos in sorted({players[p].position for p in gw.transfers_out}):
+        outs = sorted((p for p in gw.transfers_out if players[p].position == pos), key=lambda p: -players[p].sell_price)
+        ins = sorted((p for p in gw.transfers_in if players[p].position == pos), key=lambda p: -players[p].buy_price)
+        pairs.extend(zip(outs, ins))
+    return pairs

@@ -176,3 +176,15 @@ def test_validate_catches_broken_plans(plan_sets, pool, manager_state) -> None:
     assert any("captain" in e for e in validate(broken, _players(pool), manager_state, ps.settings))
     overspent = replace(sol, gameweeks=(replace(gw, bank=gw.bank + 1), *sol.gameweeks[1:]))
     assert any("bank" in e for e in validate(overspent, _players(pool), manager_state, ps.settings))
+
+
+def test_transfers_pair_like_for_like(plan_sets, pool) -> None:
+    from app.optimizer.plans import paired_transfers
+
+    players = _players(pool)
+    for ps in plan_sets.values():
+        for plan in ps.plans:
+            for gw in plan.solution.gameweeks:
+                pairs = paired_transfers(gw, players)
+                assert len(pairs) == len(gw.transfers_in)
+                assert all(players[o].position == players[i].position for o, i in pairs)
