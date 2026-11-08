@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from app.api import schemas as s
+from app.api.limits import RateLimiter, client_key
 from app.api.service import NotFoundError, PlannerService
 from app.explain.explainer import Explainer
 from app.explain.summary import build_summary
@@ -20,6 +21,11 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ANTHROPIC_API_KEY; 
 app = FastAPI(title="FPL Mini-League Planner")
 _service: PlannerService | None = None
 _explainer: Explainer | None = None
+
+EXPLAIN_PER_HOUR = 60  # per visitor; a plans page asks for 3
+PLANS_PER_HOUR = 120  # per visitor; each plan set is a few seconds of CPU
+explain_limiter = RateLimiter(EXPLAIN_PER_HOUR, 3600)
+plans_limiter = RateLimiter(PLANS_PER_HOUR, 3600)
 
 
 def get_service() -> PlannerService:
@@ -69,6 +75,7 @@ def _fpl_down(_: Request, exc: FPLError) -> JSONResponse:
 
 
 @app.get("/health")
+@app.get("/api/health")  # through the frontend proxy: the start page pings it to wake a sleeping server
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
@@ -100,6 +107,7 @@ def rivals(
 
 @app.get("/api/plans", response_model=s.PlansResponse)
 def plans(
+    request: Request,
     team: int = Query(..., gt=0),
     league: int | None = Query(None, ge=0, description="0 = no league"),
     strategy: Literal["protect", "balanced", "risky"] = "balanced",
@@ -109,11 +117,14 @@ def plans(
 ) -> s.PlansResponse:
     if horizon < 1:
         raise HTTPException(400, "Horizon must be at least 1 gameweek.")
+    if not plans_limiter.allow(client_key(request)):
+        raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
     return svc.plans(team, league, strategy, horizon, max_hits)
 
 
 @app.get("/api/explain", response_model=s.ExplainResponse)
 async def explain(
+    request: Request,
     team: int = Query(..., gt=0),
     league: int | None = Query(None, ge=0, description="0 = no league"),
     strategy: Literal["protect", "balanced", "risky"] = "balanced",
@@ -126,6 +137,8 @@ async def explain(
     """A Claude-written reason for one plan. The plan itself comes from the (cached) optimizer run."""
     if not explainer.enabled:
         return s.ExplainResponse(rank=rank, status="off")
+    if not explain_limiter.allow(client_key(request)):
+        return s.ExplainResponse(rank=rank, status="unavailable")  # the plan still shows, without a reason
     resp, plan = await run_in_threadpool(svc.plan, team, league, strategy, horizon, max_hits, rank)
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_summary(resp, plan), known)

@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 from collections.abc import Collection
 from typing import Any
 
@@ -30,6 +31,9 @@ MAX_TOKENS = 4000  # thinking is always on for this model; effort "low" keeps it
 CACHE_TTL = 14 * 24 * 3600
 TIMEOUT_S = 60.0
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+# New Claude calls per day across everyone (cached reasons don't count). Override with the
+# EXPLAIN_DAILY_CALLS environment variable. ~200 calls is about $4.
+DEFAULT_DAILY_CALLS = 200
 
 SYSTEM = """You write short explanations for transfer plans in a Fantasy Premier League (FPL) mini-league planner. An optimizer has already chosen every transfer and the captain. Your only job is to explain its choice to the manager in plain English.
 
@@ -75,17 +79,35 @@ def _user_message(facts: str, problems: list[str]) -> str:
 
 
 class Explainer:
-    def __init__(self, client: Any | None, cache: DiskCache | None = None, model: str = MODEL) -> None:
+    def __init__(
+        self, client: Any | None, cache: DiskCache | None = None, model: str = MODEL,
+        daily_calls: int = DEFAULT_DAILY_CALLS, clock: Any = time.time,
+    ) -> None:
         self.client = client  # an anthropic.AsyncAnthropic, or a fake in tests; None = switched off
         self.cache = cache or DiskCache(DEFAULT_CACHE_DIR / "explanations")
         self.model = model
+        self.daily_calls = daily_calls
+        self._clock = clock
+        self._calls_day = ""
+        self._calls_today = 0
         self._locks: dict[str, asyncio.Lock] = {}
 
     @classmethod
     def from_env(cls) -> "Explainer":
         key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
         client = anthropic.AsyncAnthropic(api_key=key, timeout=TIMEOUT_S, max_retries=2) if key else None
-        return cls(client)
+        daily = int(os.environ.get("EXPLAIN_DAILY_CALLS", DEFAULT_DAILY_CALLS))
+        return cls(client, daily_calls=daily)
+
+    def _take_call(self) -> bool:
+        """Count one Claude call against today's cap (UTC day); False if the cap is reached."""
+        day = time.strftime("%Y-%m-%d", time.gmtime(self._clock()))
+        if day != self._calls_day:
+            self._calls_day, self._calls_today = day, 0
+        if self._calls_today >= self.daily_calls:
+            return False
+        self._calls_today += 1
+        return True
 
     @property
     def enabled(self) -> bool:
@@ -108,6 +130,9 @@ class Explainer:
 
             problems: list[str] = []
             for _attempt in range(2):
+                if not self._take_call():
+                    log.warning("Daily Claude call cap (%d) reached; showing plans without reasons", self.daily_calls)
+                    return None  # not cached: tomorrow it can be written
                 try:
                     result = await self._ask(facts, problems)
                 except anthropic.APIError as e:
