@@ -137,3 +137,14 @@ def test_captain_facts_show_the_trade_off(plans: s.PlansResponse) -> None:
             assert facts["highest_projected_player_in_your_team"]["name"] == plans.players[top].name
         else:
             assert "highest_projected_player_in_your_team" not in facts
+
+
+def test_facts_include_saved_free_transfers(plans: s.PlansResponse) -> None:
+    """The ranking values free transfers left at the end, so Claude must know them."""
+    from app.explain.summary import free_transfers_after
+
+    for plan in plans.plans:
+        facts = build_summary(plans, plan)
+        assert facts["plan"]["free_transfers_left_after_the_plan"] == free_transfers_after(plan)
+        assert 1 <= free_transfers_after(plan) <= 5
+        assert all("free_transfers_left_after_the_plan" in o for o in facts["other_plans"])

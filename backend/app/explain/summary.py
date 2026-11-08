@@ -98,6 +98,12 @@ def _captain(resp: s.PlansResponse, pid: int, gw: int) -> dict[str, Any]:
     return out
 
 
+def free_transfers_after(plan: s.Plan, max_free: int = 5) -> int:
+    """Free transfers left for the gameweek after the plan ends."""
+    last = plan.gameweeks[-1]
+    return min(last.free_transfers - (len(last.moves) - last.hits) + 1, max_free)
+
+
 def _gw_label(gws: list[int]) -> str:
     return f"GW{gws[0]}" if len(gws) == 1 else f"GW{gws[0]} to GW{gws[-1]}"
 
@@ -115,6 +121,8 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         "transfers": _transfers(resp, plan),
         "captain_this_gameweek": _captain(resp, first.captain, first.gw),
         "this_gameweek_projection": {"you_without_transfers": r1(plan.before.xpts), "you_with_this_plan": r1(plan.after.xpts)},
+        "expected_points_gain_this_gameweek": r1(plan.after.xpts - plan.before.xpts),
+        "free_transfers_left_after_the_plan": free_transfers_after(plan),
     }
     if plan.hits:
         plan_facts["hits"] = plan.hits
@@ -146,6 +154,8 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
                 "recommended": o.rank == 1,
                 "type": PLAN_TYPES[o.tag],
                 "expected_points_gain_vs_no_transfers": r1(o.xpts_gain),
+                "expected_points_gain_this_gameweek": r1(o.after.xpts - o.before.xpts),
+                "free_transfers_left_after_the_plan": free_transfers_after(o),
                 **({"differential_points_gain": r1(o.differential_gain)} if n else {}),
                 "transfers_this_gameweek": [f"{name(m.player_out)} out, {name(m.player_in)} in" for m in o.gameweeks[0].moves],
             }

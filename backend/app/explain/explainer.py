@@ -26,7 +26,7 @@ from app.fpl.cache import DEFAULT_CACHE_DIR, DiskCache
 log = logging.getLogger(__name__)
 
 MODEL = "claude-opus-5-5"
-PROMPT_VERSION = "4"  # bump when the prompt or facts change, to skip old cached text
+PROMPT_VERSION = "5"  # bump when the prompt or facts change, to skip old cached text
 MAX_TOKENS = 4000  # thinking is always on for this model; effort "low" keeps it short
 CACHE_TTL = 14 * 24 * 3600
 TIMEOUT_S = 60.0
@@ -49,7 +49,7 @@ Rules:
 - "differential_points_gain" compares this plan with making no transfers, counting only expected points from players (and captains) your rivals don't have. It measures how much the plan can swing the league, up or down. It is not extra points, so never add it to the points gain or call it a gain in points.
 - A captain that rivals didn't pick is a differential captain: it gains on rivals if he scores well, and loses ground if their captain outscores him.
 - Lead with this gameweek's transfers. Mention later transfers only briefly, as what comes next. The points gain is for the whole plan, not for any single move.
-- Plans are ranked by the chosen strategy, which blends expected points with differentials, so a plan that isn't recommended can have more expected points. Never call a plan that isn't recommended the best option; say what it trades off instead.
+- Plans are ranked by the chosen strategy's score, not by the points gain alone. The score also values free transfers still saved after the plan (each is worth about 1.5 points of flexibility), counts this gameweek's points a little more than later ones, and, outside Protect lead, blends in differentials. So a plan that isn't recommended can show more expected points. Never call a plan that isn't recommended the best option, and never present a higher-gain plan as a risk of this one; if you compare, say what the other plan gives up (for example fewer saved free transfers).
 - If the captain isn't the highest projected player, say plainly that it's a gamble that gives up expected points for a chance to gain on rivals.
 - If the plan is a roll, explain why saving the transfer is worth it.
 - If the plan has a "note" that the solver ran out of time, never claim that no transfer would help or that this is the best possible plan.
