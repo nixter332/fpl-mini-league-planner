@@ -61,6 +61,7 @@ class Element(FPLModel):
     status: str  # a available, d doubtful, i injured, s suspended, u unavailable
     chance_of_playing_next_round: int | None
     news: str
+    news_added: datetime | None
     selected_by_percent: float
     ep_next: float | None
     form: float
@@ -125,6 +126,7 @@ class Fixture(FPLModel):
     team_a_difficulty: int
     started: bool | None
     finished: bool
+    finished_provisional: bool
     team_h_score: int | None
     team_a_score: int | None
 
@@ -143,6 +145,7 @@ class LiveStats(FPLModel):
     saves: int
     bonus: int
     bps: int
+    yellow_cards: int
     defensive_contribution: int
     expected_goals: float
     expected_assists: float

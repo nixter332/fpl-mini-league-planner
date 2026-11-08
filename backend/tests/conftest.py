@@ -31,3 +31,19 @@ def _block_real_network(monkeypatch: pytest.MonkeyPatch) -> None:
         raise RuntimeError("Tests must not call the live FPL API; use tests/fixtures.")
 
     monkeypatch.setattr(httpx.HTTPTransport, "handle_request", refuse)
+
+
+@pytest.fixture(scope="session")
+def season():
+    """Bootstrap, fixtures and live data for every finished GW in the snapshot."""
+    from scripts.backtest import load_from_fixtures
+
+    return load_from_fixtures(FIXTURES, finished_only=True)
+
+
+@pytest.fixture(scope="session")
+def season_with_current():
+    """As `season`, plus the in-progress GW (matches the bootstrap snapshot moment)."""
+    from scripts.backtest import load_from_fixtures
+
+    return load_from_fixtures(FIXTURES, finished_only=False)
