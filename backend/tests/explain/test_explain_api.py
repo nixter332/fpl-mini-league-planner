@@ -148,3 +148,17 @@ def test_facts_include_saved_free_transfers(plans: s.PlansResponse) -> None:
         assert facts["plan"]["free_transfers_left_after_the_plan"] == free_transfers_after(plan)
         assert 1 <= free_transfers_after(plan) <= 5
         assert all("free_transfers_left_after_the_plan" in o for o in facts["other_plans"])
+
+
+def test_facts_describe_chips(api: TestClient) -> None:
+    body = api.get("/api/plans", params={**PARAMS, "horizon": 3, "freehit": 11}).json()
+    resp = s.PlansResponse.model_validate(body)
+    facts = build_summary(resp, resp.plans[0])
+    played = facts["plan"]["chips_played"]
+    fh = next(c for c in played if c["chip"] == "Free Hit")
+    assert fh["gameweek"] == 11 and fh["chosen_by"] == "you" and "one-week" in fh["meaning"]
+    assert any(t.get("free_hit_one_week_only") for t in facts["plan"]["transfers"])
+    assert any("Bench Boost" in c for c in facts["chips_left"])
+    # "GW11" etc. in labels: the numbers are all in the facts, so the trust check allows them
+    text = facts_text(facts)
+    assert check("Your Free Hit in GW11 brings in a one-week squad.", "None.", text, get_service().known_names()) == []

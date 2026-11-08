@@ -11,6 +11,7 @@ Keys contain no digits on purpose: the trust check reads every number in the JSO
 from typing import Any
 
 from app.api import schemas as s
+from app.optimizer.chips import CHIP_LABELS, FREE_HIT
 
 POSITIONS = {"GKP": "goalkeeper", "DEF": "defender", "MID": "midfielder", "FWD": "forward"}
 STRATEGY_MEANING = {
@@ -75,6 +76,7 @@ def _transfers(resp: s.PlansResponse, plan: s.Plan) -> list[dict[str, Any]]:
             diff = m.out_price - m.in_price
             move: dict[str, Any] = {
                 "gameweek": gw.gw,
+                **({"free_hit_one_week_only": True} if gw.chip == FREE_HIT else {}),
                 "out": p_out,
                 "in": p_in,
                 "expected_points_in_minus_out": r1(p_in["expected_points_total"] - p_out["expected_points_total"]),
@@ -104,6 +106,29 @@ def free_transfers_after(plan: s.Plan, max_free: int = 5) -> int:
     return min(last.free_transfers - (len(last.moves) - last.hits) + 1, max_free)
 
 
+def _chips(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
+    """The chips this plan plays: which, when, who chose it, and what it adds."""
+    played = []
+    for g in plan.gameweeks:
+        if not g.chip:
+            continue
+        chosen = g.chip in ("wildcard", "freehit") and g.gw in (resp.wildcard_gw, resp.freehit_gw)
+        row: dict[str, Any] = {"chip": CHIP_LABELS[g.chip], "gameweek": g.gw, "chosen_by": "you" if chosen else "the planner"}
+        if g.chip_xpts:
+            row["expected_points_from_chip"] = r1(g.chip_xpts)
+        if g.chip == FREE_HIT:
+            row["meaning"] = "a one-week squad; your normal squad comes back the week after"
+        elif g.chip == "wildcard":
+            row["meaning"] = "unlimited free transfers that week; the new squad stays"
+        played.append(row)
+    if not played:
+        return {}
+    out: dict[str, Any] = {"chips_played": played}
+    if plan.chip_xpts:
+        out["expected_points_gain_from_chips"] = r1(plan.chip_xpts)
+    return out
+
+
 def _gw_label(gws: list[int]) -> str:
     return f"GW{gws[0]}" if len(gws) == 1 else f"GW{gws[0]} to GW{gws[-1]}"
 
@@ -117,6 +142,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
     plan_facts: dict[str, Any] = {
         "recommended": plan.rank == 1,
         "type": PLAN_TYPES[plan.tag],
+        **_chips(resp, plan),
         "expected_points_gain_vs_no_transfers": r1(plan.xpts_gain),
         "transfers": _transfers(resp, plan),
         "captain_this_gameweek": _captain(resp, first.captain, first.gw),
@@ -148,6 +174,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         "this_gameweek": f"GW{gws[0]}",
         "free_transfers_now": resp.free_transfers,
         "money_in_bank_m": r1(resp.bank / 10),
+        "chips_left": [f"{c.label} (until GW{c.stop})" for c in resp.chips_left],
         "plan": plan_facts,
         "other_plans": [
             {
@@ -158,6 +185,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
                 "free_transfers_left_after_the_plan": free_transfers_after(o),
                 **({"differential_points_gain": r1(o.differential_gain)} if n else {}),
                 "transfers_this_gameweek": [f"{name(m.player_out)} out, {name(m.player_in)} in" for m in o.gameweeks[0].moves],
+                "chips": [f"{CHIP_LABELS[g.chip]} in GW{g.gw}" for g in o.gameweeks if g.chip],
             }
             for o in resp.plans if o.rank != plan.rank
         ],
