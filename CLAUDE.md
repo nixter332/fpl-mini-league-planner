@@ -24,7 +24,7 @@ Full spec: `docs/SPEC.md`. Lessons from the old prototype: `docs/v0-lessons.md`.
 
 - `backend/`: Python 3.11+, FastAPI, httpx, pydantic, pandas/numpy, HiGHS (via `highspy`) or PuLP for the MILP, pytest. Anthropic Python SDK for explanations (phase 5).
 - `frontend/`: Next.js (App Router) + TypeScript + Tailwind. Mobile-first, dark mode default. Built in phase 4.
-- Hosting: frontend on Vercel; backend host decided later (Vercel Python functions vs Render).
+- Hosting: frontend on Vercel (root `frontend`, env `BACKEND_URL`); backend on Render's free tier via `render.yaml`. Steps: `docs/deploy.md`.
 
 ## Layout
 

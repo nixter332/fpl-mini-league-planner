@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
 import { ApiError, resolveInput } from "@/lib/api";
 import { ordinal } from "@/lib/format";
@@ -14,10 +14,18 @@ export default function MainPage() {
   const [error, setError] = useState<string | null>(null);
   const [league, setLeague] = useState<ResolveResponse | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
+  const [slow, setSlow] = useState(false);
+
+  // Free hosting sleeps when idle; start waking the backend while the user pastes their link.
+  useEffect(() => {
+    fetch("/api/health").catch(() => {});
+  }, []);
 
   async function find(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setSlow(false);
+    const timer = setTimeout(() => setSlow(true), 4000);
     setError(null);
     setLeague(null);
     setPicked(null);
@@ -28,7 +36,9 @@ export default function MainPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
     } finally {
+      clearTimeout(timer);
       setBusy(false);
+      setSlow(false);
     }
   }
 
@@ -62,6 +72,11 @@ export default function MainPage() {
           </button>
         </div>
         <div className="text-[12.5px] leading-[1.45] text-text3">Works with your team link, your team ID, or your mini-league&apos;s link.</div>
+        {busy && slow && (
+          <div className="text-[12.5px] leading-[1.45] text-text2" role="status">
+            Waking up the server. It sleeps when nobody&apos;s used it for a while, so the first visit can take up to a minute.
+          </div>
+        )}
       </form>
 
       {error && <ErrorBox message={error} />}
