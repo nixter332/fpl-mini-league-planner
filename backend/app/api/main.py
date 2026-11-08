@@ -1,5 +1,6 @@
 """FastAPI app. The frontend calls these routes; the browser never talks to FPL directly."""
 
+import os
 from pathlib import Path
 from typing import Literal
 
@@ -82,7 +83,8 @@ def _fpl_down(_: Request, exc: FPLError) -> JSONResponse:
 @app.get("/health")
 @app.get("/api/health")  # through the frontend proxy: the start page pings it to wake a sleeping server
 def health() -> dict[str, str]:
-    return {"status": "ok"}
+    """`version` is the deployed commit (Render sets RENDER_GIT_COMMIT), so a deploy can be verified."""
+    return {"status": "ok", "version": os.environ.get("RENDER_GIT_COMMIT", "local")[:7]}
 
 
 @app.get("/api/resolve", response_model=s.ResolveResponse)
