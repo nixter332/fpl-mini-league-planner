@@ -36,13 +36,14 @@ def _club_name(resp: s.PlansResponse, short: str) -> str:
 
 
 def _opponents(resp: s.PlansResponse, label: str) -> str:
-    """'LEE (H), NEW (A)' -> 'Leeds (H), Newcastle (A)'; '—' -> 'no game'."""
+    """'LEE (H), NEW (A)' -> 'Leeds at home, Newcastle away'; '—' -> 'no game'."""
     if label == "—":
         return "no game"
+    venues = {"(H)": "at home", "(A)": "away"}
     parts = []
     for part in label.split(", "):
         short, _, venue = part.partition(" ")
-        parts.append(f"{_club_name(resp, short)} {venue}".strip())
+        parts.append(f"{_club_name(resp, short)} {venues.get(venue, venue)}".strip())
     return ", ".join(parts)
 
 
@@ -108,6 +109,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
     n = resp.standing.n_rivals if resp.standing else 0
 
     plan_facts: dict[str, Any] = {
+        "recommended": plan.rank == 1,
         "type": PLAN_TYPES[plan.tag],
         "expected_points_gain_vs_no_transfers": r1(plan.xpts_gain),
         "transfers": _transfers(resp, plan),
@@ -125,7 +127,9 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         plan_facts["this_gameweek_projection"]["rivals_average"] = r1(plan.after.rivals_avg or 0)
     best = max(plan.after.starting, key=lambda p: _xpts(resp, p, first.gw))
     if best != first.captain and _xpts(resp, best, first.gw) > _xpts(resp, first.captain, first.gw):
-        plan_facts["highest_projected_player_in_your_team"] = _captain(resp, best, first.gw)
+        top = _captain(resp, best, first.gw)
+        top["expected_points_more_than_your_captain"] = r1(_xpts(resp, best, first.gw) - _xpts(resp, first.captain, first.gw))
+        plan_facts["highest_projected_player_in_your_team"] = top
     if not plan.proven_optimal:
         plan_facts["note"] = "best plan found within the time limit"
 
@@ -139,8 +143,10 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         "plan": plan_facts,
         "other_plans": [
             {
+                "recommended": o.rank == 1,
                 "type": PLAN_TYPES[o.tag],
                 "expected_points_gain_vs_no_transfers": r1(o.xpts_gain),
+                **({"differential_points_gain": r1(o.differential_gain)} if n else {}),
                 "transfers_this_gameweek": [f"{name(m.player_out)} out, {name(m.player_in)} in" for m in o.gameweeks[0].moves],
             }
             for o in resp.plans if o.rank != plan.rank

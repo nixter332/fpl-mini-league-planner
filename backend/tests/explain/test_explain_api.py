@@ -40,6 +40,9 @@ def test_facts_cover_the_plan(plans: s.PlansResponse) -> None:
         summary = build_summary(plans, plan)
         text = facts_text(summary)
         assert summary["plan"]["expected_points_gain_vs_no_transfers"] == round(plan.xpts_gain, 1)
+        assert summary["plan"]["recommended"] == (plan.rank == 1)
+        assert [o["recommended"] for o in summary["other_plans"]].count(True) == (0 if plan.rank == 1 else 1)
+        assert "(H)" not in text and "(A)" not in text  # "at home" / "away" reads better
         assert plans.players[plan.gameweeks[0].captain].name in text
         for gw in plan.gameweeks:
             for m in gw.moves:
