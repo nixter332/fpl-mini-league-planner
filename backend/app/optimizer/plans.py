@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
+from app.optimizer.chips import BENCH_BOOST, FREE_HIT, TRANSFER_CHIPS, TRIPLE_CAPTAIN, window_for
 from app.optimizer.ownership import NO_RIVALS, LeagueOwnership
 from app.optimizer.solver import (
     MAX_PER_CLUB, SQUAD_BY_POSITION, SQUAD_SIZE, XI_MAX, XI_MIN, XI_SIZE,
@@ -70,7 +71,7 @@ def make_plans(
     is the best valid plan found so far (marked proven_optimal=False); all are validated."""
     started = time.perf_counter()
     players = {p.element: p for p in pool}
-    points_only = replace(settings, strategy="protect")
+    points_only = replace(settings, strategy="protect").without_chips()
 
     # The points-only "keep the squad" plan is the do-no-harm floor, and a valid warm start for
     # every other solve (it satisfies the floor with equality).
@@ -82,9 +83,11 @@ def make_plans(
     def limited(seconds: float) -> Settings:
         return replace(settings, time_limit=max(seconds, MIN_SOLVE_LIMIT))
 
+    # With a Wildcard or Free Hit this week, "roll the transfer" isn't a real option.
+    chip_now = dict(settings.forced_chips).get(settings.gws[0]) in TRANSFER_CHIPS
     with ThreadPoolExecutor(max_workers=1) as executor:
         # The "roll" plan doesn't depend on the top-plan chain, so it solves alongside it.
-        roll_job = executor.submit(
+        roll_job = None if chip_now else executor.submit(
             solve, pool, state, limited(FIRST_PLAN_LIMIT), ownership,
             no_transfers_first_gw=True, warm_start=baseline, min_xpts=floor,
         )
@@ -101,7 +104,7 @@ def make_plans(
                 break
             solutions.append(sol)
             cuts.append(Cut(frozenset(sol.first.transfers_in), frozenset(sol.first.transfers_out)))
-        roll = roll_job.result()
+        roll = roll_job.result() if roll_job else None
 
     if solutions and roll is not None and not any(_is_roll(s) for s in solutions):
         if roll.objective >= solutions[0].objective - roll_margin:
@@ -121,14 +124,16 @@ def make_plans(
 
 
 def score(sol: Solution, players: dict[int, PoolPlayer], ownership: LeagueOwnership, settings: Settings) -> tuple[float, float]:
-    """(xPts, differential xPts) over the horizon: starters + captain bonus, minus hits."""
+    """(xPts, differential xPts) over the horizon: starters + captain bonus (and chip points),
+    minus hits."""
     xpts = diff = 0.0
     for gw in sol.gameweeks:
-        for p in gw.starting:
+        scoring = list(gw.starting) + (list(gw.bench) if gw.chip == BENCH_BOOST else [])
+        for p in scoring:
             x = players[p].xpts.get(gw.gw, 0.0)
             xpts += x
             diff += x * (1 - min(ownership.start_share(p), 1.0))
-        cx = players[gw.captain].xpts.get(gw.gw, 0.0)
+        cx = players[gw.captain].xpts.get(gw.gw, 0.0) * (2 if gw.chip == TRIPLE_CAPTAIN else 1)
         xpts += cx
         diff += cx * (1 - min(ownership.captain_share(gw.captain), 1.0))
     hit_cost = settings.hit_cost * sol.total_hits
@@ -142,9 +147,14 @@ def validate(sol: Solution, players: dict[int, PoolPlayer], state: SquadState, s
     bank = state.bank
     sell_prices = {p.element: p.sell_price for p in state.players}
     ft = min(state.free_transfers, settings.max_free_transfers)
+    chips_used: list[tuple[str, int]] = []
     for gw in sol.gameweeks:
         tag = f"GW{gw.gw}"
         ins, outs = set(gw.transfers_in), set(gw.transfers_out)
+        if gw.chip is not None:
+            if window_for(state.chips, gw.chip, gw.gw) is None:
+                errors.append(f"{tag}: {gw.chip} isn't available this week")
+            chips_used.append((gw.chip, gw.gw))
         if ins & prev_squad or not outs <= prev_squad:
             errors.append(f"{tag}: transfers don't match the previous squad")
         squad = (prev_squad - outs) | ins
@@ -165,22 +175,36 @@ def validate(sol: Solution, players: dict[int, PoolPlayer], state: SquadState, s
             errors.append(f"{tag}: bench doesn't match squad minus XI")
         if gw.captain not in xi or gw.vice not in xi or gw.captain == gw.vice:
             errors.append(f"{tag}: captain and vice must be different starters")
+
+        if gw.chip == FREE_HIT:
+            # A one-week squad: it must be affordable from the bank plus the squad's selling
+            # value, the bank doesn't move, and next week the old squad comes back.
+            cost = lambda p: sell_prices.get(p, players[p].buy_price)
+            if sum(cost(p) for p in squad) > bank + sum(cost(p) for p in prev_squad):
+                errors.append(f"{tag}: Free Hit squad costs more than the squad value plus bank")
+            if gw.bank != bank or gw.hits != 0 or gw.free_transfers != ft:
+                errors.append(f"{tag}: Free Hit week must keep bank, free transfers and take no hits")
+            continue  # prev_squad, bank and free transfers carry on unchanged
+
         bank += sum(sell_prices.get(p, players[p].sell_price) for p in outs) - sum(players[p].buy_price for p in ins)
         if bank < 0 or bank != gw.bank:
             errors.append(f"{tag}: bank {bank} (solver says {gw.bank}) is negative or inconsistent")
-        expected_hits = max(0, len(ins) - ft)
+        expected_hits = 0 if gw.chip in TRANSFER_CHIPS else max(0, len(ins) - ft)
         if gw.hits != expected_hits or gw.free_transfers != ft:
             errors.append(f"{tag}: hits {gw.hits}/FT {gw.free_transfers}, expected {expected_hits}/{ft}")
         benched_buys = len(ins - xi)
         if benched_buys > len(ins) - gw.hits:
             errors.append(f"{tag}: a player bought with a hit is on the bench")
-        free_used = len(ins) - gw.hits
-        ft = min(ft - free_used + 1, settings.max_free_transfers)
+        if gw.chip not in TRANSFER_CHIPS:  # a Wildcard keeps the banked free transfers, no +1
+            ft = min(ft - (len(ins) - gw.hits) + 1, settings.max_free_transfers)
         for p in ins:  # bought within the horizon: selling him later raises his current price
             sell_prices[p] = players[p].buy_price
         prev_squad = squad
     if sol.total_hits > settings.max_hits:
         errors.append(f"{sol.total_hits} hits is more than the max of {settings.max_hits}")
+    windows = [window_for(state.chips, name, g) for name, g in chips_used]
+    if len(set(windows)) != len(windows):
+        errors.append("a chip is played twice in the same half of the season")
     return errors
 
 

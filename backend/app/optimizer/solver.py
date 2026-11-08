@@ -8,6 +8,14 @@ ownership split agreed with Nikhil):
                                                  + bench_weight_p * (squad[p,g] - start[p,g]) )
               - hit_cost * sum_g hits[g]
               + ft_value * free transfers still held after the last GW
+              + chip points (Triple Captain: the captain again; Bench Boost: the bench)
+              - keep value of each chip the plan plays
+
+Chips (docs/optimizer.md -> Chips): Bench Boost and Triple Captain are played when the planner
+finds a week worth more than keeping the chip; a kept chip is worth `chip_keep` points, scaled
+down as its window runs out (use it or lose it). Wildcard and Free Hit are only played in the
+gameweeks the user chooses (`forced_chips`): their value lasts beyond the horizon, so a 4-week
+model would be guessing. A Free Hit week has its own squad, and the squad reverts afterwards.
 
 bench_weight_p is 0 for goalkeepers: a backup keeper almost never plays, so upgrading him is
 worth nothing. Without ft_value a spare free transfer looked free, so the solver spent it on
@@ -21,7 +29,7 @@ per solve), which is what keeps a full set of plans under the 5 s target.
 """
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import os
 import tempfile
@@ -30,8 +38,18 @@ import uuid
 import pulp
 
 from app.model.scoring import DEF, FWD, GKP, MID
+from app.optimizer.chips import (
+    AUTO_CHIPS, BENCH_BOOST, CHIP_LABELS, FREE_HIT, TRANSFER_CHIPS, TRIPLE_CAPTAIN, ChipWindow, window_for,
+)
 from app.optimizer.ownership import NO_RIVALS, LeagueOwnership
 from app.optimizer.state import MAX_FREE_TRANSFERS, SquadState
+
+# Points a chip kept for later is worth: roughly a good future use of it. A chip is played in the
+# horizon only if that week beats this. Scaled by the weeks left in its window after the horizon
+# (over CHIP_KEEP_GWS), so a chip about to expire is played rather than wasted. Tuned in
+# docs/backtest-plans.md.
+CHIP_KEEP = ((BENCH_BOOST, 8.0), (TRIPLE_CAPTAIN, 6.0))
+CHIP_KEEP_GWS = 6.0
 
 # Gentler than the original spec (0 / 0.5 / 1): at 0.5+ the solver gave up real points in
 # Nikhil's league, and at 1 it benched template players. Agreed with Nikhil 2026-11-08.
@@ -65,10 +83,23 @@ class Settings:
     hit_cost: int = 4
     max_free_transfers: int = MAX_FREE_TRANSFERS
     time_limit: float = 20.0  # per solve; make_plans sets tighter limits from its budget
+    chips: tuple[ChipWindow, ...] = ()  # chips the manager has left (SquadState.chips)
+    auto_chips: frozenset[str] = AUTO_CHIPS  # chips the planner may decide to play
+    forced_chips: tuple[tuple[int, str], ...] = ()  # (gw, chip) the user chose to play
+    chip_keep: tuple[tuple[str, float], ...] = CHIP_KEEP
+    chip_keep_gws: float = CHIP_KEEP_GWS
 
     @property
     def weight(self) -> float:
         return STRATEGY_WEIGHTS[self.strategy]
+
+    def without_chips(self) -> "Settings":
+        return replace(self, auto_chips=frozenset(), forced_chips=())
+
+    def keep_value(self, window: ChipWindow) -> float:
+        """What keeping this chip past the horizon is worth."""
+        left = max(0, window.stop - self.gws[-1])
+        return dict(self.chip_keep).get(window.name, 0.0) * min(1.0, left / self.chip_keep_gws)
 
 
 @dataclass(frozen=True)
@@ -92,6 +123,7 @@ class GameweekSolution:
     bench: tuple[int, ...]  # in FPL order: backup GK first, then outfield by xPts
     captain: int
     vice: int
+    chip: str | None = None  # wildcard, freehit, bboost or 3xc played this week
 
 
 @dataclass(frozen=True)
@@ -140,6 +172,10 @@ def solve(
     P, G = list(players), list(settings.gws)
     owned = state.element_ids
     w = settings.weight
+    forced = {g: name for g, name in settings.forced_chips if g in G}
+    for g, name in forced.items():
+        if window_for(settings.chips, name, g) is None:
+            raise ValueError(f"{CHIP_LABELS.get(name, name)} isn't available in GW{g}")
     # CBC on Windows only reads a warm start when PuLP keeps its files, which it names after
     # the problem; a unique temp path keeps parallel solves apart. We delete the files after.
     work_prefix = os.path.join(tempfile.gettempdir(), f"fplplan_{uuid.uuid4().hex}")
@@ -159,10 +195,47 @@ def solve(
     took_hit = {g: prob.add_variable(f"took_hit_{g}", cat="Binary") for g in G}
     bank = {g: prob.add_variable(f"bank_{g}", 0) for g in G}
 
+    # Chips: use[(window, g)] is 1 if that chip is played in g (a constant 1 when forced).
+    use: dict[tuple[int, int], object] = {}
+    for wi, win in enumerate(settings.chips):
+        for g in G:
+            if not win.covers(g):
+                continue
+            if forced.get(g) == win.name:
+                use[wi, g] = 1
+            elif win.name in settings.auto_chips and g not in forced:
+                use[wi, g] = prob.add_variable(f"chip_{wi}_{g}", cat="Binary")
+    for wi in range(len(settings.chips)):
+        played = [use[wi, g] for g in G if (wi, g) in use]
+        if played:
+            prob += pulp.lpSum(played) <= 1  # each chip once
+    for g in G:
+        played = [use[wi, g] for wi in range(len(settings.chips)) if (wi, g) in use]
+        if played:
+            prob += pulp.lpSum(played) <= 1  # one chip per gameweek
+
+    def chip_at(name: str, g: int) -> list:
+        return [use[wi, g] for wi, win in enumerate(settings.chips) if win.name == name and (wi, g) in use]
+
+    transfer_chip = {g: forced.get(g) in TRANSFER_CHIPS for g in G}
+    tc_gws = [g for g in G if chip_at(TRIPLE_CAPTAIN, g)]
+    bb_gws = [g for g in G if chip_at(BENCH_BOOST, g)]
+    tcap = {(p, g): prob.add_variable(f"tcap_{p}_{g}", 0, 1) for p in P for g in tc_gws}
+    bbp = {(p, g): prob.add_variable(f"bboost_{p}_{g}", 0, 1) for p in P for g in bb_gws}
+
+    def persistent(k: int, p: int):
+        """Whether p is in the squad going into G[k]; a Free Hit week doesn't count (it reverts)."""
+        while k > 0 and forced.get(G[k - 1]) == FREE_HIT:
+            k -= 1
+        return (1 if p in owned else 0) if k == 0 else squad[p, G[k - 1]]
+
     # Free transfers carried past the horizon (same rule as between GWs; maximising keeps it tight)
     g_last = G[-1]
     ft_end = prob.add_variable("ft_end", 0, settings.max_free_transfers)
-    prob += ft_end <= ft[g_last] - (pulp.lpSum(buy[p, g_last] for p in P) - hits[g_last]) + 1
+    if transfer_chip[g_last]:
+        prob += ft_end <= ft[g_last]  # a Wildcard/Free Hit week keeps the banked count, no +1
+    else:
+        prob += ft_end <= ft[g_last] - (pulp.lpSum(buy[p, g_last] for p in P) - hits[g_last]) + 1
 
     # Objective
     terms = []
@@ -176,15 +249,41 @@ def solve(
             terms.append(
                 d * x * (start_w * start[p, g] + cap_w * cap[p, g] + bench_w * (squad[p, g] - start[p, g]))
             )
-    prob += pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values()) + settings.ft_value * ft_end
+            if (p, g) in tcap:
+                terms.append(d * x * cap_w * tcap[p, g])
+            if (p, g) in bbp:
+                terms.append(d * x * (start_w - bench_w) * bbp[p, g])
+    keep_cost = [
+        settings.keep_value(win) * use[wi, g]
+        for (wi, g), _ in use.items()
+        for win in [settings.chips[wi]]
+        if win.name in settings.auto_chips and forced.get(g) != win.name
+    ]
+    prob += (pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values()) + settings.ft_value * ft_end
+             - pulp.lpSum(keep_cost))
+
+    for g in tc_gws:
+        prob += pulp.lpSum(tcap[p, g] for p in P) == pulp.lpSum(chip_at(TRIPLE_CAPTAIN, g))
+        for p in P:
+            prob += tcap[p, g] <= cap[p, g]
+    for g in bb_gws:
+        played = pulp.lpSum(chip_at(BENCH_BOOST, g))
+        for p in P:
+            prob += bbp[p, g] <= squad[p, g] - start[p, g]
+            prob += bbp[p, g] <= played
 
     for k, g in enumerate(G):
         n_transfers = pulp.lpSum(buy[p, g] for p in P)
+        free_hit = forced.get(g) == FREE_HIT
         for p in P:
-            prev = (1 if p in owned else 0) if k == 0 else squad[p, G[k - 1]]
-            prob += squad[p, g] == prev + buy[p, g] - sell[p, g]
-            prob += buy[p, g] <= 1 - prev
-            prob += sell[p, g] <= prev
+            prev = persistent(k, p)
+            if free_hit:  # a one-week squad: any players, no transfers counted
+                prob += buy[p, g] == 0
+                prob += sell[p, g] == 0
+            else:
+                prob += squad[p, g] == prev + buy[p, g] - sell[p, g]
+                prob += buy[p, g] <= 1 - prev
+                prob += sell[p, g] <= prev
             prob += start[p, g] <= squad[p, g]
             prob += cap[p, g] <= start[p, g]
             prob += benched_buy[p, g] >= buy[p, g] - start[p, g]
@@ -203,22 +302,38 @@ def solve(
 
         # Budget, with sell prices for players owned now and current price for anyone bought later
         prev_bank = state.bank if k == 0 else bank[G[k - 1]]
-        prob += bank[g] == prev_bank + pulp.lpSum(
-            players[p].sell_price * sell[p, g] - players[p].buy_price * buy[p, g] for p in P
-        )
+        if free_hit:
+            # The bank doesn't change; the one-week squad must cost no more than the squad's
+            # selling value plus the bank (owned players at their sell price).
+            prob += bank[g] == prev_bank
+            cost = {p: players[p].sell_price if p in owned else players[p].buy_price for p in P}
+            prob += pulp.lpSum(cost[p] * squad[p, g] for p in P) <= prev_bank + pulp.lpSum(
+                cost[p] * persistent(k, p) for p in P
+            )
+        else:
+            prob += bank[g] == prev_bank + pulp.lpSum(
+                players[p].sell_price * sell[p, g] - players[p].buy_price * buy[p, g] for p in P
+            )
 
         # Free transfers and hits: hits = max(0, transfers - free), exactly
         if k == 0:
             prob += ft[g] == min(state.free_transfers, settings.max_free_transfers)
         else:
             gp = G[k - 1]
-            free_used_prev = pulp.lpSum(buy[p, gp] for p in P) - hits[gp]
-            prob += ft[g] <= ft[gp] - free_used_prev + 1
-        prob += hits[g] >= n_transfers - ft[g]
-        prob += hits[g] <= SQUAD_SIZE * took_hit[g]
-        prob += hits[g] <= n_transfers - ft[g] + (SQUAD_SIZE + MAX_FREE_TRANSFERS) * (1 - took_hit[g])
-        # Players bought with a hit must start: benched buys can only use free transfers
-        prob += pulp.lpSum(benched_buy[p, g] for p in P) <= n_transfers - hits[g]
+            if transfer_chip[gp]:
+                prob += ft[g] <= ft[gp]  # a Wildcard/Free Hit week keeps the banked count, no +1
+            else:
+                free_used_prev = pulp.lpSum(buy[p, gp] for p in P) - hits[gp]
+                prob += ft[g] <= ft[gp] - free_used_prev + 1
+        if transfer_chip[g]:
+            prob += hits[g] == 0  # unlimited free transfers this week
+            prob += took_hit[g] == 0
+        else:
+            prob += hits[g] >= n_transfers - ft[g]
+            prob += hits[g] <= SQUAD_SIZE * took_hit[g]
+            prob += hits[g] <= n_transfers - ft[g] + (SQUAD_SIZE + MAX_FREE_TRANSFERS) * (1 - took_hit[g])
+            # Players bought with a hit must start: benched buys can only use free transfers
+            prob += pulp.lpSum(benched_buy[p, g] for p in P) <= n_transfers - hits[g]
 
         if no_transfers or (no_transfers_first_gw and k == 0):
             prob += n_transfers == 0
@@ -227,6 +342,7 @@ def solve(
 
     if min_xpts is not None:
         plan_xpts = pulp.lpSum(players[p].xpts.get(g, 0.0) * (start[p, g] + cap[p, g]) for p in P for g in G)
+        plan_xpts += pulp.lpSum(players[p].xpts.get(g, 0.0) * v for (p, g), v in {**tcap, **bbp}.items())
         prob += plan_xpts - settings.hit_cost * pulp.lpSum(hits.values()) >= min_xpts - 1e-6
 
     g0 = G[0]
@@ -256,18 +372,33 @@ def solve(
     def on(var: pulp.LpVariable) -> bool:
         return (var.value() or 0) > 0.5
 
+    def played(g: int) -> str | None:
+        if g in forced:
+            return forced[g]
+        for (wi, gg), v in use.items():
+            if gg == g and not isinstance(v, int) and on(v):
+                return settings.chips[wi].name
+        return None
+
     gameweeks = []
     ft_now = min(state.free_transfers, settings.max_free_transfers)
+    kept = set(owned)  # the squad that carries on (a Free Hit week doesn't change it)
     for g in G:
         squad_g = tuple(p for p in P if on(squad[p, g]))
         starting = tuple(sorted((p for p in squad_g if on(start[p, g])), key=lambda p: (players[p].position, -players[p].xpts.get(g, 0))))
         bench_pool = [p for p in squad_g if p not in starting]
         bench = tuple(sorted(bench_pool, key=lambda p: (players[p].position != GKP, -players[p].xpts.get(g, 0))))
+        chip = played(g)
+        if chip == FREE_HIT:
+            ins, outs = tuple(sorted(set(squad_g) - kept)), tuple(sorted(kept - set(squad_g)))
+        else:
+            ins, outs = tuple(p for p in P if on(buy[p, g])), tuple(p for p in P if on(sell[p, g]))
+            kept = set(squad_g)
         gameweeks.append(
             GameweekSolution(
                 gw=g,
-                transfers_in=tuple(p for p in P if on(buy[p, g])),
-                transfers_out=tuple(p for p in P if on(sell[p, g])),
+                transfers_in=ins,
+                transfers_out=outs,
                 free_transfers=ft_now,
                 hits=int(round(hits[g].value())),
                 bank=int(round(bank[g].value())),
@@ -276,11 +407,13 @@ def solve(
                 bench=bench,
                 captain=next(p for p in starting if on(cap[p, g])),
                 vice=max((p for p in starting if not on(cap[p, g])), key=lambda p: players[p].xpts.get(g, 0.0)),
+                chip=chip,
             )
         )
         # The ft variable is only bounded above, so recompute the real count by replay.
-        free_used = len(gameweeks[-1].transfers_in) - gameweeks[-1].hits
-        ft_now = min(ft_now - free_used + 1, settings.max_free_transfers)
+        if chip not in TRANSFER_CHIPS:
+            free_used = len(ins) - gameweeks[-1].hits
+            ft_now = min(ft_now - free_used + 1, settings.max_free_transfers)
     return Solution(tuple(gameweeks), float(pulp.value(prob.objective)), float(prob.solutionTime), proven)
 
 
