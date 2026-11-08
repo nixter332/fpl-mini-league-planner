@@ -28,6 +28,7 @@ export interface Player {
   news: string;
   doubtful: boolean;
   rivals_owned: number;
+  rivals_captained: number;
   gws: PlayerGw[];
 }
 
@@ -116,4 +117,11 @@ export interface PlansResponse {
   clubs: Record<string, Club>;
   facts: string[];
   seconds: number;
+}
+
+export interface ExplainResponse {
+  rank: number;
+  status: "ok" | "unavailable" | "off";
+  why: string | null;
+  watch_out: string | null;
 }

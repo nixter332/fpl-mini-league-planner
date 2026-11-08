@@ -1,4 +1,4 @@
-import type { PlansResponse, ResolveResponse, Strategy, TeamResponse } from "./types";
+import type { ExplainResponse, PlansResponse, ResolveResponse, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -65,6 +65,23 @@ export function getPlans(p: PlanParams): Promise<PlansResponse> {
     pending = getJSON<PlansResponse>(`/api/plans?${key}`);
     pending.catch(() => planCache.delete(key));
     planCache.set(key, pending);
+  }
+  return pending;
+}
+
+// Claude-written reasons, one request per plan so each card fills in as soon as it's ready.
+// Failures resolve to "unavailable": a missing reason never breaks the page.
+const explainCache = new Map<string, Promise<ExplainResponse>>();
+
+export function getExplanation(p: PlanParams, rank: number): Promise<ExplainResponse> {
+  const key = `${planQuery(p)}&rank=${rank}`;
+  let pending = explainCache.get(key);
+  if (!pending) {
+    pending = getJSON<ExplainResponse>(`/api/explain?${key}`).catch(() => {
+      explainCache.delete(key);
+      return { rank, status: "unavailable" as const, why: null, watch_out: null };
+    });
+    explainCache.set(key, pending);
   }
   return pending;
 }

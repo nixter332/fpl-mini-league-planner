@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { BackLink, ErrorBox, Loading, Segmented, ThemeToggle } from "@/components/ui";
+import { Why, useExplanation } from "@/components/Why";
 import { ApiError, getPlans, readPlanParams } from "@/lib/api";
 import { gwOf, pts, strategyLabel } from "@/lib/format";
 import type { PlansResponse, Position } from "@/lib/types";
@@ -23,6 +24,7 @@ function PlanDetail() {
   const [data, setData] = useState<PlansResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"before" | "after">("after");
+  const explanation = useExplanation(params, Number(rank));
 
   useEffect(() => {
     getPlans(params)
@@ -88,6 +90,8 @@ function PlanDetail() {
         </h1>
         <div className="text-[13px] text-text2">{subtitle}</div>
       </div>
+
+      <Why explanation={explanation} />
 
       <div className="flex items-center justify-between">
         <Segmented

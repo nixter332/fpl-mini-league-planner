@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BackLink, ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
+import { Why, useExplanation } from "@/components/Why";
 import { ApiError, getPlans, planQuery, readPlanParams, type PlanParams } from "@/lib/api";
 import { STRATEGIES, money, signed } from "@/lib/format";
 import type { Plan, PlansResponse, Strategy } from "@/lib/types";
@@ -124,9 +125,9 @@ function PlansScreen() {
             <div className="text-sm leading-[1.4]">{current.captain_note}</div>
           </div>
           {current.plans.map((plan) => (
-            <PlanCard key={plan.rank} plan={plan} data={current} href={`/plans/${plan.rank}?${search.toString()}`} />
+            <PlanCard key={plan.rank} plan={plan} data={current} params={params} href={`/plans/${plan.rank}?${search.toString()}`} />
           ))}
-          <div className="text-center text-xs text-text3">The solver picks the transfers. Plain-English reasons are coming soon.</div>
+          <div className="text-center text-xs text-text3">The solver picks the transfers. AI only writes the reasons.</div>
           <Facts facts={current.facts} />
         </>
       )}
@@ -157,7 +158,8 @@ const TAGS = {
   roll: { label: "Roll transfer", cls: "bg-roll-bg text-roll-text" },
 };
 
-function PlanCard({ plan, data, href }: { plan: Plan; data: PlansResponse; href: string }) {
+function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansResponse; params: PlanParams; href: string }) {
+  const explanation = useExplanation(params, plan.rank);
   const first = plan.gameweeks[0];
   const n = data.standing?.n_rivals ?? 0;
   const tag = TAGS[plan.tag];
@@ -210,8 +212,10 @@ function PlanCard({ plan, data, href }: { plan: Plan; data: PlansResponse; href:
         </div>
       </div>
 
-      <div className="flex flex-col gap-1 rounded-[10px] bg-why-bg px-3 py-2.5">
-        <div className="text-xs font-semibold text-why-label">In numbers</div>
+      <Why explanation={explanation} />
+
+      <div className="flex flex-col gap-1 rounded-[10px] bg-surface2 px-3 py-2.5">
+        <div className="text-xs font-semibold text-text3">In numbers</div>
         <div className="text-[13px] leading-[1.45]">
           {plan.is_roll ? `${signed(plan.xpts_gain)} xPts over ${data.horizon} GWs vs making no transfers.` : plan.summary} Captain {name(first.captain)} in GW{first.gw}.
           {later.length > 0 && (
