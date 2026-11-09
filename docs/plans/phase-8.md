@@ -1,6 +1,11 @@
 # Phase 8 plan: analysis and what-if
 
-**Status:** proposal for Nikhil's approval (9 Nov 2026). This won't be built before the phase 5 gate passes and Nikhil says go.
+**Status:** built on the `phase-8` branch (9 Nov 2026, Nikhil said go). Decisions taken as recommended: red at 6+, amber at 3–6; replacements follow the strategy; chips in what-if; a what-if lives in the page address.
+
+**As built, compared with this plan:**
+- A swap's value is the change in the *whole team's* projected total (best XI and captain each week, plus the weighted bench), not the player's own points. Otherwise an injured regular, who'd be benched, never showed as a weak spot.
+- Claude's "your plan vs Plan 1" comparison in what-if isn't built. It was optional; the totals are shown side by side instead.
+- The reason for the top replacement is built (`/api/analysis/explain`), behind the same trust check as plan reasons.
 
 ## Goal
 

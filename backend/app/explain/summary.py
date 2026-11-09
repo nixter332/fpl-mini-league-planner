@@ -238,3 +238,41 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         }
         summary["head_to_head"] = {k: v for k, v in summary["head_to_head"].items() if v is not None}
     return summary
+
+
+def build_replacement_summary(resp: s.AnalysisResponse, spot: s.SpotOut) -> dict[str, Any]:
+    """Facts for explaining the top replacement for one squad player (phase 8 analysis)."""
+    gws = resp.gws
+    players = resp.players
+
+    def card(pid: int) -> dict[str, Any]:
+        p = players[pid]
+        games = [g for g in p.gws if g.gw in gws]
+        out: dict[str, Any] = {
+            "name": p.name,
+            "club": p.club,
+            "position": POSITIONS[p.position],
+            "games": [{"gameweek": g.gw, "fixture": g.fixture, "expected_points": r1(g.xpts)} for g in games],
+            "expected_points_total": r1(sum(g.xpts for g in games)),
+            "availability": (p.news or "flagged as doubtful") if p.doubtful else "available",
+        }
+        return out
+
+    me = players[spot.player]
+    current = card(spot.player)
+    current["sells_for_m"] = r1((me.sell_price or me.price) / 10)
+    options = []
+    for r in spot.replacements:
+        c = card(r.player)
+        c["costs_m"] = r1(players[r.player].price / 10)
+        c["team_points_gain"] = r1(r.gain)
+        c["rivals_owning"] = players[r.player].rivals_owned
+        options.append(c)
+    return {
+        "strategy": STRATEGY_MEANING[resp.strategy],
+        "gameweeks": _gw_label(gws),
+        "number_of_gameweeks": len(gws),
+        "money_in_bank_m": r1(resp.bank / 10),
+        "player_now": current,
+        "options_best_first": options,
+    }

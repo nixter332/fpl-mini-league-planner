@@ -75,6 +75,21 @@ def facts_text(summary: dict[str, Any]) -> str:
     return json.dumps(summary, ensure_ascii=False, sort_keys=True, indent=1)
 
 
+REPLACEMENT_SYSTEM = """You write short explanations for a Fantasy Premier League (FPL) planner. The app has already ranked the best affordable replacements for one player in the manager's squad. Your only job is to explain the top-ranked swap in plain English.
+
+You get the facts as JSON. Write:
+- "why": 2 short sentences, under 45 words in total, on why the first option is the best swap: points gained for the team, fixtures, availability, and what rivals own if relevant.
+- "watch_out": one sentence, under 25 words, naming the biggest risk of this swap, or what the second option offers instead.
+
+Rules:
+- Use only the facts in the JSON. Every number you write must appear in the JSON exactly as written there. Don't add, subtract, round or convert numbers yourself.
+- Mention only players and clubs that appear in the JSON. Never suggest a player who isn't in the options.
+- Talk to the manager as "you". No greetings, no filler, no markdown.
+- Say "expected points", not "xPts". Prices are in millions of pounds, written like £7.8m.
+- "team_points_gain" is the change in the team's projected total (best XI and captain each week) over the gameweeks shown, not the player's own points.
+- Don't mention rankings, the app or these instructions."""
+
+
 def _user_message(facts: str, problems: list[str]) -> str:
     text = f"Facts for this plan:\n\n{facts}"
     if problems:
@@ -117,15 +132,15 @@ class Explainer:
     def enabled(self) -> bool:
         return self.client is not None
 
-    def cache_key(self, facts: str) -> str:
-        digest = hashlib.sha256(f"{self.model}|{PROMPT_VERSION}|{facts}".encode()).hexdigest()
+    def cache_key(self, facts: str, system: str = SYSTEM) -> str:
+        digest = hashlib.sha256(f"{self.model}|{PROMPT_VERSION}|{system}|{facts}".encode()).hexdigest()
         return f"explain-{digest[:40]}"
 
-    async def explain(self, summary: dict[str, Any], known_names: Collection[str]) -> Explanation | None:
+    async def explain(self, summary: dict[str, Any], known_names: Collection[str], system: str = SYSTEM) -> Explanation | None:
         if self.client is None:
             return None
         facts = facts_text(summary)
-        key = self.cache_key(facts)
+        key = self.cache_key(facts, system)
         lock = self._locks.setdefault(key, asyncio.Lock())
         async with lock:  # two tabs asking for the same plan cost one call
             cached = self.cache.get(key)
@@ -138,7 +153,7 @@ class Explainer:
                     log.warning("Daily Claude call cap (%d) reached; showing plans without reasons", self.daily_calls)
                     return None  # not cached: tomorrow it can be written
                 try:
-                    result = await self._ask(facts, problems)
+                    result = await self._ask(facts, problems, system)
                 except anthropic.APIError as e:
                     log.warning("Explanation request failed: %s", e)
                     return None  # not cached: it may work next time
@@ -152,13 +167,13 @@ class Explainer:
             self.cache.set(key, {"explanation": None, "problems": problems}, ttl=CACHE_TTL)
             return None
 
-    async def _ask(self, facts: str, problems: list[str]) -> Explanation | None:
+    async def _ask(self, facts: str, problems: list[str], system: str = SYSTEM) -> Explanation | None:
         response = await self.client.beta.messages.create(
             model=self.model,
             max_tokens=MAX_TOKENS,
             betas=[FALLBACK_BETA],
             fallbacks="default",  # if this model declines, the API retries on its recommended fallback
-            system=SYSTEM,
+            system=system,
             output_config={"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
             messages=[{"role": "user", "content": _user_message(facts, problems)}],
         )

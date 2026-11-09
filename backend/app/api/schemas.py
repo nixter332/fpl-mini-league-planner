@@ -314,6 +314,13 @@ class WhatIfResponse(BaseModel):
     chips_left: list[ChipLeft]
 
 
+class ReplacementExplainResponse(BaseModel):
+    player: int
+    status: Literal["ok", "unavailable", "off"]
+    why: str | None = None
+    watch_out: str | None = None
+
+
 class PlayersResponse(BaseModel):
     """Every player, for the what-if search (projections for the next gameweeks)."""
 

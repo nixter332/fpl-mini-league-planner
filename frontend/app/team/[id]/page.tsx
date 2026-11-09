@@ -5,7 +5,8 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
-import { ApiError, getAnalysis, getTeam, waitForRivals } from "@/lib/api";
+import { ApiError, getAnalysis, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
+import { Why } from "@/components/Why";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { track } from "@/lib/analytics";
@@ -282,6 +283,7 @@ function TeamScreen() {
           onClose={() => setSelected(null)}
           onShowWeak={() => setMode("weak")}
           tryHref={(into) => whatIfHref(`&m=${data.gameweeks[0].id}.${selected}.${into}`)}
+          loadReason={() => getReplacementReason(entry, activeLeague, standing?.rank === 1 ? "protect" : "balanced", selected)}
         />
       )}
     </main>
@@ -289,12 +291,23 @@ function TeamScreen() {
 }
 
 function PlayerSheet({
-  player, spot, analysis, weakMode, nRivals, onClose, onShowWeak, tryHref,
+  player, spot, analysis, weakMode, nRivals, onClose, onShowWeak, tryHref, loadReason,
 }: {
   player: Player; spot?: SpotOut; analysis: AnalysisResponse | null; weakMode: boolean; nRivals: number;
-  onClose: () => void; onShowWeak: () => void; tryHref: (into: number) => string;
+  onClose: () => void; onShowWeak: () => void; tryHref: (into: number) => string; loadReason: () => Promise<ReplacementReason>;
 }) {
   const sell = player.sell_price ?? player.price;
+  const hasOptions = weakMode && !!analysis && !!spot && spot.replacements.length > 0;
+  const [reason, setReason] = useState<ReplacementReason | null>(null);
+  useEffect(() => {
+    if (!hasOptions) return;
+    let live = true;
+    loadReason().then((r) => live && setReason(r));
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasOptions, player.id]);
   return (
     <Sheet title={player.name} onClose={onClose}>
       <div className="text-[13px] text-text2">
@@ -319,6 +332,7 @@ function PlayerSheet({
         <div className="text-[13px] text-text2">No affordable swap would improve your team over the next {analysis.gws.length} GWs. Keep him.</div>
       ) : (
         <div className="flex flex-col gap-2" data-testid="replacements">
+          <Why explanation={reason} label={`Why ${analysis.players[spot.replacements[0].player]?.name ?? "the top swap"}`} />
           <div className="text-xs font-semibold text-text3">BEST REPLACEMENTS (next {analysis.gws.length} GWs, your whole team)</div>
           {spot.replacements.map((r) => {
             const c = analysis.players[r.player];

@@ -25,7 +25,7 @@ export function useExplanation(params: PlanParams, rank: number): ExplainRespons
 }
 
 /** "Why this plan" and "Watch out", or nothing if there's no reason (no key, error, failed check). */
-export function Why({ explanation }: { explanation: ExplainResponse | null }) {
+export function Why({ explanation, label = "Why this plan" }: { explanation: Pick<ExplainResponse, "status" | "why" | "watch_out"> | null; label?: string }) {
   if (explanation && explanation.status !== "ok") return null;
   return (
     <>
@@ -34,7 +34,7 @@ export function Why({ explanation }: { explanation: ExplainResponse | null }) {
           <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
             <path d="M7 1l1.6 3.9L12.5 6.5 8.6 8.1 7 12 5.4 8.1 1.5 6.5l3.9-1.6z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
           </svg>
-          Why this plan
+          {label}
         </div>
         {explanation ? (
           <div className="text-[13px] leading-[1.45]" data-testid="why">{explanation.why}</div>

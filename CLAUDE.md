@@ -60,6 +60,7 @@ Fill these in as they're created, and keep them current:
 - Run the app locally (two terminals): `cd backend && uvicorn app.api.main:app --port 8000`, then `cd frontend && npm install && npm run dev` and open http://localhost:3000. Next.js proxies `/api/*` to the backend (`BACKEND_URL`, default http://127.0.0.1:8000).
 - Frontend checks: `cd frontend && npm run typecheck && npm run build`.
 - Tracking privacy check (PostHog events must carry no team/league IDs): `cd frontend && NEXT_PUBLIC_POSTHOG_KEY=phc_dummy NEXT_PUBLIC_POSTHOG_DEBUG=1 npm run build && E2E_PRIVACY=1 npx playwright test e2e/privacy.spec.ts`, then rebuild normally. Feedback and tracking setup: `docs/deploy.md`.
+- Phase 8 (analysis and what-if): `GET /api/analysis`, `GET /api/analysis/explain`, `POST /api/what-if`, `GET /api/players`. Core logic in `backend/app/optimizer/analysis.py` and `whatif.py`; plan and decisions in `docs/plans/phase-8.md`.
 - Live check after a deploy (same journey against the deployed site; may write a few Claude reasons): `cd frontend && npm run screenshots:live`.
 - Screenshot journey (Playwright, phone-sized; starts both servers itself; uses live cached FPL data for team 5179483 / league 1883627): `cd frontend && npx playwright install chromium` once, then `npm run build && npm run screenshots`. Images land in `frontend/e2e/screenshots/` (git-ignored). Claude is switched off in this run (free); `E2E_CLAUDE=1 npx playwright test -g reasons` screenshots real reasons for the Balanced plans (billed the first time, then cached).
 

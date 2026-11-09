@@ -16,8 +16,8 @@ from starlette.concurrency import run_in_threadpool
 from app.api import schemas as s
 from app.api.limits import RateLimiter, client_key
 from app.api.service import InvalidRequestError, NotFoundError, PlannerService
-from app.explain.explainer import Explainer
-from app.explain.summary import build_summary
+from app.explain.explainer import REPLACEMENT_SYSTEM, Explainer
+from app.explain.summary import build_replacement_summary, build_summary
 from app.fpl.client import FPLClient, FPLError, FPLNotFound
 from app.fpl.links import LinkParseError
 
@@ -212,6 +212,35 @@ def analysis(
     if not analysis_limiter.allow(client_key(request)):
         raise HTTPException(429, "That's a lot of analysis in an hour. Try again in a bit.")
     return svc.analysis(team, league, strategy, horizon)
+
+
+@app.get("/api/analysis/explain", response_model=s.ReplacementExplainResponse)
+async def analysis_explain(
+    request: Request,
+    team: int = Query(..., gt=0),
+    player: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0),
+    strategy: Literal["protect", "balanced", "risky"] = "protect",
+    horizon: int = Query(4, ge=1, le=5),
+    svc: PlannerService = Depends(get_service),
+    explainer: Explainer = Depends(get_explainer),
+) -> s.ReplacementExplainResponse:
+    """A Claude-written reason for the top replacement of one squad player (numbers from the analysis)."""
+    if not explainer.enabled:
+        return s.ReplacementExplainResponse(player=player, status="off")
+    if not explain_limiter.allow(client_key(request)):
+        return s.ReplacementExplainResponse(player=player, status="unavailable")
+    resp = await run_in_threadpool(svc.analysis, team, league, strategy, horizon)
+    spot = next((sp for sp in resp.spots if sp.player == player), None)
+    if spot is None:
+        raise HTTPException(404, "That player isn't in your squad.")
+    if not spot.replacements:
+        return s.ReplacementExplainResponse(player=player, status="unavailable")
+    known = await run_in_threadpool(svc.known_names)
+    result = await explainer.explain(build_replacement_summary(resp, spot), known, REPLACEMENT_SYSTEM)
+    if result is None:
+        return s.ReplacementExplainResponse(player=player, status="unavailable")
+    return s.ReplacementExplainResponse(player=player, status="ok", why=result.why, watch_out=result.watch_out)
 
 
 @app.post("/api/what-if", response_model=s.WhatIfResponse)

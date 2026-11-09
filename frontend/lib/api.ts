@@ -251,3 +251,22 @@ export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; ca
   }
   return { moves, captains, chips };
 }
+
+export interface ReplacementReason { player: number; status: "ok" | "unavailable" | "off"; why: string | null; watch_out: string | null }
+const reasonCache = new Map<string, Promise<ReplacementReason>>();
+
+/** Claude's reason for the top replacement of one squad player (cached for the session). */
+export function getReplacementReason(team: number, league: number | null, strategy: Strategy, player: number): Promise<ReplacementReason> {
+  const q = new URLSearchParams({ team: String(team), strategy, player: String(player), horizon: "4" });
+  if (league !== null) q.set("league", String(league));
+  const key = q.toString();
+  let pending = reasonCache.get(key);
+  if (!pending) {
+    pending = getJSON<ReplacementReason>(`/api/analysis/explain?${key}`).catch(() => {
+      reasonCache.delete(key);
+      return { player, status: "unavailable" as const, why: null, watch_out: null };
+    });
+    reasonCache.set(key, pending);
+  }
+  return pending;
+}

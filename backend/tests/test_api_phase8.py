@@ -42,3 +42,31 @@ def test_what_if_reports_illegal_moves(api: TestClient) -> None:
 def test_players_list(api: TestClient) -> None:
     body = api.get("/api/players", params={"team": TEAM, "league": LEAGUE}).json()
     assert len(body["players"]) > 500 and body["gws"]
+
+
+def test_replacement_reason(api: TestClient, tmp_path) -> None:
+    from app.api import schemas as s
+    from app.api.main import get_service, set_explainer
+    from app.explain.check import check
+    from app.explain.explainer import Explainer, facts_text
+    from app.explain.summary import build_replacement_summary
+    from app.fpl.cache import DiskCache
+    from tests.fakes import FakeClaude
+
+    body = api.get("/api/analysis", params={"team": TEAM, "league": LEAGUE, "horizon": 4}).json()
+    resp = s.AnalysisResponse.model_validate(body)
+    spot = next(sp for sp in resp.spots if sp.replacements)
+    facts = build_replacement_summary(resp, spot)
+    top = facts["options_best_first"][0]
+    # A faithful reason passes the trust check; the facts carry the team gain and both players.
+    why = f"{top['name']} adds {top['team_points_gain']} expected points to your team over {facts['gameweeks']}."
+    assert check(why, "Rotation risk.", facts_text(facts), get_service().known_names()) == []
+
+    fake = FakeClaude({"why": why, "watch_out": "Rotation risk."})
+    set_explainer(Explainer(fake, DiskCache(tmp_path)))
+    try:
+        r = api.get("/api/analysis/explain", params={"team": TEAM, "league": LEAGUE, "horizon": 4, "player": spot.player}).json()
+    finally:
+        set_explainer(None)
+    assert r == {"player": spot.player, "status": "ok", "why": why, "watch_out": "Rotation risk."}
+    assert "best affordable replacements" in fake.calls[0]["system"]
