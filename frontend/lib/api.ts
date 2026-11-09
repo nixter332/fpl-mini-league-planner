@@ -1,5 +1,5 @@
 import { track } from "./analytics";
-import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -225,9 +225,10 @@ export async function postWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
 }
 
 /** What-if moves, captains and chips in the page address, so a what-if can be bookmarked or shared. */
-export function encodeWhatIf(moves: WhatIfMove[], captains: Record<number, number>, chips: Record<number, string>): string {
+export function encodeWhatIf(moves: WhatIfMove[], captains: Record<number, number>, chips: Record<number, string>, swaps: WhatIfSwap[] = []): string {
   const q = new URLSearchParams();
   if (moves.length) q.set("m", moves.map((m) => `${m.gw}.${m.out}.${m.into}`).join(","));
+  if (swaps.length) q.set("s", swaps.map((s) => `${s.gw}.${s.bench}.${s.start}`).join(","));
   const caps = Object.entries(captains);
   if (caps.length) q.set("c", caps.map(([g, p]) => `${g}.${p}`).join(","));
   const ch = Object.entries(chips);
@@ -235,7 +236,7 @@ export function encodeWhatIf(moves: WhatIfMove[], captains: Record<number, numbe
   return q.toString();
 }
 
-export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; captains: Record<number, number>; chips: Record<number, ChipName> } {
+export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; captains: Record<number, number>; chips: Record<number, ChipName>; swaps: WhatIfSwap[] } {
   const nums = (s: string) => s.split(".").map(Number);
   const moves = (search.get("m") ?? "").split(",").filter(Boolean).map(nums)
     .filter((a) => a.length === 3 && a.every((n) => Number.isInteger(n) && n > 0)).map(([gw, out, into]) => ({ gw, out, into }));
@@ -249,7 +250,9 @@ export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; ca
     const [g, c] = part.split(".");
     if (Number(g) > 0 && ["wildcard", "freehit", "bboost", "3xc"].includes(c)) chips[Number(g)] = c as ChipName;
   }
-  return { moves, captains, chips };
+  const swaps = (search.get("s") ?? "").split(",").filter(Boolean).map(nums)
+    .filter((a) => a.length === 3 && a.every((n) => Number.isInteger(n) && n > 0)).map(([gw, bench, start]) => ({ gw, bench, start }));
+  return { moves, captains, chips, swaps };
 }
 
 export interface ReplacementReason { player: number; status: "ok" | "unavailable" | "off"; why: string | null; watch_out: string | null }

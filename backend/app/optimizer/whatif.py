@@ -11,6 +11,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
+from app.model.scoring import DEF, FWD, GKP, MID
 from app.optimizer.chips import BENCH_BOOST, CHIP_LABELS, FREE_HIT, TRANSFER_CHIPS, TRIPLE_CAPTAIN, window_for
 from app.optimizer.lineup import best_lineup
 from app.optimizer.plans import validate
@@ -27,6 +28,20 @@ class Move:
     gw: int
     out: int
     into: int
+
+
+@dataclass(frozen=True)
+class Swap:
+    """The user's lineup choice for a week: `bench` goes to the bench, `start` comes into the XI."""
+
+    gw: int
+    bench: int
+    start: int
+
+
+XI_MIN = {GKP: 1, DEF: 3, MID: 2, FWD: 1}
+XI_MAX = {GKP: 1, DEF: 5, MID: 5, FWD: 3}
+POSITION_PLURAL = {GKP: "goalkeeper", DEF: "defenders", MID: "midfielders", FWD: "forward"}
 
 
 @dataclass(frozen=True)
@@ -47,9 +62,14 @@ def build_plan(
     moves: Iterable[Move] = (),
     captains: Mapping[int, int] | None = None,
     chips: Mapping[int, str] | None = None,
+    swaps: Iterable[Swap] = (),
 ) -> tuple[Solution, list[Problem]]:
-    """The user's plan over settings.gws, with every move that breaks a rule skipped and reported."""
+    """The user's plan over settings.gws, with every move that breaks a rule skipped and reported.
+    Each week starts from the best XI; the user's swaps (bench one, start another) apply on top."""
     captains, chips = captains or {}, chips or {}
+    swaps_by_gw: dict[int, list[Swap]] = {}
+    for sw in swaps:
+        swaps_by_gw.setdefault(sw.gw, []).append(sw)
     problems: list[Problem] = []
     by_gw: dict[int, list[Move]] = {}
     for m in moves:
@@ -113,18 +133,28 @@ def build_plan(
         hits = 0 if chip in TRANSFER_CHIPS else max(0, len(ins) - ft)
         xpts = {p: players[p].xpts.get(gw, 0.0) for p in squad}
         lineup = best_lineup(squad, {p: players[p].position for p in squad}, xpts)
-        captain, vice = lineup.captain, lineup.vice
+        xi, bench = list(lineup.starting), list(lineup.bench)
+        for sw in swaps_by_gw.get(gw, []):
+            problem = _swap_problem(sw, xi, bench, players, names)
+            if problem:
+                problems.append(Problem(gw, f"{tag}: {problem}"))
+                continue
+            xi[xi.index(sw.bench)] = sw.start
+            bench[bench.index(sw.start)] = sw.bench
+        bench.sort(key=lambda p: (players[p].position != GKP, -xpts[p]))  # FPL order: keeper first
+        by_xpts = sorted(xi, key=lambda p: -xpts[p])
+        captain, vice = by_xpts[0], by_xpts[1]
         wanted = captains.get(gw)
         if wanted is not None:
-            if wanted in lineup.starting:
+            if wanted in xi:
                 captain = wanted
-                vice = max((p for p in lineup.starting if p != captain), key=lambda p: xpts[p])
+                vice = max((p for p in xi if p != captain), key=lambda p: xpts[p])
             else:
                 problems.append(Problem(gw, f"{tag}: {names.get(wanted, f'#{wanted}')} isn't in your starting XI, so he can't be captain."))
         weeks.append(GameweekSolution(
             gw=gw, transfers_in=tuple(ins), transfers_out=tuple(outs), free_transfers=ft, hits=hits,
             bank=bank if chip == FREE_HIT else week_bank, squad=tuple(sorted(squad)),
-            starting=tuple(lineup.starting), bench=tuple(lineup.bench), captain=captain, vice=vice, chip=chip,
+            starting=tuple(xi), bench=tuple(bench), captain=captain, vice=vice, chip=chip,
         ))
         if chip == FREE_HIT:
             continue  # squad, bank and free transfers come back unchanged
@@ -138,6 +168,26 @@ def build_plan(
     errors = [e for e in validate(solution, dict(players), state, _no_hit_cap(settings)) if not any(r in e for r in PLANNER_ONLY_RULES)]
     problems += [Problem(None, f"Rule check: {e}") for e in errors]  # shouldn't happen: the checks above come first
     return solution, problems
+
+
+def _swap_problem(sw: Swap, xi: list[int], bench: list[int], players: Mapping[int, PoolPlayer], names: Mapping[int, str]) -> str | None:
+    """Why this lineup swap can't be made (None if it can)."""
+    n_out, n_in = names.get(sw.bench, f"#{sw.bench}"), names.get(sw.start, f"#{sw.start}")
+    if sw.bench not in xi:
+        return f"{n_out} isn't in your starting XI this week."
+    if sw.start not in bench:
+        return f"{n_in} isn't on your bench this week."
+    if (players[sw.bench].position == GKP) != (players[sw.start].position == GKP):
+        return "a goalkeeper can only swap with the other goalkeeper."
+    counts = Counter(players[p].position for p in xi)
+    counts[players[sw.bench].position] -= 1
+    counts[players[sw.start].position] += 1
+    for pos, low in XI_MIN.items():
+        if counts[pos] < low:
+            return f"starting {n_in} for {n_out} leaves fewer than {low} {POSITION_PLURAL[pos]}."
+        if counts[pos] > XI_MAX[pos]:
+            return f"starting {n_in} for {n_out} gives you more than {XI_MAX[pos]} {POSITION_PLURAL[pos]}."
+    return None
 
 
 def _no_hit_cap(settings: Settings) -> Settings:

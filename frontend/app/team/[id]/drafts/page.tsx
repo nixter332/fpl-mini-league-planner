@@ -43,7 +43,7 @@ function Drafts() {
     let live = true;
     for (const d of drafts) {
       if (scores[d.id]) continue;
-      postWhatIf({ team: d.team, league: d.league, strategy: d.strategy, horizon: 4, moves: d.moves, captains: d.captains, chips: d.chips })
+      postWhatIf({ team: d.team, league: d.league, strategy: d.strategy, horizon: 4, moves: d.moves, captains: d.captains, chips: d.chips, swaps: d.swaps ?? [] })
         .then((r) => live && setScores((s) => ({ ...s, [d.id]: r })))
         .catch(() => live && setScores((s) => ({ ...s, [d.id]: "error" })));
     }
@@ -56,7 +56,7 @@ function Drafts() {
   if (!drafts) return <Loading message="Loading your drafts…" />;
 
   const openHref = (d: Draft) => {
-    const q = new URLSearchParams(encodeWhatIf(d.moves, d.captains, d.chips));
+    const q = new URLSearchParams(encodeWhatIf(d.moves, d.captains, d.chips, d.swaps ?? []));
     if (d.league !== null) q.set("league", String(d.league));
     q.set("strategy", d.strategy);
     q.set("draft", d.id);

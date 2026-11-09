@@ -260,3 +260,27 @@ test("phase 9: save, rename, compare and delete drafts", async ({ page }) => {
   await page.getByTestId("draft").filter({ hasText: "Swap B" }).getByRole("button", { name: "Yes" }).click();
   await expect(page.getByTestId("draft")).toHaveCount(1);
 });
+
+test("what-if: choose your own lineup, and clear free-transfer counts", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  await page.goto(`/team/${TEAM}/what-if?league=${LEAGUE}&strategy=protect`);
+  await expect(page.getByTestId("whatif-total")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/\d free · \d used/)).toBeVisible();
+  // Bring an outfield bench player on (bench order: keeper first).
+  await page.getByTestId("bench-player").nth(1).click();
+  await page.getByRole("button", { name: /Bring on in GW/ }).click();
+  await page.getByTestId("lineup-picker").getByRole("button").first().click();
+  await expect(page).toHaveURL(/[?&]s=/);
+  const own = page.getByTestId("own-lineup");
+  const problem = page.getByRole("alert").filter({ hasText: /GW\d+:/ }); // not the Next.js route announcer
+  await expect(own.or(problem)).toBeVisible({ timeout: 60_000 });
+  if (await own.isVisible()) {
+    await expect(own).toContainText("best XI");
+    await shot(page, "25-whatif-own-lineup");
+    await own.getByRole("button", { name: "Use best lineup" }).click();
+    await expect(own).toHaveCount(0, { timeout: 60_000 });
+  } else {
+    await expect(problem).toContainText(/fewer than|more than|goalkeeper/); // an illegal formation is explained
+  }
+});

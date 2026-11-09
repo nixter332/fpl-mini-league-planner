@@ -10,7 +10,7 @@ import { track } from "@/lib/analytics";
 import { ApiError, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
 import { getDraft, listDrafts, saveDraft, suggestName, type Draft } from "@/lib/drafts";
 import { CHIP_LABELS, gwOf, money, pts, signed } from "@/lib/format";
-import type { ChipName, Player, PlansResponse, PlayersResponse, Position, Strategy, WhatIfMove, WhatIfResponse } from "@/lib/types";
+import type { ChipName, Player, PlansResponse, PlayersResponse, Position, Strategy, WhatIfMove, WhatIfResponse, WhatIfSwap } from "@/lib/types";
 
 export default function WhatIfPage() {
   return (
@@ -29,7 +29,7 @@ function WhatIf() {
   const league = leagueParam === null ? null : Number(leagueParam);
   const strategyParam = search.get("strategy");
   const strategy: Strategy = strategyParam === "balanced" || strategyParam === "risky" ? strategyParam : "protect";
-  const { moves, captains, chips } = decodeWhatIf(search);
+  const { moves, captains, chips, swaps } = decodeWhatIf(search);
   const draftId = search.get("draft");
   const key = search.toString();
 
@@ -40,6 +40,7 @@ function WhatIf() {
   const [gwIndex, setGwIndex] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [replacing, setReplacing] = useState(false);
+  const [lineupFor, setLineupFor] = useState<number | null>(null);
   const [history, setHistory] = useState<string[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
@@ -56,7 +57,7 @@ function WhatIf() {
   useEffect(() => {
     let live = true;
     setError(null);
-    postWhatIf({ team: entry, league, strategy, horizon: 4, moves, captains, chips })
+    postWhatIf({ team: entry, league, strategy, horizon: 4, moves, captains, chips, swaps })
       .then((data) => live && setResult({ key, data }))
       .catch((e) => live && setError(e instanceof ApiError ? e.message : "Couldn't score that plan."));
     return () => {
@@ -78,19 +79,19 @@ function WhatIf() {
 
   const data = result?.data ?? null;
   const stale = result !== null && result.key !== key; // a change is being scored
-  const update = (next: { moves?: WhatIfMove[]; captains?: Record<number, number>; chips?: Record<number, ChipName> }) => {
+  const update = (next: { moves?: WhatIfMove[]; captains?: Record<number, number>; chips?: Record<number, ChipName>; swaps?: WhatIfSwap[] }) => {
     setHistory((h) => [...h, key]);
-    router.replace(`/team/${entry}/what-if?${queryFor(next.moves ?? moves, next.captains ?? captains, next.chips ?? chips, draftId)}`);
+    router.replace(`/team/${entry}/what-if?${queryFor(next.moves ?? moves, next.captains ?? captains, next.chips ?? chips, draftId, next.swaps ?? swaps)}`);
   };
-  function queryFor(m: WhatIfMove[], c: Record<number, number>, x: Record<number, ChipName>, id: string | null): string {
-    const q = new URLSearchParams(encodeWhatIf(m, c, x));
+  function queryFor(m: WhatIfMove[], c: Record<number, number>, x: Record<number, ChipName>, id: string | null, s: WhatIfSwap[] = swaps): string {
+    const q = new URLSearchParams(encodeWhatIf(m, c, x, s));
     if (league !== null) q.set("league", String(league));
     q.set("strategy", strategy);
     if (id) q.set("draft", id);
     return q.toString();
   }
   const save = (asNew: boolean) => {
-    const saved = saveDraft({ id: asNew ? undefined : draft?.id, name: draftName, team: entry, league, strategy, moves, captains, chips });
+    const saved = saveDraft({ id: asNew ? undefined : draft?.id, name: draftName, team: entry, league, strategy, moves, captains, chips, swaps });
     setSaving(false);
     if (!saved) {
       setSavedNote("Couldn't save: this browser isn't allowing storage (private mode?).");
@@ -143,15 +144,17 @@ function WhatIf() {
       onSelect: () => {
         setSelected(pid);
         setReplacing(false);
+        setLineupFor(null);
       },
     };
   };
 
   const plan1 = plans?.plans[0];
   const weekChips = data.chips_left.filter((c) => c.start <= week.gw && week.gw <= c.stop);
+  // "2 free · 1 used": the free transfers going into this week, and how many this week uses.
   const transfersText = week.chip === "wildcard" || week.chip === "freehit"
-    ? `${week.moves.length} (${CHIP_LABELS[week.chip]})`
-    : `${week.moves.length} of ${week.free_transfers} free${week.hits ? ` · −${4 * week.hits}` : ""}`;
+    ? `${CHIP_LABELS[week.chip]} · ${week.moves.length} used`
+    : `${week.free_transfers} free · ${week.moves.length} used${week.hits ? ` (−${4 * week.hits})` : ""}`;
 
   return (
     <main className="flex flex-col gap-3">
@@ -161,7 +164,7 @@ function WhatIf() {
       </div>
       <div className="flex flex-col gap-1">
         <h1 className="m-0 font-display text-[24px] font-bold">What-if{draft ? `: ${draft.name}` : ""}</h1>
-        <div className="text-[13px] text-text2">Tap a player to transfer him out or make him captain. Points update as you go.</div>
+        <div className="text-[13px] text-text2">Tap a player to transfer him, bench him or make him captain. Points update as you go.</div>
       </div>
 
       {error && <ErrorBox message={`${error} The numbers below are from before your last change.`} />}
@@ -207,6 +210,20 @@ function WhatIf() {
         <Tile label="Bank" value={money(week.bank)} />
         <Tile label="Transfers" value={transfersText} />
       </div>
+      {week.own_lineup && (
+        <div className="flex flex-wrap items-center gap-x-2 text-xs text-text2" data-testid="own-lineup">
+          <span>
+            Your lineup: <b>{pts(week.xpts)}</b> · best XI: {pts(week.best_xi_xpts)} ({signed(week.xpts - week.best_xi_xpts)})
+          </span>
+          <button
+            type="button"
+            onClick={() => update({ swaps: swaps.filter((s) => s.gw !== week.gw) })}
+            className="font-semibold text-link"
+          >
+            Use best lineup
+          </button>
+        </div>
+      )}
 
       <Pitch players={week.starting.map(token)} positions={positions} order={order} />
       <Bench players={week.bench.map(token)} />
@@ -311,8 +328,25 @@ function WhatIf() {
       )}
 
       {selected !== null && (
-        <Sheet title={name(selected)} onClose={() => setSelected(null)}>
-          {!replacing ? (
+        <Sheet title={name(selected)} onClose={() => { setSelected(null); setLineupFor(null); }}>
+          {lineupFor !== null ? (
+            <LineupPicker
+              all={all}
+              selected={selected}
+              options={(week.starting.includes(selected) ? week.bench : week.starting).filter(
+                (p) => (all.players[p]?.position === "GKP") === (all.players[selected]?.position === "GKP"),
+              )}
+              gw={week.gw}
+              starting={week.starting.includes(selected)}
+              onPick={(other) => {
+                const benching = week.starting.includes(selected);
+                track("what_if_lineup", { gw: week.gw });
+                update({ swaps: [...swaps, { gw: week.gw, bench: benching ? selected : other, start: benching ? other : selected }] });
+                setSelected(null);
+                setLineupFor(null);
+              }}
+            />
+          ) : !replacing ? (
             <PlayerActions
               p={player(selected)}
               gw={week.gw}
@@ -320,6 +354,8 @@ function WhatIf() {
               isCaptain={week.captain === selected}
               boughtFor={boughtNow[selected] ? name(boughtNow[selected]) : null}
               onTransfer={() => setReplacing(true)}
+              onLineup={() => setLineupFor(selected)}
+              onBench={week.bench.includes(selected)}
               onCaptain={() => {
                 track("what_if_captain");
                 update({ captains: { ...captains, [week.gw]: selected } });
@@ -351,10 +387,10 @@ function WhatIf() {
 }
 
 function PlayerActions({
-  p, gw, inXi, isCaptain, boughtFor, onTransfer, onCaptain, onUndoBuy,
+  p, gw, inXi, isCaptain, boughtFor, onTransfer, onCaptain, onUndoBuy, onLineup, onBench,
 }: {
   p?: Player; gw: number; inXi: boolean; isCaptain: boolean; boughtFor: string | null;
-  onTransfer: () => void; onCaptain: () => void; onUndoBuy: () => void;
+  onTransfer: () => void; onCaptain: () => void; onUndoBuy: () => void; onLineup: () => void; onBench: boolean;
 }) {
   if (!p) return null;
   return (
@@ -387,6 +423,9 @@ function PlayerActions({
             Make captain in GW{gw}
           </button>
         )}
+        <button type="button" onClick={onLineup} className="h-11 rounded-xl border border-line bg-surface text-sm font-semibold">
+          {onBench ? `Bring on in GW${gw}` : `Move to bench in GW${gw}`}
+        </button>
       </div>
     </>
   );
@@ -439,6 +478,34 @@ function ReplacementPicker({
             </button>
           );
         })}
+      </div>
+    </>
+  );
+}
+
+function LineupPicker({
+  all, selected, options, gw, starting, onPick,
+}: {
+  all: PlayersResponse; selected: number; options: number[]; gw: number; starting: boolean; onPick: (other: number) => void;
+}) {
+  const me = all.players[selected];
+  const x = (pid: number) => all.players[pid]?.gws.find((g) => g.gw === gw);
+  return (
+    <>
+      <div className="text-[13px] text-text2">
+        {starting ? `Bench ${me.name} in GW${gw}. Who comes on?` : `Start ${me.name} in GW${gw}. Who goes to the bench?`} Formations must
+        keep 1 goalkeeper, at least 3 defenders, 2 midfielders and 1 forward.
+      </div>
+      <div className="flex flex-col gap-1.5" data-testid="lineup-picker">
+        {options.map((pid) => (
+          <button key={pid} type="button" onClick={() => onPick(pid)} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-left">
+            <span className="flex min-w-0 flex-col">
+              <span className="truncate text-sm font-semibold">{all.players[pid]?.name}</span>
+              <span className="truncate text-[11.5px] text-text3">{all.players[pid]?.position} · {x(pid)?.fixture}</span>
+            </span>
+            <span className="shrink-0 text-sm font-bold">{pts(x(pid)?.xpts ?? 0)}</span>
+          </button>
+        ))}
       </div>
     </>
   );

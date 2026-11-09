@@ -103,3 +103,44 @@ def test_captain_choice_and_chips(setup, manager_state) -> None:
     assert "isn't in your starting XI" in msgs  # a bench player can't be captain
     assert "don't have a Wildcard" in msgs
     assert sol2.gameweeks[1].chip == "freehit" and set(sol2.gameweeks[2].squad) == state.element_ids  # Free Hit reverts
+
+
+def test_user_can_choose_the_lineup(setup, manager_state) -> None:
+    """Bench a starter for a bench player of a valid formation; points follow the user's XI."""
+    from app.model.scoring import GKP
+    from app.optimizer.whatif import Swap
+
+    players, names = setup
+    settings = Settings(GWS)
+    auto, _ = build_plan(manager_state, players, names, settings)
+    gw = auto.first
+    out = min((p for p in gw.starting if players[p].position == 3), key=lambda p: players[p].xpts[11])  # weakest midfielder
+    sub = next(p for p in gw.bench if players[p].position == 3) if any(players[p].position == 3 for p in gw.bench) else None
+    if sub is None:
+        pytest.skip("no bench midfielder in this squad")
+    sol, problems = build_plan(manager_state, players, names, settings, swaps=[Swap(11, out, sub)])
+    assert problems == []
+    assert sub in sol.first.starting and out in sol.first.bench
+    assert players[sol.first.bench[0]].position == GKP  # bench keeps FPL order
+    expected = week_points(gw, players) - players[out].xpts[11] + players[sub].xpts[11]
+    if out != gw.captain:
+        assert week_points(sol.first, players) == pytest.approx(expected, abs=1e-6)
+
+
+def test_illegal_lineup_swaps_are_explained(setup, manager_state) -> None:
+    from app.optimizer.whatif import Swap
+
+    players, names = setup
+    auto, _ = build_plan(manager_state, players, names, Settings(GWS))
+    gw = auto.first
+    keeper = next(p for p in gw.starting if players[p].position == 1)
+    outfield_bench = next(p for p in gw.bench if players[p].position != 1)
+    defs = [p for p in gw.starting if players[p].position == 2]
+    fwd_bench = next((p for p in gw.bench if players[p].position == 4), None)
+    swaps = [Swap(11, keeper, outfield_bench)]
+    if len(defs) == 3 and fwd_bench:
+        swaps.append(Swap(11, defs[0], fwd_bench))
+    sol, problems = build_plan(manager_state, players, names, Settings(GWS), swaps=swaps)
+    text = " | ".join(p.message for p in problems)
+    assert "goalkeeper can only swap" in text
+    assert set(sol.first.starting) == set(gw.starting)  # nothing illegal applied

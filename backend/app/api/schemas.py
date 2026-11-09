@@ -272,6 +272,12 @@ class WhatIfMove(BaseModel):
     into: int = Field(gt=0)
 
 
+class WhatIfSwap(BaseModel):
+    gw: int = Field(ge=1, le=38)
+    bench: int = Field(gt=0)  # starter moved to the bench
+    start: int = Field(gt=0)  # bench player brought into the XI
+
+
 class WhatIfRequest(BaseModel):
     team: int = Field(gt=0)
     league: int | None = Field(None, ge=0)
@@ -280,6 +286,7 @@ class WhatIfRequest(BaseModel):
     moves: list[WhatIfMove] = Field(default_factory=list, max_length=60)
     captains: dict[int, int] = Field(default_factory=dict)  # gw -> player
     chips: dict[int, ChipName] = Field(default_factory=dict)  # gw -> chip
+    swaps: list[WhatIfSwap] = Field(default_factory=list, max_length=60)  # the user's lineup choices
 
 
 class WhatIfWeek(BaseModel):
@@ -295,6 +302,8 @@ class WhatIfWeek(BaseModel):
     captain: int
     vice: int
     xpts: float  # XI + captain (+ chip), minus hits
+    best_xi_xpts: float  # the same with the best XI and captain (to show what the user's lineup costs)
+    own_lineup: bool  # the user changed the XI this week
 
 
 class WhatIfProblemOut(BaseModel):

@@ -2,7 +2,7 @@
 // devices comes with the phase 6 database. Every access is wrapped: if storage is blocked (private
 // mode), drafts simply aren't kept, and nothing breaks.
 
-import type { ChipName, Strategy, WhatIfMove } from "./types";
+import type { ChipName, Strategy, WhatIfMove, WhatIfSwap } from "./types";
 
 export interface Draft {
   id: string;
@@ -13,6 +13,7 @@ export interface Draft {
   moves: WhatIfMove[];
   captains: Record<number, number>;
   chips: Record<number, ChipName>;
+  swaps?: WhatIfSwap[]; // lineup choices (older drafts have none)
   createdAt: number;
   updatedAt: number;
 }

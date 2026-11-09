@@ -36,6 +36,7 @@ from app.optimizer.analysis import analyse
 from app.optimizer.plans import make_plans, paired_transfers
 from app.optimizer.solver import PoolPlayer
 from app.optimizer.whatif import Move as WhatIfMove
+from app.optimizer.whatif import Swap as WhatIfSwap
 from app.optimizer.whatif import build_plan, week_points
 from app.optimizer.solver import Settings
 from app.optimizer.state import SquadState
@@ -511,7 +512,9 @@ class PlannerService:
         names = {e.id: e.web_name for e in ctx.elements.values()}
         settings = Settings(gws, strategy=req.strategy, chips=state.chips)
         moves = [WhatIfMove(m.gw, m.out, m.into) for m in req.moves]
-        sol, problems = build_plan(state, players, names, settings, moves, req.captains, req.chips)
+        swaps = [WhatIfSwap(sw.gw, sw.bench, sw.start) for sw in req.swaps]
+        sol, problems = build_plan(state, players, names, settings, moves, req.captains, req.chips, swaps)
+        auto, _ = build_plan(state, players, names, settings, moves, {}, req.chips)  # best XI and captain each week
         base, _ = build_plan(state, players, names, settings)
         sell = {p.element: p.sell_price for p in state.players}
         weeks = []
@@ -522,6 +525,8 @@ class PlannerService:
                 moves=[s.Move(player_out=o, player_in=i, out_price=sell.get(o, players[o].sell_price), in_price=players[i].buy_price) for o, i in pairs],
                 squad=list(gw.squad), starting=list(gw.starting), bench=list(gw.bench), captain=gw.captain, vice=gw.vice,
                 xpts=round(week_points(gw, players), 2),
+                best_xi_xpts=round(week_points(auto.gameweeks[len(weeks)], players), 2),
+                own_lineup=set(gw.starting) != set(auto.gameweeks[len(weeks)].starting),
             ))
             if gw.chip != FREE_HIT:
                 for o, i in pairs:
