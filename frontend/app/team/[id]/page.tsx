@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
 import { ApiError, getTeam, waitForRivals } from "@/lib/api";
+import { saveRecentTeam } from "@/lib/recent";
 import { deadlineLabel, gwOf, ordinal, pts, signed } from "@/lib/format";
 import type { Position, RivalsProgress, TeamResponse } from "@/lib/types";
 
@@ -41,6 +42,7 @@ function TeamScreen() {
       .then(async (d) => {
         if (!live) return;
         setData(d);
+        saveRecentTeam({ entry, league: d.standing?.league.id ?? (league === 0 ? 0 : null), name: d.team_name });
         if (d.rivals && !d.rivals.ready) {
           // Show the team now; fill in the rival numbers once their squads are loaded.
           setProgress(d.rivals);
@@ -59,6 +61,8 @@ function TeamScreen() {
     if (data) for (const p of Object.values(data.players)) map[p.id] = p.position;
     return map;
   }, [data]);
+  // A fixed left-to-right spot per player, so switching gameweeks doesn't shuffle the pitch.
+  const order = useMemo(() => Object.fromEntries((data?.squad ?? []).map((pid, i) => [pid, i])), [data]);
 
   if (error) return <ErrorBox message={error} action={<Link href="/">Try another team</Link>} />;
   if (!data) return <Loading message="Loading your team and your rivals…" />;
@@ -186,7 +190,7 @@ function TeamScreen() {
         />
       </div>
 
-      <Pitch players={lineup.starting.map(token)} positions={positions} />
+      <Pitch players={lineup.starting.map(token)} positions={positions} order={order} />
       <Bench players={lineup.bench.map(token)} />
 
       <Link

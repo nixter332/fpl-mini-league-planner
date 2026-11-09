@@ -50,6 +50,12 @@ function PlanDetail() {
   const before = new Set([...plan.before.starting, ...plan.before.bench]);
   const name = (id: number) => data.players[id]?.name ?? `#${id}`;
   const first = plan.gameweeks[0];
+  // This week's swaps: a new player takes the spot of the one he replaces.
+  const replaces = Object.fromEntries(first.moves.map((m) => [m.player_in, m.player_out]));
+  const sold = new Set(first.moves.map((m) => m.player_out));
+  const baseOrder = [...before].sort((a, b) => a - b);
+  const order: Record<number, number> = Object.fromEntries(baseOrder.map((pid, i) => [pid, i]));
+  for (const [pin, pout] of Object.entries(replaces)) order[Number(pin)] = order[pout] ?? Number(pin);
   const n = data.standing?.n_rivals ?? 0;
 
   const token = (pid: number): PitchPlayer => {
@@ -62,6 +68,8 @@ function PlanDetail() {
       value: pts(g.xpts),
       isCaptain: pid === lineup.captain,
       isNew: view === "after" && !before.has(pid),
+      isOut: view === "before" && sold.has(pid),
+      note: view === "after" && replaces[pid] ? `for ${name(replaces[pid])}` : undefined,
       doubtful: p.doubtful,
       news: p.news,
       kit: kitFor(p, data.clubs),
@@ -113,7 +121,7 @@ function PlanDetail() {
         </div>
       </div>
 
-      <Pitch players={lineup.starting.map(token)} positions={positions} />
+      <Pitch players={lineup.starting.map(token)} positions={positions} order={order} />
       <Bench players={lineup.bench.map(token)} />
 
       {plan.threats.length > 0 && (

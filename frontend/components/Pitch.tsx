@@ -7,6 +7,8 @@ export interface PitchPlayer {
   value?: string; // e.g. xPts; always shown in full
   isCaptain?: boolean;
   isNew?: boolean;
+  isOut?: boolean; // will be sold in this plan
+  note?: string; // e.g. "for Thomas" under a new player
   doubtful?: boolean;
   news?: string;
   kit: Kit;
@@ -45,7 +47,10 @@ function PlayerToken({ p }: { p: PitchPlayer }) {
         {p.isNew && (
           <div className="absolute -left-3 -top-1.5 flex h-[17px] items-center rounded-full bg-[#22C55E] px-[5px] text-[10px] font-bold text-[#052E16]">IN</div>
         )}
-        {p.doubtful && !p.isNew && (
+        {p.isOut && (
+          <div className="absolute -left-3 -top-1.5 flex h-[17px] items-center rounded-full bg-[#F87171] px-[5px] text-[10px] font-bold text-[#450A0A]">OUT</div>
+        )}
+        {p.doubtful && !p.isNew && !p.isOut && (
           <div
             className="absolute -left-2 -top-[3px] flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] border-white bg-[#F59E0B] text-[11px] font-bold text-[#0B0F14]"
             title={p.news || "Doubtful"}
@@ -62,11 +67,17 @@ function PlayerToken({ p }: { p: PitchPlayer }) {
           {p.value && <span className="shrink-0">· {p.value}</span>}
         </div>
       </div>
+      {p.note && <div className="max-w-full truncate rounded bg-[#052E16]/80 px-1 text-[10px] font-semibold text-[#86EFAC]">{p.note}</div>}
     </div>
   );
 }
 
-export function Pitch({ players, positions }: { players: PitchPlayer[]; positions: Record<number, Position> }) {
+/**
+ * `order` keeps each player in the same spot from week to week (lower = further left), so the
+ * pitch only changes when the team does. Without it, players appear in the order given.
+ */
+export function Pitch({ players, positions, order }: { players: PitchPlayer[]; positions: Record<number, Position>; order?: Record<number, number> }) {
+  const rank = (p: PitchPlayer) => order?.[p.id] ?? Number.MAX_SAFE_INTEGER;
   return (
     <div className="pitch relative h-[404px] shrink-0 overflow-hidden rounded-2xl">
       <div className="absolute inset-3 rounded border-[1.5px] border-white/40" />
@@ -76,7 +87,7 @@ export function Pitch({ players, positions }: { players: PitchPlayer[]; position
       <div className="relative flex h-full flex-col justify-around py-2">
         {ROWS.map((pos) => (
           <div key={pos} className="flex justify-evenly gap-1 px-2">
-            {players.filter((p) => positions[p.id] === pos).map((p) => (
+            {players.filter((p) => positions[p.id] === pos).sort((a, b) => rank(a) - rank(b)).map((p) => (
               <PlayerToken key={p.id} p={p} />
             ))}
           </div>
@@ -94,12 +105,18 @@ export function Bench({ players }: { players: PitchPlayer[] }) {
         {players.map((p) => (
           <div key={p.id} className="flex w-[78px] flex-col items-center gap-0.5">
             <div className="max-w-[78px] truncate text-[11.5px] font-semibold">
-              {p.doubtful ? "! " : ""}
+              {p.isNew && <span className="text-good">IN </span>}
+              {p.isOut && <span className="text-out">OUT </span>}
+              {p.doubtful && !p.isOut ? "! " : ""}
               {p.name}
             </div>
             <div className="max-w-[78px] truncate text-[10.5px] text-text2">
-              {p.info}
-              {p.value ? ` · ${p.value}` : ""}
+              {p.note ?? (
+                <>
+                  {p.info}
+                  {p.value ? ` · ${p.value}` : ""}
+                </>
+              )}
             </div>
           </div>
         ))}
