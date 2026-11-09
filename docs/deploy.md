@@ -74,6 +74,8 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 2. In Vercel, open the project's **Settings**, then **Environment Variables**, and add:
    - `NEXT_PUBLIC_POSTHOG_KEY` = the key
    - `NEXT_PUBLIC_POSTHOG_HOST` = `https://eu.i.posthog.com`, *only* if your PostHog project is in the EU region (the default is US)
+
+   Every event carries `app = fpl-mini-league-planner`, so the app can share a PostHog project with another app (filter on `app`).
 3. Redeploy. `NEXT_PUBLIC_*` values are built into the app.
 
 **What's tracked:**

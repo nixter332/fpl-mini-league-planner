@@ -44,4 +44,5 @@ ${text}`);
   expect(all).not.toContain("1883627");
   expect(all).toContain('"event":"plans_loaded"');
   expect(all).toContain("/team/:id");
+  expect(all).toContain('"app":"fpl-mini-league-planner"');
 });

@@ -50,6 +50,8 @@ export function startAnalytics(): void {
     // privacy test. Real visitors are never affected.
     opt_out_useragent_filter: process.env.NEXT_PUBLIC_POSTHOG_DEBUG === "1",
   });
+  // Tag every event, so this app can share a PostHog project with others and still be filtered.
+  posthog.register({ app: "fpl-mini-league-planner" });
   started = true;
 }
 
