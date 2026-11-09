@@ -63,6 +63,21 @@ def test_team_screen(api: TestClient) -> None:
     assert any("deadline" in f for f in body["facts"])
 
 
+def test_team_players_carry_price_changes_and_fixture_difficulty(api: TestClient) -> None:
+    import json
+    from pathlib import Path
+
+    bootstrap = json.loads((Path(__file__).parent / "fixtures" / "bootstrap-static.json").read_text(encoding="utf-8"))
+    change = {e["id"]: e["cost_change_event"] for e in bootstrap["elements"]}
+    body = api.get(f"/api/team/{TEAM}", params={"league": 0}).json()
+    for pid, player in body["players"].items():
+        assert player["price_change"] == change[int(pid)]
+        for gw in player["gws"]:
+            n_fixtures = 0 if gw["fixture"] == "—" else len(gw["fixture"].split(", "))
+            assert len(gw["difficulty"]) == n_fixtures
+            assert all(1 <= d <= 5 for d in gw["difficulty"])
+
+
 def test_team_screen_without_league(api: TestClient) -> None:
     body = api.get(f"/api/team/{TEAM}", params={"league": 0}).json()
     assert body["standing"] is None
@@ -93,6 +108,7 @@ def test_plans_are_cached(api: TestClient) -> None:
     first = api.get("/api/plans", params=params).json()
     again = api.get("/api/plans", params=params).json()
     assert first == again
+    assert first["deadline"]  # the first planned gameweek's deadline, for the countdown
 
 
 def test_plan_params_are_validated(api: TestClient) -> None:

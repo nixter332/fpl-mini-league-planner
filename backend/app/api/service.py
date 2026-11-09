@@ -359,6 +359,7 @@ class PlannerService:
 
         response = s.PlansResponse(
             entry=entry_id, strategy=strategy, horizon=horizon, max_hits=max_hits, gws=list(gws),
+            deadline=ctx.events[gws[0]].deadline_time,
             chips_left=_chips_left(state.chips), wildcard_gw=wildcard, freehit_gw=freehit, auto_chips=chips,
             free_transfers=state.free_transfers, bank=state.bank,
             standing=bundle.standing if bundle else None,
@@ -744,7 +745,7 @@ class PlannerService:
             e = ctx.elements[pid]
             out[pid] = s.Player(
                 id=pid, name=e.web_name, position=POSITION_CODES[e.element_type], club=ctx.teams[e.team].short_name,
-                price=e.now_cost, sell_price=sell.get(pid), status=e.status, news=e.news,
+                price=e.now_cost, price_change=e.cost_change_event, sell_price=sell.get(pid), status=e.status, news=e.news,
                 doubtful=e.status in DOUBT_STATUSES or (e.chance_of_playing_next_round not in (None, 100)),
                 rivals_owned=ownership.owned.get(pid, 0),
                 rivals_captained=round(ownership.captain_share(pid) * ownership.n_rivals),

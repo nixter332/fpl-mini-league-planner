@@ -57,6 +57,7 @@ class Player(BaseModel):
     position: Literal["GKP", "DEF", "MID", "FWD"]
     club: str  # short name; look up the kit in `clubs`
     price: int
+    price_change: int = 0  # this gameweek's price change in tenths (+1 = rose £0.1m)
     sell_price: int | None = None  # only for players in the user's squad
     status: str
     news: str
@@ -195,6 +196,7 @@ class PlansResponse(BaseModel):
     freehit_gw: int | None = None
     auto_chips: bool = True  # the planner may play Bench Boost / Triple Captain
     gws: list[int]
+    deadline: datetime | None = None  # the first planned GW's deadline
     free_transfers: int
     bank: int
     standing: Standing | None
