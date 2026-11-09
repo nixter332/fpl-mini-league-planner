@@ -49,9 +49,16 @@ FIRST_HALF_END = 19
 
 # The app's settings today: Protect, no hits, saved FT 1.5, BB/TC keep 8/6, planner plays chips;
 # Wildcard/Free Hit when the best plan with it beats the best without by these xPts.
-BASE: dict[str, Any] = {"strategy": "protect", "max_hits": 0, "chips": "planner", "wc_bar": 10.0, "fh_bar": 4.0}
+# Run 1 (9 Nov 2026, results in data/cache/tune-v1/) used wc_bar 10, fh_bar 4 and saved FT 1.5;
+# the app then dropped the chip advice and moved to 3, so the base below is the app after that.
+BASE: dict[str, Any] = {"strategy": "protect", "max_hits": 0, "chips": "planner", "wc_bar": None, "fh_bar": None}
 CONFIGS: dict[str, dict[str, Any]] = {
     "base": {},
+    # Players you'd buy are overrated (scripts/diagnose_transfers.py): shrink their projections
+    # by this share when planning (scoring still uses real points).
+    "buy discount 10%": {"buy_discount": 0.10},
+    "buy discount 20%": {"buy_discount": 0.20},
+    "buy discount 30%": {"buy_discount": 0.30},
     "no chips": {"chips": None},
     "chips matched to the real manager": {"chips": "matched"},
     "WC bar 15": {"wc_bar": 15.0},
@@ -123,7 +130,8 @@ def simulate(manager: dict, name: str, cfg: dict) -> dict:
     if manager["league"]:
         rivals = {e: p for e, p in W["league_picks"][manager["league"]].items() if e != manager["entry"]}
 
-    settings_kw = {k: v for k, v in cfg.items() if k not in ("chips", "wc_bar", "fh_bar")}
+    settings_kw = {k: v for k, v in cfg.items() if k not in ("chips", "wc_bar", "fh_bar", "buy_discount")}
+    discount = cfg.get("buy_discount", 0.0)
     state, pts, played, hits = first, {}, {}, 0
     for gw in gws:
         targets = tuple(g for g in range(gw, gw + HORIZON) if g <= len(W["data"].bootstrap.events))
@@ -132,6 +140,9 @@ def simulate(manager: dict, name: str, cfg: dict) -> dict:
             if rivals else NO_RIVALS
         )
         pool = build_pool(W["data"].bootstrap, W["projections"][gw], state, targets, available=W["exists"][gw])
+        if discount:
+            owned = set(state.element_ids)
+            pool = [p if p.element in owned else replace(p, xpts={g: x * (1 - discount) for g, x in p.xpts.items()}) for p in pool]
         settings = Settings(targets, time_limit=2.0, **settings_kw)
         sol = _choose(pool, state, settings, ownership, cfg, real_chips.get(gw), gw).first
         stats = W["live"][gw]

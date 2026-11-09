@@ -120,6 +120,22 @@ Points are totals over the 6 weeks, net of hits. The leagues group is small, so 
 - A banked free transfer is worth keeping: valuing it at 0 costs 4; valuing it at 3 instead of 1.5 gains 3.
 - The planner overrates the players it buys (`scripts/diagnose_transfers.py`, 911 transfers): projected 15.4, scored 11.6. Players sold are projected about right (10.1 vs 9.9). Each transfer gains +1.6 against +5.3 projected, and the gap is largest in GW4–6. Players bought who then didn't play are only 5% of transfers.
 
+**Applied (9 Nov 2026):** the chip advice was removed, and a saved free transfer is now worth 3.
+
+### Run 2: the new settings, and a discount on players you'd buy
+
+The base is now the app after those changes: no Wildcard or Free Hit unless you choose one, and a saved free transfer worth 3. Run 1's results are kept in `data/cache/tune-v1/`.
+
+| Setting | vs real, all (±3.7) | Leagues | ~1M–10k | ~1k | India top 200 | vs no transfers |
+| --- | --- | --- | --- | --- | --- | --- |
+| Base (new) | −56.3 | −6.5 | −39.7 | −81.3 | −66.9 | +8.0 |
+| Buy discount 10% | −55.1 | +0.3 | −38.0 | −80.5 | −66.5 | +9.2 |
+| Buy discount 20% | −54.3 | −5.2 | −35.5 | −78.5 | −66.6 | +10.0 |
+| Buy discount 30% | −57.0 | −5.0 | −37.2 | −80.5 | −70.6 | +7.6 |
+
+- The new settings gained 22 real points over the 6 weeks: "vs no transfers" went from −14.0 to +8.0. Counting the Wildcard and Free Hit still in hand, the total is 32 points (−88.7 to −56.3).
+- The "buy discount" lowers the projections of players you don't own by that share when planning; scoring still uses real points. Compared with the new base, same manager to same manager: 10% +1.2 ± 1.7, 20% +2.1 ± 2.0, 30% −0.3 ± 2.0. 20% is only just outside the noise, about 0.3 points a week, and it was tested only on GW4–9, when projections are weakest. Not applied yet; retest at the GW19 rerun, perhaps with a discount that fades as the season goes on.
+
 ## Next
 
 From GW11, FPL's injury news is saved before every deadline (`backend/data/news/`, by a scheduled GitHub Action), so later backtests can switch injury news back on with exactly what managers knew. Give the simulated planner the same chips in the same weeks as each real manager (chip-matching), so the comparison is fair.
