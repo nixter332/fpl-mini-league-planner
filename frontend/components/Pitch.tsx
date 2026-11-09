@@ -24,9 +24,10 @@ export function kitFor(player: Player, clubs: Record<string, Club>): Kit {
   return clubs[player.club]?.kit ?? { body: "#94A0AF", sleeve: "#94A0AF", trim: "#FFFFFF" };
 }
 
-export function Shirt({ kit, highlight = false }: { kit: Kit; highlight?: boolean }) {
-  const outline = highlight ? "#22C55E" : "rgba(0,0,0,0.35)";
-  const w = highlight ? 2 : 0.8;
+/** `highlight`: true = new signing (green outline), or a colour (weak spot: red/amber). */
+export function Shirt({ kit, highlight = false }: { kit: Kit; highlight?: boolean | string }) {
+  const outline = typeof highlight === "string" ? highlight : highlight ? "#22C55E" : "rgba(0,0,0,0.35)";
+  const w = highlight ? 2.2 : 0.8;
   return (
     <svg width="42" height="42" viewBox="0 0 40 40" aria-hidden="true">
       <path d="M12 4 L4 9 L7 17 L11 15.5 L11 8 Z" fill={kit.sleeve} stroke={outline} strokeWidth={w} strokeLinejoin="round" />
@@ -37,7 +38,11 @@ export function Shirt({ kit, highlight = false }: { kit: Kit; highlight?: boolea
   );
 }
 
-const RING = { red: "ring-[2.5px] ring-[#F87171]", amber: "ring-[2.5px] ring-[#F59E0B]" };
+// Weak spots tint the kit itself: the shirt's outline and the strip under the name.
+const WEAK = {
+  red: { outline: "#F87171", strip: "bg-[#B91C1C]", text: "text-[#F87171]" },
+  amber: { outline: "#F59E0B", strip: "bg-[#B45309]", text: "text-[#F59E0B]" },
+};
 
 function PlayerToken({ p }: { p: PitchPlayer }) {
   const Tag = p.onSelect ? "button" : "div";
@@ -48,8 +53,8 @@ function PlayerToken({ p }: { p: PitchPlayer }) {
       data-testid="pitch-player"
       data-ring={p.ring}
     >
-      <div className={`relative h-[42px] w-[42px] rounded-full ${p.ring ? RING[p.ring] : ""}`}>
-        <Shirt kit={p.kit} highlight={p.isNew} />
+      <div className="relative h-[42px] w-[42px]">
+        <Shirt kit={p.kit} highlight={p.ring ? WEAK[p.ring].outline : p.isNew} />
         {p.isCaptain && (
           <div className="absolute -right-2 -top-[3px] flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] border-white bg-[#0B0F14] text-[10.5px] font-bold text-white" aria-label="Captain">
             C
@@ -78,7 +83,7 @@ function PlayerToken({ p }: { p: PitchPlayer }) {
       </div>
       <div className="flex w-full flex-col overflow-hidden rounded-md shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
         <div className="truncate bg-white px-[3px] py-0.5 text-center text-[11.5px] font-semibold text-[#0F172A]">{p.name}</div>
-        <div className="flex justify-center gap-[3px] bg-[#0B0F14] px-[3px] py-0.5 text-[10.5px] text-white">
+        <div className={`flex justify-center gap-[3px] px-[3px] py-0.5 text-[10.5px] text-white ${p.ring ? WEAK[p.ring].strip : "bg-[#0B0F14]"}`}>
           <span className="min-w-0 truncate">{p.info}</span>
           {p.value && <span className="shrink-0">· {p.value}</span>}
         </div>
@@ -121,7 +126,7 @@ export function Bench({ players }: { players: PitchPlayer[] }) {
         {players.map((p) => (
           <div
             key={p.id}
-            className={`flex w-[78px] flex-col items-center gap-0.5 rounded-lg ${p.ring === "red" ? "ring-2 ring-[#F87171]" : p.ring === "amber" ? "ring-2 ring-[#F59E0B]" : ""} ${p.onSelect ? "cursor-pointer" : ""}`}
+            className={`flex w-[78px] flex-col items-center gap-0.5 ${p.onSelect ? "cursor-pointer" : ""}`}
             onClick={p.onSelect}
             role={p.onSelect ? "button" : undefined}
             aria-label={p.onSelect ? `${p.name}: details` : undefined}
@@ -133,7 +138,7 @@ export function Bench({ players }: { players: PitchPlayer[] }) {
               {p.doubtful && !p.isOut ? "! " : ""}
               {p.name}
             </div>
-            <div className="max-w-[78px] truncate text-[10.5px] text-text2">
+            <div className={`max-w-[78px] truncate text-[10.5px] ${p.ring ? `font-semibold ${WEAK[p.ring].text}` : "text-text2"}`}>
               {p.note ?? (
                 <>
                   {p.info}

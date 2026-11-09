@@ -239,8 +239,8 @@ function TeamScreen() {
             rivalsReady ? "Finding weak spots…" : "Waiting for your rivals' teams…"
           ) : (
             <>
-              <span className="font-semibold text-[#F87171]">Red</span>: unavailable, or an affordable swap gains {6}+ points over the next {analysis.gws.length} GWs.{" "}
-              <span className="font-semibold text-[#F59E0B]">Amber</span>: {3}+ points. Tap any player for the best replacements.
+              <span className="font-semibold text-[#F87171]">Red kit</span>: unavailable, or an affordable swap gains {6}+ points over the next {analysis.gws.length} GWs.{" "}
+              <span className="font-semibold text-[#F59E0B]">Amber kit</span>: {3}+ points. Tap any player for the best replacements.
             </>
           )}
         </div>
