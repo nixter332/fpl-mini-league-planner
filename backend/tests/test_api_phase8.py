@@ -70,3 +70,15 @@ def test_replacement_reason(api: TestClient, tmp_path) -> None:
         set_explainer(None)
     assert r == {"player": spot.player, "status": "ok", "why": why, "watch_out": "Rotation risk."}
     assert "best affordable replacements" in fake.calls[0]["system"]
+
+
+def test_replacement_facts_use_full_club_names(api: TestClient) -> None:
+    from app.api import schemas as s
+    from app.explain.summary import build_replacement_summary
+
+    resp = s.AnalysisResponse.model_validate(api.get("/api/analysis", params={"team": TEAM, "league": LEAGUE}).json())
+    spot = next(sp for sp in resp.spots if sp.replacements)
+    facts = build_replacement_summary(resp, spot)
+    card = facts["player_now"]
+    assert card["club"] == resp.clubs[resp.players[spot.player].club].name
+    assert all(("at home" in g["opponent"] or "away" in g["opponent"] or g["opponent"] == "no game") for g in card["games"])

@@ -26,7 +26,7 @@ from app.fpl.cache import DEFAULT_CACHE_DIR, DiskCache
 log = logging.getLogger(__name__)
 
 MODEL = "claude-opus-5-5"
-PROMPT_VERSION = "7"  # bump when the prompt or facts change, to skip old cached text
+PROMPT_VERSION = "8"  # bump when the prompt or facts change, to skip old cached text
 MAX_TOKENS = 4000  # thinking is always on for this model; effort "low" keeps it short
 CACHE_TTL = 14 * 24 * 3600
 TIMEOUT_S = 60.0

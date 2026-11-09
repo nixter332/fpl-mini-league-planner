@@ -250,9 +250,9 @@ def build_replacement_summary(resp: s.AnalysisResponse, spot: s.SpotOut) -> dict
         games = [g for g in p.gws if g.gw in gws]
         out: dict[str, Any] = {
             "name": p.name,
-            "club": p.club,
+            "club": _club_name(resp, p.club),
             "position": POSITIONS[p.position],
-            "games": [{"gameweek": g.gw, "fixture": g.fixture, "expected_points": r1(g.xpts)} for g in games],
+            "games": [{"gameweek": g.gw, "opponent": _opponents(resp, g.fixture), "expected_points": r1(g.xpts)} for g in games],
             "expected_points_total": r1(sum(g.xpts for g in games)),
             "availability": (p.news or "flagged as doubtful") if p.doubtful else "available",
         }
