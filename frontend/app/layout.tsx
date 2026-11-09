@@ -11,6 +11,7 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", 
 export const metadata: Metadata = {
   title: "Mini-League Planner",
   description: "FPL transfer plans built against your mini-league rivals.",
+  appleWebApp: { capable: true, title: "ML Planner", statusBarStyle: "black" },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0B0F14" };
