@@ -92,3 +92,24 @@ The backend sends the Claude API a structured summary of each plan (players in/o
 4. **Pitch UI:** Next.js screens from `docs/design/`. Gate: full journey works on Nikhil's own team.
 5. **Rivals and explanations:** league import, strategy dial, Claude reasons, downsides. Gate: 3 friends use it before a real deadline.
 6. **Launch and learn:** share in mini-leagues, collect feedback each GW, track metrics.
+   - Saving user data: usage tracking (e.g. PostHog), an in-app feedback button, and a small database.
+   - Privacy and sign-in decided here. Never an FPL password (rule 2).
+   - Check costs and capacity with more users: the Claude daily cap, Render, and FPL request volume.
+   - Gate: agreed with Nikhil when the phase starts.
+7. **Chip planner:** for each chip a manager has left, the best gameweeks to play it and why. Examples: "Bench Boost: GW17, your bench has two home games"; "Free Hit: GW15, 5 of your starters blank".
+   - The solver ranks the weeks from projections and fixtures (blank and double gameweeks) to the end of each chip's window. Claude explains the ranking.
+   - Builds on the GW19 chip backtest, which tunes the chip values first.
+   - Gate: chip weeks ranked for Nikhil's squad, with every number traceable to the solver, and a backtest showing the suggestions beat the chip-matched baseline.
+8. **Analysis and what-if:**
+   - **Analysis:** weak spots on the user's pitch, flagged amber or red by projected points against the best options at the same price and position. Tapping a player shows the best replacements, ranked by the solver, with Claude explaining why.
+   - **What-if:** a sandbox where the user makes their own transfers across gameweeks and sees projected points, bank and free transfers update. The backend validates and scores any user-made plan with the same rules as the solver (`validate`, `score`).
+   - Gate: a full what-if journey on Nikhil's team with invalid moves blocked and scores matching the solver's.
+9. **Drafts:** save and compare Wildcard and Free Hit templates. Built on the what-if sandbox.
+   - Stored on the device first, then on the server once phase 6 adds storage.
+   - Gate: create, edit, compare and delete drafts on a phone.
+
+*Phases 7–9 added 9 Nov 2026 from Nikhil's review. Also suggested:*
+- a 5-week fixture-difficulty strip under each player
+- a "before the deadline" screen with this week's 3 actions (transfer, captain, chip) and a countdown
+
+These have no phase yet.
