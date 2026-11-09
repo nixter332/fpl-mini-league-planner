@@ -25,7 +25,7 @@ export function FixtureStrip({ gws, from, count = 5 }: { gws: PlayerGw[]; from?:
               <div className="flex gap-px">
                 {parts.map((part, i) => {
                   const [opp, venue] = part.split(" ");
-                  const d = g.difficulty[i] ?? 3;
+                  const d = g.difficulty?.[i] ?? 3; // older backends send no ratings: show neutral
                   return (
                     <div key={i} className={`min-w-0 flex-1 truncate rounded-[3px] py-0.5 text-center text-[10px] font-semibold ${COLOURS[d] ?? COLOURS[3]}`}>
                       {venue === "(H)" ? opp.toUpperCase() : opp.toLowerCase()}
