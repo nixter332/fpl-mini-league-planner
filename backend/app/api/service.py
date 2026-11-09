@@ -339,6 +339,10 @@ class PlannerService:
         else:
             summary = f"{plan.xpts_gain:+.1f} xPts over {horizon} GW{'s' if horizon > 1 else ''} vs making no transfers"
             summary += f", after {4 * plan.hits} pts of hits." if plan.hits else "."
+        last = gws[-1]
+        ft_after = last.free_transfers if last.chip in (WILDCARD, FREE_HIT) else min(last.free_transfers - (len(last.moves) - last.hits) + 1, 5)
+        if not plan.is_roll:
+            summary += f" Leaves {ft_after} free transfer{'s' if ft_after != 1 else ''} for GW{last.gw + 1}."
         chip_weeks = [g for g in gws if g.chip]
         if chip_weeks:
             summary += " Chips: " + ", ".join(

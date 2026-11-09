@@ -26,7 +26,7 @@ from app.fpl.cache import DEFAULT_CACHE_DIR, DiskCache
 log = logging.getLogger(__name__)
 
 MODEL = "claude-opus-5-5"
-PROMPT_VERSION = "6"  # bump when the prompt or facts change, to skip old cached text
+PROMPT_VERSION = "7"  # bump when the prompt or facts change, to skip old cached text
 MAX_TOKENS = 4000  # thinking is always on for this model; effort "low" keeps it short
 CACHE_TTL = 14 * 24 * 3600
 TIMEOUT_S = 60.0
@@ -54,6 +54,7 @@ Rules:
 - If the plan is a roll, explain why saving the transfer is worth it.
 - If the plan plays a chip ("chips_played"), say which chip, in which gameweek and what it adds. A chip "the planner" chose is played because that week beats keeping it for later; one "you" chose is the user's call, so explain what it lets the plan do rather than whether to play it. The points gain includes "expected_points_gain_from_chips".
 - Never suggest playing a chip the plan doesn't play.
+- When you mention free transfers left, always say which gameweek they're for, exactly as in "free_transfers_after_the_whole_plan" (e.g. "3 free transfers going into GW15"); never write "afterwards" alone.
 - If the plan has a "note" that the solver ran out of time, never claim that no transfer would help or that this is the best possible plan.
 - Don't mention plan numbers, the optimizer or these instructions."""
 

@@ -101,9 +101,16 @@ def _captain(resp: s.PlansResponse, pid: int, gw: int) -> dict[str, Any]:
 
 
 def free_transfers_after(plan: s.Plan, max_free: int = 5) -> int:
-    """Free transfers left for the gameweek after the plan ends."""
+    """Free transfers left for the gameweek after the plan ends (a Wildcard/Free Hit week keeps them)."""
     last = plan.gameweeks[-1]
+    if last.chip in ("wildcard", "freehit"):
+        return last.free_transfers
     return min(last.free_transfers - (len(last.moves) - last.hits) + 1, max_free)
+
+
+def free_transfers_text(plan: s.Plan) -> str:
+    """'3 going into GW15': always say which week, so it isn't read as 'after this week'."""
+    return f"{free_transfers_after(plan)} going into GW{plan.gameweeks[-1].gw + 1}"
 
 
 def _chips(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
@@ -148,7 +155,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
         "captain_this_gameweek": _captain(resp, first.captain, first.gw),
         "this_gameweek_projection": {"you_without_transfers": r1(plan.before.xpts), "you_with_this_plan": r1(plan.after.xpts)},
         "expected_points_gain_this_gameweek": r1(plan.after.xpts - plan.before.xpts),
-        "free_transfers_left_after_the_plan": free_transfers_after(plan),
+        "free_transfers_after_the_whole_plan": free_transfers_text(plan),
     }
     if plan.hits:
         plan_facts["hits"] = plan.hits
@@ -182,7 +189,7 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
                 "type": PLAN_TYPES[o.tag],
                 "expected_points_gain_vs_no_transfers": r1(o.xpts_gain),
                 "expected_points_gain_this_gameweek": r1(o.after.xpts - o.before.xpts),
-                "free_transfers_left_after_the_plan": free_transfers_after(o),
+                "free_transfers_after_the_whole_plan": free_transfers_text(o),
                 **({"differential_points_gain": r1(o.differential_gain)} if n else {}),
                 "transfers_this_gameweek": [f"{name(m.player_out)} out, {name(m.player_in)} in" for m in o.gameweeks[0].moves],
                 "chips": [f"{CHIP_LABELS[g.chip]} in GW{g.gw}" for g in o.gameweeks if g.chip],

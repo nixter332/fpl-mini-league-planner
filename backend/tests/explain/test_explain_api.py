@@ -145,9 +145,10 @@ def test_facts_include_saved_free_transfers(plans: s.PlansResponse) -> None:
 
     for plan in plans.plans:
         facts = build_summary(plans, plan)
-        assert facts["plan"]["free_transfers_left_after_the_plan"] == free_transfers_after(plan)
+        text = facts["plan"]["free_transfers_after_the_whole_plan"]
+        assert text == f"{free_transfers_after(plan)} going into GW{plan.gameweeks[-1].gw + 1}"
         assert 1 <= free_transfers_after(plan) <= 5
-        assert all("free_transfers_left_after_the_plan" in o for o in facts["other_plans"])
+        assert all("free_transfers_after_the_whole_plan" in o for o in facts["other_plans"])
 
 
 def test_facts_describe_chips(api: TestClient) -> None:
