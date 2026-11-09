@@ -19,6 +19,7 @@ import argparse
 import json
 import math
 import os
+import re
 import statistics as st
 import sys
 import time
@@ -72,6 +73,11 @@ WILDCARD_CREDIT = 10.0
 FREE_HIT_CREDIT = 6.0
 
 _W: dict[str, Any] = {}  # per-worker globals
+
+
+def result_path(name: str) -> Path:
+    """Where a config's results go. Names like "BB/TC keep low (4/3)" must not become folders."""
+    return OUT / (re.sub(r"[^\w .,()-]+", "-", name) + ".jsonl")
 
 
 def _init(data, projections, exists, start: int, end: int, league_picks) -> None:
@@ -205,7 +211,7 @@ def run(names: list[str], start: int, end: int, workers: int) -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     tasks = []
     for name in names:
-        path = OUT / f"{name}.jsonl"
+        path = result_path(name)
         done = set()
         if path.exists():
             done = {json.loads(line)["entry"] for line in path.read_text(encoding="utf-8").splitlines() if line.strip()}
@@ -220,8 +226,11 @@ def run(names: list[str], start: int, end: int, workers: int) -> None:
             if error:
                 print(f"  [{name}] failed {error}", flush=True)
             else:
-                with open(OUT / f"{name}.jsonl", "a", encoding="utf-8") as f:
-                    f.write(json.dumps(result) + "\n")
+                try:
+                    with open(result_path(name), "a", encoding="utf-8") as f:
+                        f.write(json.dumps(result) + "\n")
+                except OSError as e:  # never let one bad write end the run
+                    print(f"  [{name}] couldn't save {result['entry']}: {e}", flush=True)
             if i % 50 == 0 or i == len(futures):
                 print(f"  {i}/{len(futures)} ({(time.perf_counter() - started) / 60:.0f} min)", flush=True)
 
@@ -239,7 +248,7 @@ def report(start: int, end: int) -> str:
         "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for name in CONFIGS:
-        path = OUT / f"{name}.jsonl"
+        path = result_path(name)
         if not path.exists():
             continue
         rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
