@@ -11,6 +11,7 @@ import { FixtureStrip } from "@/components/FixtureStrip";
 import { Countdown } from "@/components/Countdown";
 import { PriceMove } from "@/components/PriceMove";
 import { Tips } from "@/components/Tips";
+import { InstallHint } from "@/components/InstallHint";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { track } from "@/lib/analytics";
@@ -205,6 +206,7 @@ function TeamScreen() {
 
       <Countdown gw={data.gameweeks[0].id} deadline={data.gameweeks[0].deadline} />
       <Tips />
+      <InstallHint />
 
       {rivalsLoading && (
         <div className="flex items-center gap-2 text-xs text-text3" role="status" data-testid="rivals-progress">

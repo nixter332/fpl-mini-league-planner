@@ -313,6 +313,18 @@ test("deadline countdown, first-visit tips, sharing a plan and the home-screen a
   expect(copied).not.toContain(TEAM); // links to the start page, never to your team
   await shot(page, "27-plans-share");
 
+  // Second visit, tips already closed: the home-screen hint (iPhone steps), until dismissed.
+  await page.evaluate(() => localStorage.setItem("visits:v1", "1"));
+  const next = await context.newPage(); // a new browser session counts as a new visit
+  await next.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  const hint = next.getByTestId("install-hint");
+  await expect(hint).toContainText("Add to Home Screen");
+  await shot(next, "28-team-install-hint");
+  await hint.getByRole("button", { name: "Got it" }).click();
+  await next.reload();
+  await expect(next.getByTestId("pitch-player")).toHaveCount(11);
+  await expect(next.getByTestId("install-hint")).toHaveCount(0);
+
   const manifest = await (await page.request.get("/manifest.webmanifest")).json();
   expect(manifest.short_name).toBe("ML Planner");
   expect((await page.request.get("/icon-192.png")).status()).toBe(200);

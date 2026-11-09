@@ -8,7 +8,7 @@ export default function PrivacyPage() {
     <main className="flex flex-col gap-4 text-[14px] leading-relaxed text-text2">
       <Link href="/" className="text-[13px] font-semibold no-underline">← Back to the planner</Link>
       <h1 className="m-0 font-display text-2xl font-bold text-text">Privacy</h1>
-      <p className="m-0 text-xs text-text3">Last updated 9 November 2026 (error reports, tips)</p>
+      <p className="m-0 text-xs text-text3">Last updated 9 November 2026 (error reports, tips, home screen)</p>
 
       <Section title="The short version">
         Mini-League Planner is a free hobby project. It works from public Fantasy Premier League data. You never need an
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
       <Section title="On your device">
         Your browser remembers the last team you opened and your light/dark choice, so the start page can offer &ldquo;Open
         my team&rdquo;. &ldquo;Forget this team&rdquo; clears it. It also remembers that you&apos;ve closed the
-        first-visit tips. Drafts you save in what-if are kept in your browser too,
+        first-visit tips or the home-screen hint, and counts your visits so that hint waits until your second. Drafts you save in what-if are kept in your browser too,
         and never sent to us except to score them. If you sign in, a login cookie keeps you signed in.
       </Section>
 

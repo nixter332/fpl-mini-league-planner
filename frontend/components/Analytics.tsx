@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { reportError, scrubUrl, startAnalytics, track } from "@/lib/analytics";
+import "@/lib/install"; // catches Chrome's one-time install prompt as early as possible
 
 /** Starts tracking (if configured) and records a scrubbed page view on each navigation. */
 export function Analytics() {
