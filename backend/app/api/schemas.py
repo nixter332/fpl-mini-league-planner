@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Kit(BaseModel):
@@ -220,3 +220,20 @@ class ChipAdvice(BaseModel):
     gw: int
     xpts_gain: float  # the best plan with the chip, vs no transfers
     vs_best_plan: float  # minus the best plan without it (over the horizon only)
+
+
+class FeedbackContext(BaseModel):
+    page: str = Field("", max_length=40)  # "plans", "plan", "team"
+    strategy: str = Field("", max_length=20)
+    horizon: int | None = None
+    rank: int | None = None  # which plan
+    gw: int | None = None
+
+
+class Feedback(BaseModel):
+    """Anonymous feedback from the app. No team IDs or names are sent."""
+
+    kind: Literal["plan", "general"]
+    useful: bool | None = None  # thumbs up / down on a plan
+    text: str = Field("", max_length=1000)
+    context: FeedbackContext = FeedbackContext()

@@ -1,5 +1,7 @@
 """FastAPI app. The frontend calls these routes; the browser never talks to FPL directly."""
 
+import json
+import logging
 import os
 from pathlib import Path
 from typing import Literal
@@ -23,9 +25,12 @@ app = FastAPI(title="FPL Mini-League Planner")
 _service: PlannerService | None = None
 _explainer: Explainer | None = None
 
+FEEDBACK_PER_HOUR = 20  # per visitor
 EXPLAIN_PER_HOUR = 60  # per visitor; a plans page asks for 3
 PLANS_PER_HOUR = 120  # per visitor; each plan set is a few seconds of CPU
 explain_limiter = RateLimiter(EXPLAIN_PER_HOUR, 3600)
+feedback_limiter = RateLimiter(FEEDBACK_PER_HOUR, 3600)
+feedback_log = logging.getLogger("feedback")
 plans_limiter = RateLimiter(PLANS_PER_HOUR, 3600)
 
 
@@ -177,3 +182,12 @@ async def explain(
     if result is None:
         return s.ExplainResponse(rank=rank, status="unavailable")
     return s.ExplainResponse(rank=rank, status="ok", why=result.why, watch_out=result.watch_out)
+
+
+@app.post("/api/feedback")
+def feedback(body: s.Feedback, request: Request) -> dict[str, bool]:
+    """Logged as one JSON line (Render keeps the logs; no database yet, see docs/SPEC.md phase 6)."""
+    if not feedback_limiter.allow(client_key(request)):
+        raise HTTPException(429, "Thanks! That's plenty of feedback for now.")
+    feedback_log.warning("FEEDBACK %s", json.dumps(body.model_dump(), ensure_ascii=False))
+    return {"ok": True}
