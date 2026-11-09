@@ -6,6 +6,7 @@ export interface PitchPlayer {
   info: string; // e.g. the fixture; truncates first when space is tight
   value?: string; // e.g. xPts; always shown in full
   isCaptain?: boolean;
+  isVice?: boolean;
   isNew?: boolean;
   isOut?: boolean; // will be sold in this plan
   note?: string; // e.g. "for Thomas" under a new player
@@ -52,6 +53,11 @@ function PlayerToken({ p }: { p: PitchPlayer }) {
         {p.isCaptain && (
           <div className="absolute -right-2 -top-[3px] flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] border-white bg-[#0B0F14] text-[10.5px] font-bold text-white" aria-label="Captain">
             C
+          </div>
+        )}
+        {p.isVice && !p.isCaptain && (
+          <div className="absolute -right-2 -top-[3px] flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] border-white/70 bg-[#475569] text-[10.5px] font-bold text-white" aria-label="Vice-captain">
+            V
           </div>
         )}
         {p.isNew && (

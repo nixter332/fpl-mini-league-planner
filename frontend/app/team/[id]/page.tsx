@@ -115,6 +115,7 @@ function TeamScreen() {
       info: mode === "xp" ? g.fixture : mode === "weak" ? weakInfo : rivalsLoading ? "Loading…" : `Owned ${p.rivals_owned}/${nRivals}`,
       value: mode === "xp" ? pts(g.xpts) : undefined,
       isCaptain: pid === lineup.captain,
+      isVice: pid === lineup.vice,
       doubtful: p.doubtful,
       news: p.news,
       kit: kitFor(p, data.clubs),

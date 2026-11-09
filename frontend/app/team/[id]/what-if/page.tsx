@@ -97,6 +97,7 @@ function WhatIf() {
       info: g.fixture,
       value: pts(g.xpts),
       isCaptain: pid === week.captain,
+      isVice: pid === week.vice,
       isNew: pid in boughtNow,
       note: boughtNow[pid] ? `for ${name(boughtNow[pid])}` : undefined,
       doubtful: p?.doubtful,

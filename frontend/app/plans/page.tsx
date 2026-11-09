@@ -319,7 +319,7 @@ function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansRespons
       <div className="flex flex-col gap-1 rounded-[10px] bg-surface2 px-3 py-2.5">
         <div className="text-xs font-semibold text-text3">In numbers</div>
         <div className="text-[13px] leading-[1.45]">
-          {plan.is_roll ? `${signed(plan.xpts_gain)} xPts over ${data.horizon} GWs vs making no transfers.` : plan.summary} Captain {name(first.captain)} in GW{first.gw}.
+          {plan.is_roll ? `${signed(plan.xpts_gain)} xPts over ${data.horizon} GWs vs making no transfers.` : plan.summary} Captain {name(first.captain)} (vice {name(first.vice)}) in GW{first.gw}.
           {later.length > 0 && (
             <>
               {" "}Then:{" "}

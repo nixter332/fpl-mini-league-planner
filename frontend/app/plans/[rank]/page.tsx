@@ -72,6 +72,7 @@ function PlanDetail() {
       info: g.fixture,
       value: pts(g.xpts),
       isCaptain: pid === lineup.captain,
+      isVice: pid === lineup.vice,
       isNew: view === "after" && !before.has(pid),
       isOut: view === "before" && sold.has(pid),
       note: view === "after" && replaces[pid] ? `for ${name(replaces[pid])}` : undefined,
@@ -85,6 +86,7 @@ function PlanDetail() {
     first.moves.length ? first.moves.map((m) => `${name(m.player_out)} → ${name(m.player_in)}`).join(", ") : "Roll the transfer",
     first.chip ? CHIP_LABELS[first.chip] : plan.tag === "hit" ? `−${4 * first.hits} hit` : plan.tag === "free" ? "free transfer" : null,
     `captain ${name(first.captain)}`,
+    `vice ${name(first.vice)}`,
   ].filter(Boolean).join(" · ");
 
   const h2h = plan.head_to_head;
@@ -185,7 +187,7 @@ function PlanDetail() {
               <span className="text-text3">GW{g.gw}</span>
               <span className="text-right">
                 {g.moves.length ? g.moves.map((m) => `${name(m.player_out)} → ${name(m.player_in)}`).join(", ") : "No transfers"}
-                {g.hits ? ` (−${4 * g.hits})` : ""} · C {name(g.captain)}
+                {g.hits ? ` (−${4 * g.hits})` : ""} · C {name(g.captain)} · V {name(g.vice)}
                 {g.chip ? ` · ${CHIP_LABELS[g.chip]}` : ""}
               </span>
             </div>
