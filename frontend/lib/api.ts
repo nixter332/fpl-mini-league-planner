@@ -156,7 +156,12 @@ export interface FeedbackContext {
 
 /** Anonymous feedback: logged by the backend and, if tracking is on, sent to PostHog. */
 export async function sendFeedback(body: { kind: "plan" | "general"; useful: boolean | null; text: string; context: FeedbackContext }): Promise<void> {
-  track("feedback_sent", { kind: body.kind, useful: body.useful, has_text: body.text.trim().length > 0, page: body.context.page });
+  // The note goes to PostHog too, where it's kept (Render's logs expire). It's text the user chose
+  // to write; no team ID is attached.
+  track("feedback_sent", {
+    kind: body.kind, useful: body.useful, text: body.text.trim().slice(0, 1000) || null, page: body.context.page,
+    strategy: body.context.strategy ?? null, rank: body.context.rank ?? null,
+  });
   const res = await fetch("/api/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
