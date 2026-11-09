@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
@@ -188,7 +189,9 @@ export default function MainPage() {
 
       <SignInCard />
 
-      <div className="mt-auto text-center text-xs text-text3">We never ask for your FPL password.</div>
+      <div className="mt-auto text-center text-xs text-text3">
+        We never ask for your FPL password. <Link href="/privacy">Privacy</Link>
+      </div>
     </main>
   );
 }

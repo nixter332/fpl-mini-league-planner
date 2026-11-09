@@ -42,7 +42,8 @@ function SignInInner() {
         Sign in with Google (optional)
       </button>
       <div className="text-[11.5px] leading-snug text-text3">
-        You don&apos;t need to sign in. If you do, we record your name and email to see how the app is used. Nothing is shared, and we never ask for your FPL password.
+        You don&apos;t need to sign in. If you do, we record your name and email to see how the app is used. Nothing is shared, and we never ask for your FPL password.{" "}
+        <a href="/privacy">Privacy</a>
       </div>
     </div>
   );
