@@ -87,6 +87,39 @@ What it means:
 
 **Next for chips:** rerun after GW19 over GW5–19, with chips matched and with the planner choosing. By then every first-half chip has been used, and saved injury news covers GW11 onwards.
 
+## Tuning on 412 managers (9 Nov 2026)
+
+`python -m scripts.tune --from 4 --to 9` (results in `data/cache/tune/`, about 3 hours with 10 workers). 416 managers from three mini-leagues, overall ranks ~1M to ~10k, ~1k, and India's top 200 (`scripts/collect_managers.py`); 4 fail (their starting squad is infeasible). Each runs GW4–9 from their real GW3 squad, Protect, no injury news, with real points and auto-subs. Unused first-half chips at the end are credited at the sample's average real chip week (Bench Boost 17.6, Triple Captain 10.3) or an assumption (Free Hit 6, Wildcard 10), for planner and manager alike.
+
+"Base" is the app's settings, with a user who follows the chip advice: play a Wildcard when the best plan with it beats the best without by 10+, a Free Hit by 4+.
+
+| Setting | vs real, all (±3.5) | Leagues | ~1M–10k | ~1k | India top 200 | Hits |
+| --- | --- | --- | --- | --- | --- | --- |
+| Base | −88.7 | −17.2 | −78.4 | −110.0 | −97.4 | 0 |
+| No chips | −53.2 | +0.6 | −35.2 | −78.2 | −65.3 | 0 |
+| Chips matched to the real manager | −66.3 | −1.9 | −45.7 | −95.8 | −80.1 | 0 |
+| Wildcard never | −71.0 | −5.7 | −57.3 | −87.5 | −83.0 | 0 |
+| Wildcard bar 15 | −84.9 | −16.0 | −74.0 | −104.5 | −94.1 | 0 |
+| Free Hit never | −82.1 | −15.9 | −71.8 | −104.6 | −90.0 | 0 |
+| BB/TC keep low (4/3) | −89.2 | −18.2 | −77.7 | −110.9 | −98.7 | 0 |
+| BB/TC keep high (12/9) | −86.0 | −19.8 | −74.0 | −109.8 | −94.7 | 0 |
+| Saved FT worth 0 | −92.9 | −16.3 | −83.0 | −110.9 | −102.4 | 0 |
+| Saved FT worth 3 | −85.3 | −25.6 | −73.2 | −103.1 | −95.0 | 0 |
+| 1 hit allowed | −89.2 | −22.8 | −77.2 | −106.0 | −99.9 | 0.8 |
+| 1 hit, margin 2 | −86.0 | −24.5 | −74.0 | −107.3 | −95.1 | 0 |
+| 2 hits, margin 4 | −86.1 | −24.3 | −76.3 | −106.6 | −93.7 | 0 |
+
+Points are totals over the 6 weeks, net of hits. The leagues group is small, so that column is noisy.
+
+**What we learned**
+- The chip advice loses points. The planner's Wildcard calls are the worst part: it advises one for 84% of managers, mostly in GW4, when projections are weakest. Never taking that advice gains 18; raising the bar to 15 gains only 4. Ignoring the Free Hit advice gains 7.
+- With chips timed like the real managers, the planner is level with ordinary mini-league managers (−1.9) and well behind the top 10k, top 1k and India top 200.
+- "No chips" looks best partly because unused chips are credited at an average real chip week, which is generous. It doesn't mean chips are worthless.
+- How readily the planner plays Bench Boost and Triple Captain barely matters (within ±3).
+- Hits don't pay: allowing one costs 0.5, and with a margin of 2 or more none are taken.
+- A banked free transfer is worth keeping: valuing it at 0 costs 4; valuing it at 3 instead of 1.5 gains 3.
+- The planner overrates the players it buys (`scripts/diagnose_transfers.py`, 911 transfers): projected 15.4, scored 11.6. Players sold are projected about right (10.1 vs 9.9). Each transfer gains +1.6 against +5.3 projected, and the gap is largest in GW4–6. Players bought who then didn't play are only 5% of transfers.
+
 ## Next
 
 From GW11, FPL's injury news is saved before every deadline (`backend/data/news/`, by a scheduled GitHub Action), so later backtests can switch injury news back on with exactly what managers knew. Give the simulated planner the same chips in the same weeks as each real manager (chip-matching), so the comparison is fair.
