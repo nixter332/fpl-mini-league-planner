@@ -100,7 +100,7 @@ The backend sends the Claude API a structured summary of each plan (players in/o
    - The solver ranks the weeks from projections and fixtures (blank and double gameweeks) to the end of each chip's window. Claude explains the ranking.
    - Builds on the GW19 chip backtest, which tunes the chip values first.
    - Gate: chip weeks ranked for Nikhil's squad, with every number traceable to the solver, and a backtest showing the suggestions beat the chip-matched baseline.
-8. **Analysis and what-if:**
+8. **Analysis and what-if** (proposed plan: `docs/plans/phase-8.md`):
    - **Analysis:** weak spots on the user's pitch, flagged amber or red by projected points against the best options at the same price and position. Tapping a player shows the best replacements, ranked by the solver, with Claude explaining why.
    - **What-if:** a sandbox where the user makes their own transfers across gameweeks and sees projected points, bank and free transfers update. The backend validates and scores any user-made plan with the same rules as the solver (`validate`, `score`).
    - Gate: a full what-if journey on Nikhil's team with invalid moves blocked and scores matching the solver's.
