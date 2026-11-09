@@ -90,6 +90,36 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 
 To check the privacy claim, run the test in `frontend/e2e/privacy.spec.ts`. It builds with a dummy key, intercepts everything sent to PostHog, and fails if a team or league ID appears.
 
+## Optional Google sign-in
+
+The start page offers **Sign in with Google (optional)**. Anyone can use the app without it. Signed-in users' usage events in PostHog carry their name and email; everyone else stays anonymous. Sign-in only identifies the person. It's separate from FPL, and we never ask for an FPL password. Sessions are kept in a signed cookie, so there's no database. The button stays hidden until the keys below are set.
+
+**1. Create the Google sign-in client** (Google Cloud Console, free, about 10 minutes):
+1. Go to https://console.cloud.google.com, create a project (for example "FPL Planner"), and select it.
+2. Open **APIs & Services**, then **OAuth consent screen** (it may be called **Google Auth Platform**, then **Branding**):
+   - user type **External**
+   - app name "Mini-League Planner", your email as support and developer contact
+   - no extra scopes (the defaults, email and profile, are all we use)
+3. Open **Audience** (or the consent screen's publishing status) and click **Publish app**. Otherwise only test users you list can sign in. Basic sign-in (email and profile) needs no Google review.
+4. Open **Credentials**, then **Create credentials**, then **OAuth client ID**, with type **Web application**. Add:
+   - **Authorized JavaScript origins:** `https://fpl-mini-league-planner.vercel.app`
+   - **Authorized redirect URIs:** `https://fpl-mini-league-planner.vercel.app/api/auth/callback/google`
+   - (for local testing, also add `http://localhost:3000` and `http://localhost:3000/api/auth/callback/google`)
+5. Click **Create** and copy the **Client ID** and **Client secret**.
+
+**2. Add four environment variables in Vercel** (Settings, then Environment Variables). Keep the type **Secret** for the two secrets. None of these start with `NEXT_PUBLIC_`, so they never reach the browser.
+
+| Name | Value |
+| --- | --- |
+| `GOOGLE_CLIENT_ID` | the Client ID |
+| `GOOGLE_CLIENT_SECRET` | the Client secret |
+| `NEXTAUTH_SECRET` | a long random string: run `npx auth secret --raw` in `frontend/`, or any 32+ random characters. Don't reuse a password. |
+| `NEXTAUTH_URL` | `https://fpl-mini-league-planner.vercel.app` (needed so Google's return address matches) |
+
+**3. Redeploy** (Deployments, then ⋯, then Redeploy). The button appears on the start page.
+
+To test sign-in without Google, run `frontend/e2e/signin.spec.ts` with dummy values (see the comment in that file). It checks the button, the backend proxy, and the handover to Google.
+
 ## Alternative: Hugging Face Spaces (needs PRO)
 
 The repo can also deploy to a Docker Space (`backend/Dockerfile`, `.github/workflows/deploy-hf-space.yml`). The workflow is skipped unless the `HF_SPACE` variable is set. If you use it, choose **CPU basic** hardware.

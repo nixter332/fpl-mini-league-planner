@@ -55,6 +55,26 @@ export function startAnalytics(): void {
   started = true;
 }
 
+/** Tie later events to a signed-in person (optional Google sign-in). */
+export function identify(id: string, props: Record<string, string | null>): void {
+  if (!started) return;
+  try {
+    posthog.identify(id, props);
+  } catch {
+    /* tracking must never break the app */
+  }
+}
+
+/** Back to an anonymous ID after signing out. */
+export function resetIdentity(): void {
+  if (!started) return;
+  try {
+    posthog.reset();
+  } catch {
+    /* ignore */
+  }
+}
+
 /** Record an event; does nothing when tracking is off. */
 export function track(event: string, props?: Record<string, string | number | boolean | null>): void {
   if (!started) return;

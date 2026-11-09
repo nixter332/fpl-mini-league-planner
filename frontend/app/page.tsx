@@ -6,6 +6,7 @@ import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
 import { ApiError, resolveInput } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { forgetRecentTeam, loadRecentTeam, type RecentTeam } from "@/lib/recent";
+import { SignInCard } from "@/components/SignIn";
 import { ordinal } from "@/lib/format";
 import type { ResolveResponse } from "@/lib/types";
 
@@ -184,6 +185,8 @@ export default function MainPage() {
           <div className="text-center text-xs text-text3">Your row gives us your team ID. Your rivals load at the same time.</div>
         </div>
       )}
+
+      <SignInCard />
 
       <div className="mt-auto text-center text-xs text-text3">We never ask for your FPL password.</div>
     </main>
