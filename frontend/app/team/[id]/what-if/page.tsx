@@ -64,6 +64,7 @@ function WhatIf() {
   }, [all]);
 
   const data = result?.data ?? null;
+  const stale = result !== null && result.key !== key; // a change is being scored
   const update = (next: { moves?: WhatIfMove[]; captains?: Record<number, number>; chips?: Record<number, ChipName> }) => {
     setHistory((h) => [...h, key]);
     const q = new URLSearchParams(encodeWhatIf(next.moves ?? moves, next.captains ?? captains, next.chips ?? chips));
@@ -85,7 +86,13 @@ function WhatIf() {
   const player = (pid: number): Player | undefined => all.players[pid];
   const name = (pid: number) => player(pid)?.name ?? `#${pid}`;
   const boughtNow = Object.fromEntries(week.moves.map((m) => [m.player_in, m.player_out]));
-  const order = Object.fromEntries([...week.squad].sort((a, b) => a - b).map((pid, i) => [pid, i]));
+  // Spots come from the squad *before* this week's moves, so a new player takes the sold one's spot.
+  const before = new Set(week.squad);
+  for (const m of week.moves) {
+    before.delete(m.player_in);
+    before.add(m.player_out);
+  }
+  const order: Record<number, number> = Object.fromEntries([...before].sort((a, b) => a - b).map((pid, i) => [pid, i]));
   for (const [pin, pout] of Object.entries(boughtNow)) order[Number(pin)] = order[pout] ?? Number(pin);
 
   const token = (pid: number): PitchPlayer => {
@@ -127,8 +134,13 @@ function WhatIf() {
         <div className="text-[13px] text-text2">Tap a player to transfer him out or make him captain. Points update as you go.</div>
       </div>
 
-      <div className="flex flex-col gap-1 rounded-[14px] border border-cap-line bg-cap-bg px-3.5 py-3" data-testid="whatif-total">
-        <div className="text-[11.5px] font-semibold tracking-[0.4px] text-text3">YOUR PLAN · GW{data.gws[0]}–GW{data.gws[data.gws.length - 1]}</div>
+      {error && <ErrorBox message={`${error} The numbers below are from before your last change.`} />}
+
+      <div className={`flex flex-col gap-1 rounded-[14px] border border-cap-line bg-cap-bg px-3.5 py-3 ${stale ? "opacity-60" : ""}`} data-testid="whatif-total" aria-busy={stale}>
+        <div className="text-[11.5px] font-semibold tracking-[0.4px] text-text3">
+          YOUR PLAN · GW{data.gws[0]}–GW{data.gws[data.gws.length - 1]}
+          {stale && !error ? " · updating…" : ""}
+        </div>
         <div className="text-sm leading-[1.45]">
           <span className={`font-display text-lg font-bold ${data.xpts_gain >= 0 ? "text-good" : "text-bad"}`}>{signed(data.xpts_gain)}</span> xPts vs making no transfers
           {plan1 && (

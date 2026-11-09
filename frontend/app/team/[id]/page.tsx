@@ -35,6 +35,7 @@ function TeamScreen() {
   const [gwIndex, setGwIndex] = useState(0);
   const [mode, setMode] = useState<"xp" | "own" | "weak">("xp");
   const [progress, setProgress] = useState<RivalsProgress | null>(null);
+  const [rivalsFailed, setRivalsFailed] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -63,6 +64,7 @@ function TeamScreen() {
     setData(null);
     setError(null);
     setProgress(null);
+    setRivalsFailed(false);
     const fail = (e: unknown) => live && setError(e instanceof ApiError ? e.message : "Couldn't load your team.");
     getTeam(entry, league)
       .then(async (d) => {
@@ -74,8 +76,13 @@ function TeamScreen() {
         if (d.rivals && !d.rivals.ready) {
           // Show the team now; fill in the rival numbers once their squads are loaded.
           setProgress(d.rivals);
-          await waitForRivals(entry, d.rivals.league_id, setProgress, () => live);
-          if (live) setData(await getTeam(entry, d.rivals.league_id));
+          try {
+            await waitForRivals(entry, d.rivals.league_id, setProgress, () => live);
+            if (live) setData(await getTeam(entry, d.rivals.league_id));
+          } catch {
+            // Keep the team on screen; only the rival numbers are missing.
+            if (live) setRivalsFailed(true);
+          }
         }
       })
       .catch(fail);
@@ -185,7 +192,7 @@ function TeamScreen() {
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-seg">
             <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.round((100 * loaded) / Math.max(1, data.rivals!.total))}%` }} />
           </div>
-          Loading rivals&apos; teams: {loaded} of {data.rivals!.total}
+          {rivalsFailed ? "Couldn't load your rivals' teams. Refresh to try again." : <>Loading rivals&apos; teams: {loaded} of {data.rivals!.total}</>}
         </div>
       )}
 
