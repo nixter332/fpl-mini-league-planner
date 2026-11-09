@@ -75,3 +75,47 @@ def test_plans_wait_for_rivals(cold) -> None:
     api, _ = cold
     body = api.get("/api/plans", params={"team": TEAM, "league": LEAGUE, "horizon": 1}).json()
     assert body["standing"]["n_rivals"] == 2  # plans always use the full rival set
+
+
+def test_expired_rivals_reload_in_the_background(cold) -> None:
+    """A prefetch that finished long ago doesn't count: expired picks load in the background,
+    not inside the request (review finding)."""
+    import app.api.service as service_mod
+
+    api, fake = cold
+    _wait_ready(api, {"team": TEAM, "league": LEAGUE})
+    svc = get_service()
+    job, started = svc._jobs[LEAGUE]
+    svc._jobs[LEAGUE] = (job, started - service_mod.PREFETCH_FRESH - 1)  # long finished
+    for f in svc.client.cache.root.glob("entry-*-event-*-picks.json"):
+        f.unlink()  # the picks expired
+    body = api.get(f"/api/team/{TEAM}", params={"league": LEAGUE}).json()
+    assert body["rivals"]["ready"] is False  # answered at once; loading in the background
+    _wait_ready(api, {"team": TEAM, "league": LEAGUE})
+
+
+def test_what_if_does_not_wait_for_rivals(cold) -> None:
+    api, fake = cold
+    r = api.post("/api/what-if", json={"team": TEAM, "league": LEAGUE, "horizon": 2}).json()
+    assert r["problems"] == []
+    rival_picks = [q.url.path for q in fake.requests if q.url.path.endswith("/picks/") and f"/entry/{TEAM}/" not in q.url.path]
+    assert rival_picks == []
+
+
+def test_identical_plan_requests_solve_once(cold, monkeypatch) -> None:
+    import threading
+
+    import app.api.service as service_mod
+
+    api, _ = cold
+    _wait_ready(api, {"team": TEAM, "league": LEAGUE})
+    calls = []
+    real = service_mod.make_plans
+    monkeypatch.setattr(service_mod, "make_plans", lambda *a, **k: calls.append(1) or real(*a, **k))
+    svc = get_service()
+    threads = [threading.Thread(target=svc.plans, args=(TEAM, LEAGUE, "protect", 2, 0)) for _ in range(3)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(calls) == 1

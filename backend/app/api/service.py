@@ -45,6 +45,7 @@ log = logging.getLogger(__name__)
 TEAM_VIEW_GWS = 5
 CONTEXT_TTL = 10 * 60  # older than this: answer from it, refresh in the background
 CONTEXT_MAX_AGE = 60 * 60  # older than this (or past a deadline): rebuild before answering
+PREFETCH_FRESH = 10 * 60  # a finished rival prefetch counts for this long; after that, fetch again
 PLAN_CACHE_SIZE = 32
 N_RIVALS = 20
 DOUBT_STATUSES = {"d", "i", "s", "u"}
@@ -105,7 +106,8 @@ class PlannerService:
         # Rivals' picks are fetched in the background, one league at a time, through the same
         # throttled client, so the team screen can show while they load.
         self._prefetcher = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rivals")
-        self._jobs: dict[int, Future] = {}
+        self._jobs: dict[int, tuple[Future, float]] = {}  # league -> (job, started at)
+        self._plan_locks: dict[tuple, threading.Lock] = {}  # one solve per plan set at a time
 
     # ---- season-wide data ------------------------------------------------------------------
 
@@ -293,6 +295,19 @@ class PlannerService:
             if key in self._plans:
                 self._plans.move_to_end(key)
                 return self._plans[key]
+            key_lock = self._plan_locks.setdefault(key, threading.Lock())
+        # Identical requests arriving together (plans page, chip advice, reasons) wait for one solve.
+        with key_lock:
+            with self._lock:
+                if key in self._plans:
+                    return self._plans[key]
+            try:
+                return self._solve_plans(key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx)
+            finally:
+                with self._lock:
+                    self._plan_locks.pop(key, None)
+
+    def _solve_plans(self, key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx) -> s.PlansResponse:
 
         entry = Entry.model_validate(self.client.entry(entry_id))
         leagues = _private_leagues(entry)
@@ -459,10 +474,11 @@ class PlannerService:
     def _buyable(self, ctx: SeasonContext) -> set[int]:
         return {e.id for e in ctx.elements.values() if e.status != "u" and e.can_transact}
 
-    def _setup(self, entry_id: int, league_id: int | None, horizon: int):
+    def _setup(self, entry_id: int, league_id: int | None, horizon: int, rivals: bool = True):
+        """rivals=False skips the league entirely (what-if doesn't use rivals)."""
         ctx = self.context()
         entry = Entry.model_validate(self.client.entry(entry_id))
-        league_id = self._pick_league(league_id, _private_leagues(entry))
+        league_id = self._pick_league(league_id, _private_leagues(entry)) if rivals else None
         state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
         bundle = self._league(league_id, entry, state.picks_gw) if league_id else None
         gws = ctx.gws[:max(1, min(horizon, len(ctx.gws)))]
@@ -490,7 +506,7 @@ class PlannerService:
         )
 
     def what_if(self, req: s.WhatIfRequest) -> s.WhatIfResponse:
-        ctx, state, bundle, gws = self._setup(req.team, req.league, req.horizon)
+        ctx, state, _, gws = self._setup(req.team, req.league, req.horizon, rivals=False)
         players = self._every_player(ctx, state, gws)
         names = {e.id: e.web_name for e in ctx.elements.values()}
         settings = Settings(gws, strategy=req.strategy, chips=state.chips)
@@ -568,17 +584,25 @@ class PlannerService:
         return ids[:N_RIVALS + (1 if entry_id is None else 0)]
 
     def _job(self, league_id: int) -> Future | None:
+        """The league's prefetch, if it's running or finished recently (an old one is ignored, so
+        expired picks are fetched in the background again rather than inside a request)."""
         with self._lock:
-            return self._jobs.get(league_id)
+            entry = self._jobs.get(league_id)
+        if entry is None:
+            return None
+        job, started = entry
+        if job.done() and time.monotonic() - started > PREFETCH_FRESH:
+            return None
+        return job
 
     def _submit(self, league_id: int, fn: Callable[[], object]) -> None:
         """Run a background fetch for this league unless one is already running."""
         with self._lock:
-            job = self._jobs.get(league_id)
-            if job is not None and not job.done():
+            entry = self._jobs.get(league_id)
+            if entry is not None and not entry[0].done():
                 return
             job = self._prefetcher.submit(fn)
-            self._jobs[league_id] = job
+            self._jobs[league_id] = (job, time.monotonic())
 
         def report(f: Future) -> None:
             if f.exception() is not None:

@@ -143,7 +143,7 @@ def plans(
 ) -> s.PlansResponse:
     if horizon < 1:
         raise HTTPException(400, "Horizon must be at least 1 gameweek.")
-    if not plans_limiter.allow(client_key(request)):
+    if not _allowed("plans", plans_limiter, request):
         raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
     return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips)
 
@@ -160,7 +160,7 @@ def chip_advice(
     svc: PlannerService = Depends(get_service),
 ) -> list[s.ChipAdvice]:
     """What a Wildcard / Free Hit this week would add over the best plan without it."""
-    if not plans_limiter.allow(client_key(request)):
+    if not _allowed("plans", plans_limiter, request):
         raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
     return svc.chip_advice(team, league, strategy, horizon, max_hits, chips)
 
@@ -197,6 +197,13 @@ async def explain(
 
 analysis_limiter = RateLimiter(240, 3600)  # cheap, but each call scores ~200 lineups
 what_if_limiter = RateLimiter(600, 3600)  # one call per change in the sandbox
+# Overall caps (all visitors together). The per-visitor limits key on X-Forwarded-For, which a
+# caller hitting the backend directly could fake; these bound the solver's CPU regardless.
+overall_limiter = {"plans": RateLimiter(1500, 3600), "analysis": RateLimiter(3000, 3600), "what-if": RateLimiter(8000, 3600)}
+
+
+def _allowed(kind: str, limiter: RateLimiter, request: Request) -> bool:
+    return limiter.allow(client_key(request)) and overall_limiter[kind].allow("all")
 
 
 @app.get("/api/analysis", response_model=s.AnalysisResponse)
@@ -209,7 +216,7 @@ def analysis(
     svc: PlannerService = Depends(get_service),
 ) -> s.AnalysisResponse:
     """Weak spots in the squad and the best legal replacements for each player."""
-    if not analysis_limiter.allow(client_key(request)):
+    if not _allowed("analysis", analysis_limiter, request):
         raise HTTPException(429, "That's a lot of analysis in an hour. Try again in a bit.")
     return svc.analysis(team, league, strategy, horizon)
 
@@ -246,7 +253,7 @@ async def analysis_explain(
 @app.post("/api/what-if", response_model=s.WhatIfResponse)
 def what_if(body: s.WhatIfRequest, request: Request, svc: PlannerService = Depends(get_service)) -> s.WhatIfResponse:
     """Score the user's own transfers (and captains, chips) with the planner's rules and points."""
-    if not what_if_limiter.allow(client_key(request)):
+    if not _allowed("what-if", what_if_limiter, request):
         raise HTTPException(429, "That's a lot of changes in an hour. Try again in a bit.")
     return svc.what_if(body)
 
