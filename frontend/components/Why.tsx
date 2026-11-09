@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getExplanation, planQuery, type PlanParams } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import type { ExplainResponse } from "@/lib/types";
 
 /** The Claude-written reason for a plan; null while loading. */
@@ -10,7 +11,11 @@ export function useExplanation(params: PlanParams, rank: number): ExplainRespons
   const [result, setResult] = useState<{ key: string; value: ExplainResponse } | null>(null);
   useEffect(() => {
     let live = true;
-    getExplanation(params, rank).then((value) => live && setResult({ key, value }));
+    getExplanation(params, rank).then((value) => {
+      if (!live) return;
+      setResult({ key, value });
+      track(value.status === "ok" ? "reason_shown" : "reason_missing", { rank, status: value.status });
+    });
     return () => {
       live = false;
     };

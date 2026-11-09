@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
 import { ApiError, resolveInput } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import { forgetRecentTeam, loadRecentTeam, type RecentTeam } from "@/lib/recent";
 import { ordinal } from "@/lib/format";
 import type { ResolveResponse } from "@/lib/types";
@@ -36,11 +37,13 @@ export default function MainPage() {
     setPicked(null);
     try {
       const res = await resolveInput(input.trim());
+      track("lookup", { type: res.type });
       if (res.type === "team") router.push(`/team/${res.id}`);
       else if (res.type === "choice") setChoice(res);
       else setLeague(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
+      track("lookup_failed");
     } finally {
       clearTimeout(timer);
       setBusy(false);
@@ -78,7 +81,10 @@ export default function MainPage() {
           </div>
           <button
             type="button"
-            onClick={() => router.push(`/team/${recent.entry}${recent.league !== null ? `?league=${recent.league}` : ""}`)}
+            onClick={() => {
+              track("recent_team_opened");
+              router.push(`/team/${recent.entry}${recent.league !== null ? `?league=${recent.league}` : ""}`);
+            }}
             className="h-11 shrink-0 rounded-[10px] bg-accent px-4 text-sm font-semibold text-white"
           >
             Open my team

@@ -7,6 +7,8 @@ import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
 import { ApiError, getTeam, waitForRivals } from "@/lib/api";
 import { saveRecentTeam } from "@/lib/recent";
+import { track } from "@/lib/analytics";
+import { FeedbackLink } from "@/components/Feedback";
 import { deadlineLabel, gwOf, ordinal, pts, signed } from "@/lib/format";
 import type { Position, RivalsProgress, TeamResponse } from "@/lib/types";
 
@@ -43,6 +45,8 @@ function TeamScreen() {
         if (!live) return;
         setData(d);
         saveRecentTeam({ entry, league: d.standing?.league.id ?? (league === 0 ? 0 : null), name: d.team_name });
+        const size = d.standing?.league.size ?? 0;
+        track("team_loaded", { league_size: size === 0 ? "none" : size <= 5 ? "2-5" : size <= 20 ? "6-20" : size <= 50 ? "21-50" : "51+", rivals_ready: d.rivals?.ready ?? true });
         if (d.rivals && !d.rivals.ready) {
           // Show the team now; fill in the rival numbers once their squads are loaded.
           setProgress(d.rivals);
@@ -213,6 +217,7 @@ function TeamScreen() {
         </div>
       )}
       <Facts facts={data.facts} />
+      <FeedbackLink context={{ page: "team", gw: gw.id }} />
     </main>
   );
 }

@@ -146,3 +146,25 @@ test("pitch stays put across gameweeks, swaps are labelled, team is remembered",
   await expect(page.getByTestId("recent-team")).toContainText("Open my team");
   await shot(page, "18-main-welcome-back");
 });
+
+test("feedback on a plan, and no tracking without a PostHog key", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  const posthogCalls: string[] = [];
+  page.on("request", (r) => {
+    if (r.url().includes("posthog")) posthogCalls.push(r.url());
+  });
+  const feedback = page.waitForRequest((r) => r.url().endsWith("/api/feedback") && r.method() === "POST");
+  await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
+  const box = page.getByTestId("plan-feedback").first();
+  await expect(box).toBeVisible({ timeout: 120_000 });
+  await box.getByRole("button", { name: "Not useful" }).click();
+  const body = JSON.parse((await feedback).postData() ?? "{}");
+  expect(body).toMatchObject({ kind: "plan", useful: false, context: { page: "plans", strategy: "protect", rank: 1 } });
+  expect(JSON.stringify(body)).not.toContain(TEAM); // no team ID in feedback
+  await box.getByLabel("Feedback note").fill("Captain choice was confusing");
+  await box.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Thanks for the feedback!").first()).toBeVisible();
+  await shot(page, "19-plan-feedback");
+  expect(posthogCalls).toEqual([]);
+});

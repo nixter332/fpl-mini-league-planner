@@ -1,3 +1,4 @@
+import { track } from "./analytics";
 import type { ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
@@ -143,4 +144,23 @@ export function getExplanation(p: PlanParams, rank: number): Promise<ExplainResp
     explainCache.set(key, pending);
   }
   return pending;
+}
+
+export interface FeedbackContext {
+  page: string;
+  strategy?: string;
+  horizon?: number;
+  rank?: number;
+  gw?: number;
+}
+
+/** Anonymous feedback: logged by the backend and, if tracking is on, sent to PostHog. */
+export async function sendFeedback(body: { kind: "plan" | "general"; useful: boolean | null; text: string; context: FeedbackContext }): Promise<void> {
+  track("feedback_sent", { kind: body.kind, useful: body.useful, has_text: body.text.trim().length > 0, page: body.context.page });
+  const res = await fetch("/api/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new ApiError("Couldn't send feedback.");
 }

@@ -5,6 +5,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { BackLink, ErrorBox, Loading, Segmented, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
+import { PlanFeedback } from "@/components/Feedback";
+import { track } from "@/lib/analytics";
 import { ApiError, getPlans, readPlanParams } from "@/lib/api";
 import { CHIP_LABELS, gwOf, pts, strategyLabel } from "@/lib/format";
 import type { PlansResponse, Position } from "@/lib/types";
@@ -28,7 +30,10 @@ function PlanDetail() {
 
   useEffect(() => {
     getPlans(params)
-      .then(setData)
+      .then((d) => {
+        setData(d);
+        track("plan_detail_opened", { rank: Number(rank), strategy: d.strategy });
+      })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Couldn't load the plan."));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search.toString()]);
@@ -192,11 +197,13 @@ function PlanDetail() {
         href="https://fantasy.premierleague.com/transfers"
         target="_blank"
         rel="noopener noreferrer"
+        onClick={() => track("open_fpl_transfers", { rank: plan.rank })}
         className="flex h-12 shrink-0 items-center justify-center rounded-xl bg-accent text-[15px] font-semibold text-white no-underline"
       >
         Make this transfer in the FPL app
       </a>
       <div className="-mt-1.5 text-center text-xs text-text3">We can&apos;t make transfers for you.</div>
+      <PlanFeedback context={{ page: "plan", strategy: data.strategy, horizon: data.horizon, rank: plan.rank, gw: first.gw }} />
     </main>
   );
 }

@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { BackLink, ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
+import { FeedbackLink, PlanFeedback } from "@/components/Feedback";
+import { track } from "@/lib/analytics";
 import { ApiError, getChipAdvice, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
 import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
 import type { ChipAdvice, ChipName, Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
@@ -37,6 +39,11 @@ function PlansScreen() {
       .then((d) => {
         if (!live) return;
         setLoaded({ key, data: d });
+        track("plans_loaded", {
+          strategy: params.strategy, horizon: params.horizon, hits: params.hits, chips: params.chips,
+          wildcard: params.wildcard !== null, freehit: params.freehit !== null, plans: d.plans.length,
+          plan1_chip: d.plans[0]?.gameweeks.find((g) => g.chip)?.chip ?? null,
+        });
         // Warm the other strategies so the dial switches instantly.
         for (const s of STRATEGIES) if (s.key !== params.strategy) getPlans({ ...params, strategy: s.key }).catch(() => {});
         // Would a Wildcard or Free Hit this week help? (Only when you haven't chosen one.)
@@ -51,7 +58,10 @@ function PlansScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  const go = (patch: Partial<PlanParams>) => router.replace(`/plans?${pageQuery({ ...params, ...patch })}`);
+  const go = (patch: Partial<PlanParams>) => {
+    for (const [setting, value] of Object.entries(patch)) track("plan_setting_changed", { setting, value: value as string | number | boolean | null });
+    router.replace(`/plans?${pageQuery({ ...params, ...patch })}`);
+  };
 
   const teamHref = `/team/${params.team}${params.league !== null ? `?league=${params.league}` : ""}`;
   const current = loaded?.key === key ? loaded.data : null;
@@ -155,7 +165,10 @@ function PlansScreen() {
         )}
       </div>
 
-      {current && advice && advice.length > 0 && <ChipAdviceCard advice={advice} horizon={current.horizon} onPlan={(a) => go({ [a.chip]: a.gw })} />}
+      {current && advice && advice.length > 0 && <ChipAdviceCard advice={advice} horizon={current.horizon} onPlan={(a) => {
+            track("chip_advice_used", { chip: a.chip });
+            go({ [a.chip]: a.gw });
+          }} />}
 
       {error && <ErrorBox message={error} />}
       {!current && !error && (
@@ -179,6 +192,7 @@ function PlansScreen() {
           ))}
           <div className="text-center text-xs text-text3">The solver picks the transfers. AI only writes the reasons.</div>
           <Facts facts={current.facts} />
+          <FeedbackLink context={{ page: "plans", strategy: current.strategy, horizon: current.horizon, gw: current.gws[0] }} />
         </>
       )}
     </main>
@@ -323,6 +337,7 @@ function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansRespons
       </div>
 
       <Link href={href} className="flex min-h-8 items-center text-sm font-semibold no-underline">View on pitch →</Link>
+      <PlanFeedback context={{ page: "plans", strategy: data.strategy, horizon: data.horizon, rank: plan.rank, gw: data.gws[0] }} />
     </div>
   );
 }

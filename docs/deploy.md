@@ -65,6 +65,29 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 - Send friends the Vercel URL. They paste their own team or league link; no login is needed.
 - Track Claude spending at https://platform.claude.com (Billing, then Usage).
 
+## Feedback and usage tracking (phase 6 groundwork)
+
+**Feedback.** Plan cards have "Was this plan useful? 👍 👎" with an optional note, and the team and plans screens have a "Send feedback" link. Feedback is anonymous: it carries the page, strategy, horizon, plan number and gameweek, but no team ID. The backend logs each one as a line starting with `FEEDBACK`, so in Render open **Logs** and search for `FEEDBACK`. There's no database yet; Render keeps logs for a limited time, so copy out anything worth keeping. Each visitor can send at most 20 an hour.
+
+**PostHog (optional; off until a key is set).**
+1. In PostHog, create a project for this app and copy its **Project API key** (it starts with `phc_`). This key is meant to be public: it can only send events.
+2. In Vercel, open the project's **Settings**, then **Environment Variables**, and add:
+   - `NEXT_PUBLIC_POSTHOG_KEY` = the key
+   - `NEXT_PUBLIC_POSTHOG_HOST` = `https://eu.i.posthog.com`, *only* if your PostHog project is in the EU region (the default is US)
+3. Redeploy. `NEXT_PUBLIC_*` values are built into the app.
+
+**What's tracked:**
+- Page views
+- `lookup`, `team_loaded`, `plans_loaded`
+- `plan_setting_changed` (strategy, horizon, hits, chips)
+- `chip_advice_used`, `plan_detail_opened`, `reason_shown` / `reason_missing`, `open_fpl_transfers`, `feedback_sent`
+
+**Privacy.**
+- No names, no team or league IDs. Page addresses are scrubbed before sending (`/team/5179483?league=…` becomes `/team/:id`).
+- No autocapture, no session recording, no feature flags, and nobody is identified.
+
+To check the privacy claim, run the test in `frontend/e2e/privacy.spec.ts`. It builds with a dummy key, intercepts everything sent to PostHog, and fails if a team or league ID appears.
+
 ## Alternative: Hugging Face Spaces (needs PRO)
 
 The repo can also deploy to a Docker Space (`backend/Dockerfile`, `.github/workflows/deploy-hf-space.yml`). The workflow is skipped unless the `HF_SPACE` variable is set. If you use it, choose **CPU basic** hardware.
