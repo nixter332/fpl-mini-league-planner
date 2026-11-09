@@ -35,6 +35,11 @@ ${text}`);
   await expect(page.getByTestId("pitch-player").first()).toBeVisible({ timeout: 120_000 });
   await page.goto("/plans?team=5179483&league=1883627&strategy=protect&horizon=4&hits=0");
   await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+  // A failed request whose address holds both IDs: the error report must arrive without them.
+  await page.route(/\/api\/analysis/, (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"detail":"Boom for team 5179483 in league 1883627"}' }));
+  await page.goto("/team/5179483?league=1883627");
+  await page.getByRole("group", { name: "Show on pitch" }).getByRole("button", { name: "Weak spots" }).click();
+  await expect(page.getByText("Boom for team")).toBeVisible({ timeout: 120_000 });
   await page.waitForTimeout(3000);
   const all = bodies.join("\n");
   if (process.env.E2E_PRIVACY_DEBUG) console.log(all.slice(0, 1500));
@@ -45,4 +50,6 @@ ${text}`);
   expect(all).toContain('"event":"plans_loaded"');
   expect(all).toContain("/team/:id");
   expect(all).toContain('"app":"fpl-mini-league-planner"');
+  expect(all).toContain('"event":"app_error"');
+  expect(all).toContain("/api/analysis"); // the endpoint is reported, its query (with the IDs) is not
 });

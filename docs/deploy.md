@@ -83,6 +83,8 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 - `lookup`, `team_loaded`, `plans_loaded`
 - `plan_setting_changed` (strategy, horizon, hits, chips)
 - `chip_advice_used`, `plan_detail_opened`, `reason_shown` / `reason_missing`, `open_fpl_transfers`, `feedback_sent`
+- `plan_shared` (share sheet or copy), `tips_dismissed`
+- `app_error`: crashes and failed requests (server errors, rate limits, bad requests, no connection), with the endpoint and message. Digits of 3+ are replaced by `:id`, and at most 20 are sent per visit. In PostHog, filter on this event to see what breaks.
 
 **Privacy.**
 - No names, no team or league IDs. Page addresses are scrubbed before sending (`/team/5179483?league=…` becomes `/team/:id`).

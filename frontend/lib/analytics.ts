@@ -75,6 +75,20 @@ export function resetIdentity(): void {
   }
 }
 
+/** Anything ID-like (3+ digits) removed, and kept short, before free text is sent. */
+export function scrubText(s: string): string {
+  return s.replace(/\d{3,}/g, ":id").slice(0, 200);
+}
+
+let errorsSent = 0;
+
+/** Report something that broke (a crash, a failed request), with no IDs. A few per visit at most. */
+export function reportError(kind: "api" | "network" | "crash", message: string, extra: Record<string, string | number | null> = {}): void {
+  if (!started || errorsSent >= 20) return;
+  errorsSent += 1;
+  track("app_error", { kind, message: scrubText(message || "unknown"), ...extra });
+}
+
 /** Record an event; does nothing when tracking is off. */
 export function track(event: string, props?: Record<string, string | number | boolean | null>): void {
   if (!started) return;

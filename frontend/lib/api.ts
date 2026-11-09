@@ -1,13 +1,21 @@
-import { track } from "./analytics";
+import { reportError, scrubUrl, track } from "./analytics";
 import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
+
+/** Failed requests worth knowing about: server errors, rate limits, and requests we built wrong. */
+function reportFailure(path: string, status: number | null, detail: string): void {
+  const endpoint = scrubUrl(path);
+  if (status === null) reportError("network", "couldn't reach the server", { endpoint });
+  else if (status >= 500 || status === 429 || status === 422) reportError("api", detail, { endpoint, status });
+}
 
 async function getJSON<T>(path: string): Promise<T> {
   let res: Response;
   try {
     res = await fetch(path, { headers: { Accept: "application/json" } });
   } catch {
+    reportFailure(path, null, "");
     throw new ApiError("Couldn't reach the planner. Check your connection and try again.");
   }
   if (!res.ok) {
@@ -18,6 +26,7 @@ async function getJSON<T>(path: string): Promise<T> {
     } catch {
       /* not JSON */
     }
+    reportFailure(path, res.status, detail);
     throw new ApiError(detail);
   }
   return res.json() as Promise<T>;
@@ -209,6 +218,7 @@ export async function postWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
       body: JSON.stringify(body),
     });
   } catch {
+    reportFailure("/api/what-if", null, "");
     throw new ApiError("Couldn't reach the planner. Check your connection and try again.");
   }
   if (!res.ok) {
@@ -219,6 +229,7 @@ export async function postWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
     } catch {
       /* not JSON */
     }
+    reportFailure("/api/what-if", res.status, detail);
     throw new ApiError(detail);
   }
   return res.json() as Promise<WhatIfResponse>;

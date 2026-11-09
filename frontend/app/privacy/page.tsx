@@ -8,7 +8,7 @@ export default function PrivacyPage() {
     <main className="flex flex-col gap-4 text-[14px] leading-relaxed text-text2">
       <Link href="/" className="text-[13px] font-semibold no-underline">← Back to the planner</Link>
       <h1 className="m-0 font-display text-2xl font-bold text-text">Privacy</h1>
-      <p className="m-0 text-xs text-text3">Last updated 9 November 2026 (drafts)</p>
+      <p className="m-0 text-xs text-text3">Last updated 9 November 2026 (error reports, tips)</p>
 
       <Section title="The short version">
         Mini-League Planner is a free hobby project. It works from public Fantasy Premier League data. You never need an
@@ -35,12 +35,14 @@ export default function PrivacyPage() {
       <Section title="Usage stats">
         We count things like pages opened, strategies picked and plans viewed, using PostHog (hosted in the EU). If you
         aren&apos;t signed in, you&apos;re a random ID, not a name. Team and league numbers are removed from page addresses
-        before anything is sent. There are no screen recordings and no advertising trackers.
+        before anything is sent. When something breaks (a crash or a failed request), we record the error message and
+        the kind of page, with the same numbers removed. There are no screen recordings and no advertising trackers.
       </Section>
 
       <Section title="On your device">
         Your browser remembers the last team you opened and your light/dark choice, so the start page can offer &ldquo;Open
-        my team&rdquo;. &ldquo;Forget this team&rdquo; clears it. Drafts you save in what-if are kept in your browser too,
+        my team&rdquo;. &ldquo;Forget this team&rdquo; clears it. It also remembers that you&apos;ve closed the
+        first-visit tips. Drafts you save in what-if are kept in your browser too,
         and never sent to us except to score them. If you sign in, a login cookie keeps you signed in.
       </Section>
 
