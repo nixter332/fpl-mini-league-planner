@@ -83,6 +83,7 @@ class SeasonContext:
     elements: dict[int, Element]
     teams: dict[int, Team]
     fixture_labels: dict[tuple[int, int], str]
+    fixture_difficulty: dict[tuple[int, int], list[int]]  # FPL's 1-5 rating per fixture, same order as the label
     built_at: float
 
 
@@ -179,15 +180,19 @@ class PlannerService:
 
         teams = {t.id: t for t in bootstrap.teams}
         labels: dict[tuple[int, int], list[str]] = {}
+        difficulty: dict[tuple[int, int], list[int]] = {}
         for f in sorted(fixtures, key=lambda f: (f.kickoff_time is None, f.kickoff_time)):
             if f.event in gws:
                 labels.setdefault((f.team_h, f.event), []).append(f"{teams[f.team_a].short_name} (H)")
                 labels.setdefault((f.team_a, f.event), []).append(f"{teams[f.team_h].short_name} (A)")
+                difficulty.setdefault((f.team_h, f.event), []).append(f.team_h_difficulty)
+                difficulty.setdefault((f.team_a, f.event), []).append(f.team_a_difficulty)
         return SeasonContext(
             data=data, now=now, finished_gw=finished_gw, gws=gws,
             events={e.id: e for e in bootstrap.events}, xpts=xpts, projection=projection,
             elements={e.id: e for e in bootstrap.elements}, teams=teams,
             fixture_labels={k: ", ".join(v) for k, v in labels.items()},
+            fixture_difficulty=difficulty,
             built_at=time.monotonic(),
         )
 
@@ -743,7 +748,11 @@ class PlannerService:
                 doubtful=e.status in DOUBT_STATUSES or (e.chance_of_playing_next_round not in (None, 100)),
                 rivals_owned=ownership.owned.get(pid, 0),
                 rivals_captained=round(ownership.captain_share(pid) * ownership.n_rivals),
-                gws=[s.PlayerGw(gw=g, fixture=ctx.fixture_labels.get((e.team, g), "—"), xpts=ctx.xpts.get(pid, {}).get(g, 0.0)) for g in ctx.gws],
+                gws=[
+                    s.PlayerGw(gw=g, fixture=ctx.fixture_labels.get((e.team, g), "—"), xpts=ctx.xpts.get(pid, {}).get(g, 0.0),
+                               difficulty=ctx.fixture_difficulty.get((e.team, g), []))
+                    for g in ctx.gws
+                ],
             )
         return out
 

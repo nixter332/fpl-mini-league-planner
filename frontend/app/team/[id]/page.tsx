@@ -7,6 +7,7 @@ import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
 import { ApiError, getAnalysis, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
 import { Why } from "@/components/Why";
+import { FixtureStrip } from "@/components/FixtureStrip";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { track } from "@/lib/analytics";
@@ -326,6 +327,7 @@ function PlayerSheet({
         {nRivals ? ` · ${player.rivals_owned}/${nRivals} rivals own him` : ""}
       </div>
       {player.news && <div className="rounded-lg bg-warn-bg px-3 py-2 text-[12.5px] text-warn-text">{player.news}</div>}
+      <FixtureStrip gws={player.gws} />
       <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 text-[13px]">
         {player.gws.slice(0, 4).map((g) => (
           <div key={g.gw} className="contents">
@@ -348,7 +350,8 @@ function PlayerSheet({
           {spot.replacements.map((r) => {
             const c = analysis.players[r.player];
             return (
-              <div key={r.player} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2">
+              <div key={r.player} className="flex flex-col gap-1.5 rounded-xl border border-line bg-surface px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate text-sm font-semibold">{c.name}</span>
                   <span className="truncate text-[11.5px] text-text3">
@@ -362,6 +365,8 @@ function PlayerSheet({
                     Try in what-if →
                   </Link>
                 </div>
+              </div>
+              <FixtureStrip gws={c.gws} />
               </div>
             );
           })}

@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { Sheet } from "@/components/Sheet";
+import { FixtureStrip } from "@/components/FixtureStrip";
 import { BackLink, ErrorBox, Loading, ThemeToggle, Tile } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { ApiError, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
@@ -399,6 +400,7 @@ function PlayerActions({
         {p.club} · {p.position} · {money(p.sell_price ?? p.price)}
       </div>
       {p.news && <div className="rounded-lg bg-warn-bg px-3 py-2 text-[12.5px] text-warn-text">{p.news}</div>}
+      <FixtureStrip gws={p.gws} from={gw} />
       <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 text-[13px]">
         {p.gws.filter((g) => g.gw >= gw).slice(0, 4).map((g) => (
           <div key={g.gw} className="contents">
@@ -465,16 +467,19 @@ function ReplacementPicker({
               key={p.id}
               type="button"
               onClick={() => onPick(p.id)}
-              className={`flex items-center justify-between gap-2 rounded-xl border border-line px-3 py-2 text-left ${short > 0 ? "opacity-50" : "bg-surface"}`}
+              className={`flex flex-col gap-1.5 rounded-xl border border-line px-3 py-2 text-left ${short > 0 ? "opacity-50" : "bg-surface"}`}
             >
-              <span className="flex min-w-0 flex-col">
-                <span className="truncate text-sm font-semibold">{p.name}</span>
-                <span className="truncate text-[11.5px] text-text3">
-                  {p.club} · {money(p.price)} · {gwOf(p, gws[0]).fixture}
-                  {short > 0 ? ` · ${money(short)} short` : ""}
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-semibold">{p.name}</span>
+                  <span className="truncate text-[11.5px] text-text3">
+                    {p.club} · {money(p.price)}
+                    {short > 0 ? ` · ${money(short)} short` : ""}
+                  </span>
                 </span>
+                <span className="shrink-0 text-sm font-bold">{pts(total(p))}</span>
               </span>
-              <span className="shrink-0 text-sm font-bold">{pts(total(p))}</span>
+              <span className="w-full"><FixtureStrip gws={p.gws} from={gws[0]} /></span>
             </button>
           );
         })}

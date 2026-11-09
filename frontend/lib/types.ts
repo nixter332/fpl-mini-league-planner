@@ -18,7 +18,7 @@ export interface ResolveResponse {
 }
 
 export interface Gameweek { id: number; name: string; deadline: string }
-export interface PlayerGw { gw: number; fixture: string; xpts: number }
+export interface PlayerGw { gw: number; fixture: string; xpts: number; difficulty: number[] }
 export interface Player {
   id: number;
   name: string;

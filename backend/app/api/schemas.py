@@ -48,6 +48,7 @@ class PlayerGw(BaseModel):
     gw: int
     fixture: str  # "LEE (H)", "LEE (H), NEW (A)" in a double, "—" in a blank
     xpts: float
+    difficulty: list[int] = []  # FPL's 1 (easy) to 5 (hard) per fixture, in the label's order
 
 
 class Player(BaseModel):
