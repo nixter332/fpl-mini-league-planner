@@ -61,6 +61,8 @@ CONFIGS: dict[str, dict[str, Any]] = {
     "saved FT worth 0": {"ft_value": 0.0},
     "saved FT worth 3": {"ft_value": 3.0},
     "1 hit allowed": {"max_hits": 1},
+    "1 hit, margin 2": {"max_hits": 1, "hit_margin": 2.0},
+    "2 hits, margin 4": {"max_hits": 2, "hit_margin": 4.0},
 }
 # Estimated value of a first-half chip still unused at the end (it can still be played by GW19).
 # Bench Boost and Triple Captain are measured from the sample's real chip weeks; Wildcard and

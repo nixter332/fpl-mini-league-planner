@@ -6,7 +6,7 @@ ownership split agreed with Nikhil):
     maximise  sum_g decay^g * sum_p xPts[p,g] * ( (1 - w*start_p) * start[p,g]
                                                  + (1 - w*captain_p) * captain[p,g]
                                                  + bench_weight_p * (squad[p,g] - start[p,g]) )
-              - hit_cost * sum_g hits[g]
+              - (hit_cost + hit_margin) * sum_g hits[g]     (margin: decision only)
               + ft_value * free transfers still held after the last GW
               + chip points for chips played in forced weeks (Triple Captain: the captain
                 again; Bench Boost: the bench)
@@ -83,6 +83,10 @@ class Settings:
     bench_weight: float = 0.1  # outfield subs only; backup goalkeepers count 0
     ft_value: float = 1.5  # xPts per free transfer still held after the horizon
     hit_cost: int = 4
+    # Extra points a hit must clear, on top of its 4, before the planner takes it. Projected gains
+    # are optimistic (the solver picks the luckiest-looking moves), so a hit that only just beats
+    # 4 tends not to pay back. Decision only: reported points still count a hit as 4.
+    hit_margin: float = 0.0
     max_free_transfers: int = MAX_FREE_TRANSFERS
     time_limit: float = 20.0  # per solve; make_plans sets tighter limits from its budget
     chips: tuple[ChipWindow, ...] = ()  # chips the manager has left (SquadState.chips)
@@ -253,7 +257,8 @@ def solve(
                 terms.append(d * x * cap_w * tcap[p, g])
             if (p, g) in bbp:
                 terms.append(d * x * (start_w - bench_w) * bbp[p, g])
-    prob += pulp.lpSum(terms) - settings.hit_cost * pulp.lpSum(hits.values()) + settings.ft_value * ft_end
+    prob += (pulp.lpSum(terms) - (settings.hit_cost + settings.hit_margin) * pulp.lpSum(hits.values())
+             + settings.ft_value * ft_end)
 
     for g in tc_gws:
         prob += pulp.lpSum(tcap[p, g] for p in P) == pulp.lpSum(chip_at(TRIPLE_CAPTAIN, g))

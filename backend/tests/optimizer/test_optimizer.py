@@ -238,3 +238,11 @@ def test_a_timed_out_do_nothing_plan_is_dropped(pool, manager_state, monkeypatch
     ps = make_plans(pool, manager_state, Settings(GWS, strategy="protect"))
     assert len(ps.plans) == 2
     assert all(p.xpts_gain > 0 for p in ps.plans)
+
+
+def test_hit_margin_only_takes_hits_that_clear_it(pool, manager_state) -> None:
+    """A margin raises the bar for hits (decision only); reported points still count 4 per hit."""
+    loose = solve(pool, manager_state, Settings(GWS, strategy="protect", max_hits=3, time_limit=20))
+    strict = solve(pool, manager_state, Settings(GWS, strategy="protect", max_hits=3, hit_margin=100.0, time_limit=20))
+    assert strict.total_hits == 0
+    assert loose.total_hits >= strict.total_hits
