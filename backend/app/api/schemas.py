@@ -237,3 +237,86 @@ class Feedback(BaseModel):
     useful: bool | None = None  # thumbs up / down on a plan
     text: str = Field("", max_length=1000)
     context: FeedbackContext = FeedbackContext()
+
+
+# ---- phase 8: analysis and what-if ----------------------------------------------------------
+
+
+class ReplacementOut(BaseModel):
+    player: int
+    gain: float  # projected team points over the horizon vs keeping the player
+    weighted_gain: float  # the same, weighted by the strategy (the ranking)
+
+
+class SpotOut(BaseModel):
+    player: int
+    level: Literal["red", "amber", "ok"]
+    reason: Literal["unavailable", "upgrade"] | None
+    gap: float
+    replacements: list[ReplacementOut]
+
+
+class AnalysisResponse(BaseModel):
+    entry: int
+    strategy: Literal["protect", "balanced", "risky"]
+    gws: list[int]
+    bank: int
+    spots: list[SpotOut]
+    players: dict[int, Player]
+    clubs: dict[str, Club]
+
+
+class WhatIfMove(BaseModel):
+    gw: int = Field(ge=1, le=38)
+    out: int = Field(gt=0)
+    into: int = Field(gt=0)
+
+
+class WhatIfRequest(BaseModel):
+    team: int = Field(gt=0)
+    league: int | None = Field(None, ge=0)
+    strategy: Literal["protect", "balanced", "risky"] = "protect"
+    horizon: int = Field(4, ge=1, le=5)
+    moves: list[WhatIfMove] = Field(default_factory=list, max_length=60)
+    captains: dict[int, int] = Field(default_factory=dict)  # gw -> player
+    chips: dict[int, ChipName] = Field(default_factory=dict)  # gw -> chip
+
+
+class WhatIfWeek(BaseModel):
+    gw: int
+    moves: list[Move]
+    hits: int
+    free_transfers: int  # going into this week
+    bank: int  # after this week's moves
+    chip: ChipName | None
+    squad: list[int]
+    starting: list[int]
+    bench: list[int]
+    captain: int
+    vice: int
+    xpts: float  # XI + captain (+ chip), minus hits
+
+
+class WhatIfProblemOut(BaseModel):
+    gw: int | None
+    message: str
+
+
+class WhatIfResponse(BaseModel):
+    entry: int
+    gws: list[int]
+    weeks: list[WhatIfWeek]
+    xpts: float  # the whole plan
+    no_transfers_xpts: float
+    xpts_gain: float
+    free_transfers_after: int
+    problems: list[WhatIfProblemOut]
+    chips_left: list[ChipLeft]
+
+
+class PlayersResponse(BaseModel):
+    """Every player, for the what-if search (projections for the next gameweeks)."""
+
+    gws: list[int]
+    players: dict[int, Player]
+    clubs: dict[str, Club]

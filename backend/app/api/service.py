@@ -32,7 +32,11 @@ from app.optimizer.plans import Plan as OptPlan
 from app.optimizer.chips import (
     AUTO_CHIPS, BENCH_BOOST, CHIP_LABELS, FREE_HIT, TRIPLE_CAPTAIN, WILDCARD, ChipWindow, window_for,
 )
+from app.optimizer.analysis import analyse
 from app.optimizer.plans import make_plans, paired_transfers
+from app.optimizer.solver import PoolPlayer
+from app.optimizer.whatif import Move as WhatIfMove
+from app.optimizer.whatif import build_plan, week_points
 from app.optimizer.solver import Settings
 from app.optimizer.state import SquadState
 
@@ -440,6 +444,93 @@ class PlannerService:
         if plan is None:
             raise NotFoundError("That plan isn't available any more.")
         return resp, plan
+
+    # ---- phase 8: analysis and what-if -----------------------------------------------------
+
+    def _every_player(self, ctx: SeasonContext, state: SquadState, gws) -> dict[int, PoolPlayer]:
+        """A PoolPlayer for every player (owned ones at their selling price)."""
+        sell = {p.element: p.sell_price for p in state.players}
+        return {
+            e.id: PoolPlayer(e.id, e.element_type, e.team, e.now_cost, sell.get(e.id, e.now_cost),
+                             {g: ctx.xpts.get(e.id, {}).get(g, 0.0) for g in gws})
+            for e in ctx.elements.values()
+        }
+
+    def _buyable(self, ctx: SeasonContext) -> set[int]:
+        return {e.id for e in ctx.elements.values() if e.status != "u" and e.can_transact}
+
+    def _setup(self, entry_id: int, league_id: int | None, horizon: int):
+        ctx = self.context()
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        bundle = self._league(league_id, entry, state.picks_gw) if league_id else None
+        gws = ctx.gws[:max(1, min(horizon, len(ctx.gws)))]
+        return ctx, state, bundle, gws
+
+    def analysis(self, entry_id: int, league_id: int | None, strategy: str, horizon: int) -> s.AnalysisResponse:
+        ctx, state, bundle, gws = self._setup(entry_id, league_id, horizon)
+        ownership = bundle.ownership if bundle else NO_RIVALS
+        players = self._every_player(ctx, state, gws)
+        availability = {}
+        for e in ctx.elements.values():
+            chance = e.chance_of_playing_next_round
+            availability[e.id] = (chance if chance is not None else (0 if e.status in {"i", "s", "u"} else 100)) / 100
+        spots = analyse(state, players, self._buyable(ctx), gws, availability, ownership, Settings(gws, strategy=strategy).weight)
+        referenced = set(state.element_ids) | {r.element for sp in spots for r in sp.replacements}
+        return s.AnalysisResponse(
+            entry=entry_id, strategy=strategy, gws=list(gws), bank=state.bank,
+            spots=[
+                s.SpotOut(player=sp.element, level=sp.level, reason=sp.reason, gap=sp.gap,
+                          replacements=[s.ReplacementOut(player=r.element, gain=r.gain, weighted_gain=r.weighted_gain) for r in sp.replacements])
+                for sp in spots
+            ],
+            players=self._players(referenced, ctx, ownership, state),
+            clubs=self._clubs(ctx),
+        )
+
+    def what_if(self, req: s.WhatIfRequest) -> s.WhatIfResponse:
+        ctx, state, bundle, gws = self._setup(req.team, req.league, req.horizon)
+        players = self._every_player(ctx, state, gws)
+        names = {e.id: e.web_name for e in ctx.elements.values()}
+        settings = Settings(gws, strategy=req.strategy, chips=state.chips)
+        moves = [WhatIfMove(m.gw, m.out, m.into) for m in req.moves]
+        sol, problems = build_plan(state, players, names, settings, moves, req.captains, req.chips)
+        base, _ = build_plan(state, players, names, settings)
+        sell = {p.element: p.sell_price for p in state.players}
+        weeks = []
+        for gw in sol.gameweeks:
+            pairs = paired_transfers(gw, players)
+            weeks.append(s.WhatIfWeek(
+                gw=gw.gw, hits=gw.hits, free_transfers=gw.free_transfers, bank=gw.bank, chip=gw.chip,
+                moves=[s.Move(player_out=o, player_in=i, out_price=sell.get(o, players[o].sell_price), in_price=players[i].buy_price) for o, i in pairs],
+                squad=list(gw.squad), starting=list(gw.starting), bench=list(gw.bench), captain=gw.captain, vice=gw.vice,
+                xpts=round(week_points(gw, players), 2),
+            ))
+            if gw.chip != FREE_HIT:
+                for o, i in pairs:
+                    sell[i] = players[i].buy_price
+        total = sum(w.xpts for w in weeks)
+        base_total = sum(week_points(g, players) for g in base.gameweeks)
+        last = sol.gameweeks[-1]
+        ft_after = last.free_transfers if last.chip in (WILDCARD, FREE_HIT) else min(last.free_transfers - (len(last.transfers_in) - last.hits) + 1, 5)
+        return s.WhatIfResponse(
+            entry=req.team, gws=list(gws), weeks=weeks, xpts=round(total, 2), no_transfers_xpts=round(base_total, 2),
+            xpts_gain=round(total - base_total, 2), free_transfers_after=ft_after,
+            problems=[s.WhatIfProblemOut(gw=p.gw, message=p.message) for p in problems],
+            chips_left=_chips_left(state.chips),
+        )
+
+    def all_players(self, entry_id: int, league_id: int | None) -> s.PlayersResponse:
+        """Every player with projections and rivals' ownership (if loaded), for the what-if search."""
+        ctx = self.context()
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        bundle = self._league(league_id, entry, state.picks_gw, wait=False) if league_id else None
+        ownership = bundle.ownership if bundle else NO_RIVALS
+        ids = self._buyable(ctx) | set(state.element_ids)
+        return s.PlayersResponse(gws=list(ctx.gws), players=self._players(ids, ctx, ownership, state), clubs=self._clubs(ctx))
 
     def known_names(self) -> frozenset[str]:
         """Every player and club name this season, for the explanation trust check."""

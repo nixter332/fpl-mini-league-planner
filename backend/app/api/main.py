@@ -195,6 +195,43 @@ async def explain(
     return s.ExplainResponse(rank=rank, status="ok", why=result.why, watch_out=result.watch_out)
 
 
+analysis_limiter = RateLimiter(240, 3600)  # cheap, but each call scores ~200 lineups
+what_if_limiter = RateLimiter(600, 3600)  # one call per change in the sandbox
+
+
+@app.get("/api/analysis", response_model=s.AnalysisResponse)
+def analysis(
+    request: Request,
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    strategy: Literal["protect", "balanced", "risky"] = "protect",
+    horizon: int = Query(4, ge=1, le=5),
+    svc: PlannerService = Depends(get_service),
+) -> s.AnalysisResponse:
+    """Weak spots in the squad and the best legal replacements for each player."""
+    if not analysis_limiter.allow(client_key(request)):
+        raise HTTPException(429, "That's a lot of analysis in an hour. Try again in a bit.")
+    return svc.analysis(team, league, strategy, horizon)
+
+
+@app.post("/api/what-if", response_model=s.WhatIfResponse)
+def what_if(body: s.WhatIfRequest, request: Request, svc: PlannerService = Depends(get_service)) -> s.WhatIfResponse:
+    """Score the user's own transfers (and captains, chips) with the planner's rules and points."""
+    if not what_if_limiter.allow(client_key(request)):
+        raise HTTPException(429, "That's a lot of changes in an hour. Try again in a bit.")
+    return svc.what_if(body)
+
+
+@app.get("/api/players", response_model=s.PlayersResponse)
+def players(
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0),
+    svc: PlannerService = Depends(get_service),
+) -> s.PlayersResponse:
+    """Every player with projections, for the what-if player search."""
+    return svc.all_players(team, league)
+
+
 @app.post("/api/feedback")
 def feedback(body: s.Feedback, request: Request) -> dict[str, bool]:
     """Logged as one JSON line (Render keeps the logs; no database yet, see docs/SPEC.md phase 6)."""
