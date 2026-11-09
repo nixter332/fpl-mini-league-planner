@@ -437,26 +437,6 @@ class PlannerService:
             return x(gw.captain)
         return 0.0
 
-    def chip_advice(self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, chips: bool = True) -> list[s.ChipAdvice]:
-        """For each Wildcard / Free Hit the user could play this week: the best plan with it,
-        compared with the best plan without it. Facts from the optimizer, not a recommendation;
-        a Wildcard's value beyond the horizon isn't counted."""
-        base = self.plans(entry_id, league_id, strategy, horizon, max_hits, chips=chips)
-        if not base.plans:
-            return []
-        g0 = base.gws[0]
-        best = base.plans[0].xpts_gain
-        out = []
-        for c in base.chips_left:
-            if c.name not in (WILDCARD, FREE_HIT) or not c.start <= g0 <= c.stop:
-                continue
-            kw = {"wildcard": g0} if c.name == WILDCARD else {"freehit": g0}
-            with_chip = self.plans(entry_id, league_id, strategy, horizon, max_hits, chips=chips, **kw)
-            if with_chip.plans:
-                gain = with_chip.plans[0].xpts_gain
-                out.append(s.ChipAdvice(chip=c.name, label=c.label, gw=g0, xpts_gain=round(gain, 2), vs_best_plan=round(gain - best, 2)))
-        return out
-
     def plan(
         self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, rank: int,
         *, wildcard: int | None = None, freehit: int | None = None, chips: bool = True,

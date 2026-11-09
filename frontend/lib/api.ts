@@ -1,5 +1,5 @@
 import { reportError, scrubUrl, track } from "./analytics";
-import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -105,22 +105,6 @@ export function pageQuery(p: PlanParams): string {
   if (p.freehit !== null) q.set("freehit", String(p.freehit));
   if (!p.chips) q.set("chips", "0");
   return q.toString();
-}
-
-const adviceCache = new Map<string, Promise<ChipAdvice[]>>();
-
-/** What a Wildcard / Free Hit this week would add (computed lazily: it builds extra plan sets). */
-export function getChipAdvice(p: PlanParams): Promise<ChipAdvice[]> {
-  const key = planQuery({ ...p, wildcard: null, freehit: null });
-  let pending = adviceCache.get(key);
-  if (!pending) {
-    pending = getJSON<ChipAdvice[]>(`/api/chip-advice?${key}`).catch(() => {
-      adviceCache.delete(key);
-      return [];
-    });
-    adviceCache.set(key, pending);
-  }
-  return pending;
 }
 
 // Plan sets are cached for the session so the detail screen, going back, and switching

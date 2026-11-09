@@ -86,7 +86,6 @@ export interface TeamResponse {
 export interface Move { player_out: number; player_in: number; out_price: number; in_price: number }
 export type ChipName = "wildcard" | "freehit" | "bboost" | "3xc";
 export interface ChipLeft { name: ChipName; label: string; start: number; stop: number }
-export interface ChipAdvice { chip: ChipName; label: string; gw: number; xpts_gain: number; vs_best_plan: number }
 export interface PlanGw {
   gw: number;
   moves: Move[];

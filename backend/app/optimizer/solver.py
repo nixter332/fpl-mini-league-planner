@@ -81,7 +81,7 @@ class Settings:
     max_hits: int = 0  # total over the whole horizon, not per GW
     decay: float = 0.9
     bench_weight: float = 0.1  # outfield subs only; backup goalkeepers count 0
-    ft_value: float = 1.5  # xPts per free transfer still held after the horizon
+    ft_value: float = 3.0  # xPts per free transfer still held after the horizon (tuned 9 Nov 2026)
     hit_cost: int = 4
     # Extra points a hit must clear, on top of its 4, before the planner takes it. Projected gains
     # are optimistic (the solver picks the luckiest-looking moves), so a hit that only just beats

@@ -215,16 +215,6 @@ class ExplainResponse(BaseModel):
     watch_out: str | None = None
 
 
-class ChipAdvice(BaseModel):
-    """What playing a Wildcard or Free Hit this week would add, from the optimizer."""
-
-    chip: ChipName
-    label: str
-    gw: int
-    xpts_gain: float  # the best plan with the chip, vs no transfers
-    vs_best_plan: float  # minus the best plan without it (over the horizon only)
-
-
 class FeedbackContext(BaseModel):
     page: str = Field("", max_length=40)  # "plans", "plan", "team"
     strategy: str = Field("", max_length=20)

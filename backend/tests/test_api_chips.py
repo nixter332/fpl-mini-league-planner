@@ -37,11 +37,3 @@ def test_used_or_out_of_range_chips_are_refused(api: TestClient) -> None:
     r = api.get("/api/plans", params={**BASE, "freehit": 20})
     assert r.status_code == 400 and "isn't in this plan" in r.json()["detail"]
 
-
-def test_chip_advice(api: TestClient) -> None:
-    advice = api.get("/api/chip-advice", params=BASE).json()
-    assert [a["chip"] for a in advice] == ["freehit"]  # no Wildcard left in this half
-    a = advice[0]
-    assert a["gw"] == 11
-    best = api.get("/api/plans", params=BASE).json()["plans"][0]["xpts_gain"]
-    assert a["vs_best_plan"] == round(a["xpts_gain"] - best, 2)

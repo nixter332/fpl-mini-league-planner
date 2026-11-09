@@ -148,23 +148,6 @@ def plans(
     return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips)
 
 
-@app.get("/api/chip-advice", response_model=list[s.ChipAdvice])
-def chip_advice(
-    request: Request,
-    team: int = Query(..., gt=0),
-    league: int | None = Query(None, ge=0, description="0 = no league"),
-    strategy: Literal["protect", "balanced", "risky"] = "balanced",
-    horizon: int = Query(4, ge=1, le=5),
-    max_hits: int = Query(0, ge=0, le=4),
-    chips: bool = Query(True),
-    svc: PlannerService = Depends(get_service),
-) -> list[s.ChipAdvice]:
-    """What a Wildcard / Free Hit this week would add over the best plan without it."""
-    if not _allowed("plans", plans_limiter, request):
-        raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
-    return svc.chip_advice(team, league, strategy, horizon, max_hits, chips)
-
-
 @app.get("/api/explain", response_model=s.ExplainResponse)
 async def explain(
     request: Request,

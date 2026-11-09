@@ -80,7 +80,7 @@ test.describe("reasons", () => {
   });
 });
 
-test("chips: chips left, advice and playing your Free Hit", async ({ page }) => {
+test("chips: chips left and playing your Free Hit", async ({ page }) => {
   test.skip(claudeOnly);
   test.setTimeout(240_000);
   await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
@@ -88,7 +88,6 @@ test("chips: chips left, advice and playing your Free Hit", async ({ page }) => 
   await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
   await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
   await expect(page.getByTestId("chip-controls")).toBeVisible();
-  await expect(page.getByTestId("chip-advice")).toBeVisible({ timeout: 120_000 });
   await shot(page, "13-plans-chips");
   const freeHit = page.getByLabel("Free Hit", { exact: true });
   const firstGw = await freeHit.locator("option").nth(1).getAttribute("value");

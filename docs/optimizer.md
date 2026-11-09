@@ -28,7 +28,7 @@ maximise  Σ_g 0.9^g · Σ_p xPts[p,g] · ( (1 − w·start_share_p) · start[p,
                                       + (1 − w·captain_share_p) · captain[p,g]
                                       + 0.1 · bench[p,g] )          (bench weight 0 for goalkeepers)
           − 4 · hits
-          + 1.5 · free transfers still held after the last gameweek
+          + 3 · free transfers still held after the last gameweek
 subject to  plan xPts (XI + captain − 4·hits, undiscounted) ≥ no-transfer baseline xPts   (do no harm)
 ```
 
@@ -38,7 +38,7 @@ subject to  plan xPts (XI + captain − 4·hits, undiscounted) ≥ no-transfer b
 | Balanced | 0.15 | Takes a −4 hit for an extra differential and captains differentials (Van Hecke, De Cuyper, Tavernier). +10.7 xPts. |
 | Risky | 0.33 | A −4 hit that also swaps Raya for Trafford, and differential captains. +7.5 xPts, with the most differential points. |
 
-**Bench and saved transfers** (changed 8 Nov 2026 after Nikhil's review). The bench counts for 10% of its xPts because outfield subs do come on, but a backup goalkeeper counts 0: he almost never plays. Each free transfer still held after the horizon is worth 1.5 xPts. Before this, a spare free transfer was worth nothing to the solver, so it spent one swapping the injured backup keeper Bentley for Trafford, who would also never play. Now a transfer has to beat the value of saving it. The 1.5 is a common rule of thumb. The plan backtest (`docs/backtest-plans.md`) found no measurable effect either way over GW5–9, so it stays for the reason above.
+**Bench and saved transfers** (changed 8 Nov 2026 after Nikhil's review). The bench counts for 10% of its xPts because outfield subs do come on, but a backup goalkeeper counts 0: he almost never plays. Each free transfer still held after the horizon is worth 3 xPts (1.5 until 9 Nov 2026). Before this, a spare free transfer was worth nothing to the solver, so it spent one swapping the injured backup keeper Bentley for Trafford, who would also never play. Now a transfer has to beat the value of saving it. It started at 1.5, a common rule of thumb. Tuning on 412 managers over GW4–9 (`docs/backtest-plans.md`) found 3 gained about 3 points over 6 weeks and 0 lost 4, so it's now 3: the planner saves a transfer rather than making a small move.
 
 **Default strategy.** The app starts managers who are 1st in their league on Protect lead and everyone else on Balanced. In expectation, rivals' points don't depend on your team, so a differential captain gives up expected points for swing. That suits a chaser, not a leader. In Nikhil's league, captaining Van Hecke (5.6) over Haaland (6.4), whom both rivals captain, costs about 0.8 points against both rivals on average.
 
@@ -60,11 +60,11 @@ Each is weighted like the objective (strategy weight, decay). The chip is played
 
 *Why after, not inside the model (9 Nov 2026):* the first version decided these chips inside the MILP. That made it much harder to solve. On Render's half CPU, Plan 1's transfers dropped from +14.2 to about +0.7, with the Bench Boost hiding it, and one plan came back as "roll +0.0". Deciding them afterwards costs no solver time. What's lost is buying bench players just for a Bench Boost week, which is a small loss.
 
-**Wildcard and Free Hit: you choose, the planner advises.** A Wildcard's benefit lasts long after a 4-week plan ends, so a 4-week model deciding on its own would be guessing. The user picks the gameweek (`wildcard=` / `freehit=` on `/api/plans`):
+**Wildcard and Free Hit: you choose.** A Wildcard's benefit lasts long after a 4-week plan ends, so a 4-week model deciding on its own would be guessing. The user picks the gameweek (`wildcard=` / `freehit=` on `/api/plans`):
 - **Wildcard:** unlimited free transfers that week with no hits. The banked free transfers are kept, with no +1. The new squad stays.
 - **Free Hit:** a separate one-week squad. It must cost no more than the bank plus the squad's selling value, it takes no hits, the bank and banked free transfers are unchanged, and the old squad is back the week after.
 
-`/api/chip-advice` reports what a Wildcard or Free Hit *this week* would add: the best plan with it minus the best plan without it, over the plan's horizon. These are facts from the solver; the "chips this week" card shows them with a "Plan with it" button. For a Wildcard this undercounts, because the new squad keeps scoring after the horizon, and the card says so.
+*No chip advice (9 Nov 2026).* The app used to show what a Wildcard or Free Hit this week would add, with a "Plan with it" button. On 412 managers over GW4–9 (`docs/backtest-plans.md`), following that advice cost 18 points over 6 weeks for the Wildcard and 7 for the Free Hit. The planner advised a Wildcard for 84% of managers, mostly in GW4, when projections are weakest, and a higher bar barely helped. So the card and `/api/chip-advice` were removed. You can still choose either chip, and the plans are built around it.
 
 **Reported numbers.** A plan's xPts gain includes chip points, and each chip week shows the points the chip adds (`chip_xpts`), so "+27.1, of which Bench Boost +12.9" is visible. `validate()` checks the chip rules independently: chips available, each used once per half, no hits in Wildcard or Free Hit weeks, Free Hit affordability, and free transfers kept.
 

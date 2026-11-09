@@ -10,9 +10,9 @@ import { Countdown } from "@/components/Countdown";
 import { SharePlan } from "@/components/SharePlan";
 import { PriceMove } from "@/components/PriceMove";
 import { track } from "@/lib/analytics";
-import { ApiError, getChipAdvice, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
+import { ApiError, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
 import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
-import type { ChipAdvice, ChipName, Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
+import type { ChipName, Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
 
 export default function PlansPage() {
   return (
@@ -30,7 +30,6 @@ function PlansScreen() {
   const [loaded, setLoaded] = useState<{ key: string; data: PlansResponse } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rivals, setRivals] = useState<RivalsProgress | null>(null);
-  const [advice, setAdvice] = useState<ChipAdvice[] | null>(null);
   const data = loaded?.data ?? null;
 
   useEffect(() => {
@@ -49,10 +48,6 @@ function PlansScreen() {
         });
         // Warm the other strategies so the dial switches instantly.
         for (const s of STRATEGIES) if (s.key !== params.strategy) getPlans({ ...params, strategy: s.key }).catch(() => {});
-        // Would a Wildcard or Free Hit this week help? (Only when you haven't chosen one.)
-        setAdvice(null);
-        const canPlay = d.chips_left.some((c) => (c.name === "wildcard" || c.name === "freehit") && c.start <= d.gws[0] && d.gws[0] <= c.stop);
-        if (canPlay && params.wildcard === null && params.freehit === null) getChipAdvice(params).then((a) => live && setAdvice(a));
       })
       .catch((e) => live && setError(e instanceof ApiError ? e.message : "Couldn't build plans."));
     return () => {
@@ -169,11 +164,6 @@ function PlansScreen() {
         )}
       </div>
 
-      {current && advice && advice.length > 0 && <ChipAdviceCard advice={advice} horizon={current.horizon} onPlan={(a) => {
-            track("chip_advice_used", { chip: a.chip });
-            go({ [a.chip]: a.gw });
-          }} />}
-
       {error && <ErrorBox message={error} />}
       {!current && !error && (
         <Loading
@@ -200,30 +190,6 @@ function PlansScreen() {
         </>
       )}
     </main>
-  );
-}
-
-function ChipAdviceCard({ advice, horizon, onPlan }: { advice: ChipAdvice[]; horizon: number; onPlan: (a: ChipAdvice) => void }) {
-  return (
-    <div className="flex flex-col gap-2 rounded-[14px] border border-line bg-surface px-3.5 py-3" data-testid="chip-advice">
-      <div className="text-[11.5px] font-semibold tracking-[0.4px] text-text3">CHIPS THIS WEEK</div>
-      {advice.map((a) => (
-        <div key={a.chip} className="flex items-center justify-between gap-3">
-          <div className="text-[13px] leading-[1.4]">
-            <span className="font-semibold">{a.label} in GW{a.gw}:</span>{" "}
-            {a.vs_best_plan > 0.05
-              ? `${signed(a.vs_best_plan)} xPts over ${horizon} GWs compared with your best plan without it.`
-              : `adds nothing over ${horizon} GWs compared with your best plan, so it's worth saving.`}
-            {a.chip === "wildcard" && a.vs_best_plan > 0.05 ? " A new squad keeps paying after that, which this doesn't count." : ""}
-          </div>
-          {a.vs_best_plan > 0.05 && (
-            <button type="button" onClick={() => onPlan(a)} className="shrink-0 rounded-lg bg-pill px-2.5 py-1.5 text-xs font-semibold text-link">
-              Plan with it
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
   );
 }
 
