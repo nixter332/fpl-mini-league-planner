@@ -217,3 +217,46 @@ test("phase 8: weak spots, replacements and the what-if sandbox", async ({ page 
   await expect(page.getByTestId("whatif-moves")).toHaveCount(0, { timeout: 60_000 });
   await expect(page.getByTestId("whatif-total")).toContainText("+0.0");
 });
+
+test("phase 9: save, rename, compare and delete drafts", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(300_000);
+  // Start from a what-if with the analysis' top swap, then save it.
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await page.getByRole("group", { name: "Show on pitch" }).getByRole("button", { name: "Weak spots" }).click();
+  await page.locator('[data-ring="red"], [data-ring="amber"]').first().click();
+  await page.getByTestId("replacements").getByRole("link", { name: /Try in what-if/ }).first().click();
+  await expect(page.getByTestId("whatif-total")).toBeVisible({ timeout: 120_000 });
+  await page.getByRole("button", { name: "Save as draft" }).click();
+  await page.getByLabel("Draft name").fill("Swap A");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page).toHaveURL(/draft=/);
+  await expect(page.getByRole("heading", { name: "What-if: Swap A" })).toBeVisible();
+
+  // A second variation: add a GW12 transfer, then save as new.
+  await page.getByRole("group", { name: "Gameweek" }).getByRole("button").nth(1).click();
+  await page.getByTestId("pitch-player").nth(5).click();
+  await page.getByRole("button", { name: /Transfer out in GW/ }).click();
+  await page.getByTestId("replacement-picker").getByRole("button").first().click();
+  await expect(page.getByTestId("whatif-moves").locator("div.border-t")).toHaveCount(2, { timeout: 60_000 });
+  await page.getByRole("button", { name: "Save draft…" }).click();
+  await page.getByLabel("Draft name").fill("Swap B");
+  await page.getByRole("button", { name: "Save as new" }).click();
+  await expect(page.getByRole("heading", { name: "What-if: Swap B" })).toBeVisible();
+
+  // My drafts: both listed with live scores; rename, compare, delete.
+  await page.getByTestId("my-drafts-link").click();
+  await expect(page.getByTestId("draft")).toHaveCount(2);
+  await expect(page.getByTestId("draft").first()).not.toContainText("…", { timeout: 60_000 });
+  await page.getByTestId("draft").filter({ hasText: "Swap A" }).getByRole("button", { name: "Rename" }).click();
+  await page.getByLabel("New name").fill("Swap A (Van Hecke)");
+  await page.getByRole("button", { name: "Save name" }).click();
+  await expect(page.getByTestId("draft-list")).toContainText("Swap A (Van Hecke)");
+  await page.getByLabel("Compare Swap B").check();
+  await page.getByLabel("Compare Swap A (Van Hecke)").check();
+  await expect(page.getByTestId("draft-compare")).toContainText("Total vs no transfers", { timeout: 60_000 });
+  await shot(page, "24-drafts-compare");
+  await page.getByTestId("draft").filter({ hasText: "Swap B" }).getByRole("button", { name: "Delete" }).click();
+  await page.getByTestId("draft").filter({ hasText: "Swap B" }).getByRole("button", { name: "Yes" }).click();
+  await expect(page.getByTestId("draft")).toHaveCount(1);
+});

@@ -104,7 +104,7 @@ The backend sends the Claude API a structured summary of each plan (players in/o
    - **Analysis:** weak spots on the user's pitch, flagged amber or red by projected points against the best options at the same price and position. Tapping a player shows the best replacements, ranked by the solver, with Claude explaining why.
    - **What-if:** a sandbox where the user makes their own transfers across gameweeks and sees projected points, bank and free transfers update. The backend validates and scores any user-made plan with the same rules as the solver (`validate`, `score`).
    - Gate: a full what-if journey on Nikhil's team with invalid moves blocked and scores matching the solver's.
-9. **Drafts:** save and compare Wildcard and Free Hit templates. Built on the what-if sandbox.
+9. **Drafts** (built 9 Nov 2026 on the device-only version: `frontend/lib/drafts.ts`, `/team/[id]/drafts`): save and compare Wildcard and Free Hit templates. Built on the what-if sandbox.
    - Stored on the device first, then on the server once phase 6 adds storage.
    - Gate: create, edit, compare and delete drafts on a phone.
 

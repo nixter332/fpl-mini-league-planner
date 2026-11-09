@@ -8,6 +8,7 @@ import { Sheet } from "@/components/Sheet";
 import { BackLink, ErrorBox, Loading, ThemeToggle, Tile } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { ApiError, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
+import { getDraft, listDrafts, saveDraft, suggestName, type Draft } from "@/lib/drafts";
 import { CHIP_LABELS, gwOf, money, pts, signed } from "@/lib/format";
 import type { ChipName, Player, PlansResponse, PlayersResponse, Position, Strategy, WhatIfMove, WhatIfResponse } from "@/lib/types";
 
@@ -29,6 +30,7 @@ function WhatIf() {
   const strategyParam = search.get("strategy");
   const strategy: Strategy = strategyParam === "balanced" || strategyParam === "risky" ? strategyParam : "protect";
   const { moves, captains, chips } = decodeWhatIf(search);
+  const draftId = search.get("draft");
   const key = search.toString();
 
   const [result, setResult] = useState<{ key: string; data: WhatIfResponse } | null>(null);
@@ -39,6 +41,17 @@ function WhatIf() {
   const [selected, setSelected] = useState<number | null>(null);
   const [replacing, setReplacing] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const [draftCount, setDraftCount] = useState(0);
+
+  // Drafts live in this browser, so read them after the page loads.
+  useEffect(() => {
+    setDraft(draftId ? getDraft(draftId) : null);
+    setDraftCount(listDrafts(entry).length);
+  }, [draftId, entry]);
 
   useEffect(() => {
     let live = true;
@@ -67,10 +80,27 @@ function WhatIf() {
   const stale = result !== null && result.key !== key; // a change is being scored
   const update = (next: { moves?: WhatIfMove[]; captains?: Record<number, number>; chips?: Record<number, ChipName> }) => {
     setHistory((h) => [...h, key]);
-    const q = new URLSearchParams(encodeWhatIf(next.moves ?? moves, next.captains ?? captains, next.chips ?? chips));
+    router.replace(`/team/${entry}/what-if?${queryFor(next.moves ?? moves, next.captains ?? captains, next.chips ?? chips, draftId)}`);
+  };
+  function queryFor(m: WhatIfMove[], c: Record<number, number>, x: Record<number, ChipName>, id: string | null): string {
+    const q = new URLSearchParams(encodeWhatIf(m, c, x));
     if (league !== null) q.set("league", String(league));
     q.set("strategy", strategy);
-    router.replace(`/team/${entry}/what-if?${q}`);
+    if (id) q.set("draft", id);
+    return q.toString();
+  }
+  const save = (asNew: boolean) => {
+    const saved = saveDraft({ id: asNew ? undefined : draft?.id, name: draftName, team: entry, league, strategy, moves, captains, chips });
+    setSaving(false);
+    if (!saved) {
+      setSavedNote("Couldn't save: this browser isn't allowing storage (private mode?).");
+      return;
+    }
+    track("draft_saved", { new: asNew || !draft, moves: moves.length, chip: Object.values(chips)[0] ?? null });
+    setDraft(saved);
+    setDraftCount(listDrafts(entry).length);
+    setSavedNote(`Saved "${saved.name}".`);
+    if (saved.id !== draftId) router.replace(`/team/${entry}/what-if?${queryFor(moves, captains, chips, saved.id)}`);
   };
   const undo = () => {
     const prev = history[history.length - 1];
@@ -130,7 +160,7 @@ function WhatIf() {
         <ThemeToggle />
       </div>
       <div className="flex flex-col gap-1">
-        <h1 className="m-0 font-display text-[24px] font-bold">What-if</h1>
+        <h1 className="m-0 font-display text-[24px] font-bold">What-if{draft ? `: ${draft.name}` : ""}</h1>
         <div className="text-[13px] text-text2">Tap a player to transfer him out or make him captain. Points update as you go.</div>
       </div>
 
@@ -203,6 +233,17 @@ function WhatIf() {
             ))}
           </select>
         )}
+        <button
+          type="button"
+          onClick={() => {
+            setDraftName(draft?.name ?? suggestName(moves, chips, listDrafts(entry)));
+            setSaving(true);
+            setSavedNote(null);
+          }}
+          className="h-[30px] rounded-full bg-accent px-3 text-xs font-semibold text-white"
+        >
+          {draft ? "Save draft…" : "Save as draft"}
+        </button>
         <button type="button" onClick={undo} disabled={!history.length} className="h-[30px] rounded-full bg-pill px-3 text-xs font-semibold text-text2 disabled:opacity-40">
           Undo
         </button>
@@ -215,6 +256,37 @@ function WhatIf() {
           Reset
         </button>
       </div>
+
+      {savedNote && <div className="text-xs text-text2" role="status">{savedNote}</div>}
+      <Link href={`/team/${entry}/drafts${league !== null ? `?league=${league}` : ""}`} className="self-start text-[13px] font-semibold no-underline" data-testid="my-drafts-link">
+        My drafts{draftCount ? ` (${draftCount})` : ""} →
+      </Link>
+
+      {saving && (
+        <Sheet title={draft ? "Save draft" : "Save as draft"} onClose={() => setSaving(false)}>
+          <label className="flex flex-col gap-1 text-[13px] text-text2">
+            Name
+            <input
+              value={draftName}
+              maxLength={60}
+              onChange={(e) => setDraftName(e.target.value)}
+              aria-label="Draft name"
+              className="h-10 rounded-lg border border-input-line bg-input px-3 text-sm text-text"
+            />
+          </label>
+          <div className="text-xs text-text3">Saved on this device. It keeps your transfers, captains and chips; the points are recalculated each time you open it.</div>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => save(false)} className="h-11 flex-1 rounded-xl bg-accent text-sm font-semibold text-white">
+              {draft ? "Save changes" : "Save"}
+            </button>
+            {draft && (
+              <button type="button" onClick={() => save(true)} className="h-11 flex-1 rounded-xl border border-line bg-surface text-sm font-semibold">
+                Save as new
+              </button>
+            )}
+          </div>
+        </Sheet>
+      )}
 
       {moves.length > 0 && (
         <div className="flex flex-col gap-1.5 rounded-2xl border border-line bg-surface p-3.5" data-testid="whatif-moves">

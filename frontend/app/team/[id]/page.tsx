@@ -266,6 +266,9 @@ function TeamScreen() {
       >
         Try your own transfers
       </Link>
+      <Link href={`/team/${entry}/drafts?league=${activeLeague}`} className="-mt-1 self-center text-[13px] font-semibold no-underline" data-testid="drafts-link">
+        My drafts →
+      </Link>
       <div className="text-center text-xs text-text3">
         {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
       </div>
