@@ -118,3 +118,31 @@ test("league by new-style link and by number", async ({ page }) => {
   await expect(members).toBeVisible();
   await expect(members).toContainText("Nikhil");
 });
+
+test("pitch stays put across gameweeks, swaps are labelled, team is remembered", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+  const names = async () => page.getByTestId("pitch-player").locator("div.truncate.bg-white").allInnerTexts();
+  const gw1 = await names();
+  await page.getByRole("group", { name: "Gameweek" }).getByRole("button").nth(1).click();
+  const gw2 = await names();
+  const shared = (a: string[], b: string[]) => a.filter((n) => b.includes(n));
+  expect(shared(gw1, gw2)).toEqual(shared(gw2, gw1)); // same players keep the same order
+
+  await page.goto(`/plans/1?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11, { timeout: 120_000 });
+  const subtitle = await page.locator("h1 + div").innerText();
+  if (!subtitle.startsWith("Roll")) {
+    await expect(page.getByText(/^for /).first()).toBeVisible();
+    await shot(page, "16-plan-after-swaps");
+    await page.getByRole("group", { name: "Squad view" }).getByRole("button", { name: "Before" }).click();
+    await expect(page.getByText("OUT", { exact: true }).first()).toBeVisible();
+    await shot(page, "17-plan-before-out");
+  }
+
+  await page.goto("/");
+  await expect(page.getByTestId("recent-team")).toContainText("Open my team");
+  await shot(page, "18-main-welcome-back");
+});

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
 import { ApiError, resolveInput } from "@/lib/api";
+import { forgetRecentTeam, loadRecentTeam, type RecentTeam } from "@/lib/recent";
 import { ordinal } from "@/lib/format";
 import type { ResolveResponse } from "@/lib/types";
 
@@ -16,6 +17,8 @@ export default function MainPage() {
   const [picked, setPicked] = useState<number | null>(null);
   const [choice, setChoice] = useState<ResolveResponse | null>(null);
   const [slow, setSlow] = useState(false);
+  const [recent, setRecent] = useState<RecentTeam | null>(null);
+  useEffect(() => setRecent(loadRecentTeam()), []);
 
   // Free hosting sleeps when idle; start waking the backend while the user pastes their link.
   useEffect(() => {
@@ -56,6 +59,32 @@ export default function MainPage() {
         <h1 className="m-0 font-display text-[32px] font-bold leading-[1.1] tracking-[-0.5px]">Beat your mini-league, not the template.</h1>
         <p className="m-0 text-[15px] leading-[1.45] text-text2">Transfer plans built against your rivals&apos; squads, with the numbers behind every move.</p>
       </div>
+
+      {recent && !league && !choice && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border-[1.5px] border-accent-line bg-surface px-3.5 py-3" data-testid="recent-team">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <div className="text-xs text-text3">Welcome back</div>
+            <div className="truncate text-[15px] font-semibold">{recent.name}</div>
+            <button
+              type="button"
+              onClick={() => {
+                forgetRecentTeam();
+                setRecent(null);
+              }}
+              className="self-start text-xs text-text3 underline"
+            >
+              Not you? Forget this team
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => router.push(`/team/${recent.entry}${recent.league !== null ? `?league=${recent.league}` : ""}`)}
+            className="h-11 shrink-0 rounded-[10px] bg-accent px-4 text-sm font-semibold text-white"
+          >
+            Open my team
+          </button>
+        </div>
+      )}
 
       <form onSubmit={find} className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-4">
         <label htmlFor="team-link" className="text-[13px] font-semibold">Paste a link or ID</label>
