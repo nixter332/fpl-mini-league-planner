@@ -67,7 +67,7 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 
 ## Feedback and usage tracking (phase 6 groundwork)
 
-**Feedback.** Plan cards have "Was this plan useful? 👍 👎" with an optional note, and the team and plans screens have a "Send feedback" link. Feedback is anonymous: it carries the page, strategy, horizon, plan number and gameweek, but no team ID. The backend logs each one as a line starting with `FEEDBACK`, so in Render open **Logs** and search for `FEEDBACK`. There's no database yet; Render keeps logs for a limited time, so copy out anything worth keeping. Each visitor can send at most 20 an hour.
+**Feedback.** (Notes also go to PostHog with the `feedback_sent` event, where they are kept; Render logs expire.) Plan cards have "Was this plan useful? 👍 👎" with an optional note, and the team and plans screens have a "Send feedback" link. Feedback is anonymous: it carries the page, strategy, horizon, plan number and gameweek, but no team ID. The backend logs each one as a line starting with `FEEDBACK`, so in Render open **Logs** and search for `FEEDBACK`. There's no database yet; Render keeps logs for a limited time, so copy out anything worth keeping. Each visitor can send at most 20 an hour.
 
 **PostHog (optional; off until a key is set).**
 1. In PostHog, create a project for this app and copy its **Project API key** (it starts with `phc_`). This key is meant to be public: it can only send events.
