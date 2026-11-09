@@ -113,7 +113,7 @@ The start page offers **Sign in with Google (optional)**. Anyone can use the app
 | --- | --- |
 | `GOOGLE_CLIENT_ID` | the Client ID |
 | `GOOGLE_CLIENT_SECRET` | the Client secret |
-| `NEXTAUTH_SECRET` | a long random string: run `npx auth secret --raw` in `frontend/`, or any 32+ random characters. Don't reuse a password. |
+| `NEXTAUTH_SECRET` | a long random string. Run `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` and paste the output. Don't reuse a password. |
 | `NEXTAUTH_URL` | `https://fpl-mini-league-planner.vercel.app` (needed so Google's return address matches) |
 
 **3. Redeploy** (Deployments, then ⋯, then Redeploy). The button appears on the start page.
