@@ -154,3 +154,19 @@ export interface ExplainResponse {
   why: string | null;
   watch_out: string | null;
 }
+
+// ---- phase 8: analysis and what-if ----
+export interface ReplacementOut { player: number; gain: number; weighted_gain: number }
+export interface SpotOut { player: number; level: "red" | "amber" | "ok"; reason: "unavailable" | "upgrade" | null; gap: number; replacements: ReplacementOut[] }
+export interface AnalysisResponse { entry: number; strategy: Strategy; gws: number[]; bank: number; spots: SpotOut[]; players: Record<string, Player>; clubs: Record<string, Club> }
+export interface WhatIfMove { gw: number; out: number; into: number }
+export interface WhatIfRequest { team: number; league: number | null; strategy: Strategy; horizon: number; moves: WhatIfMove[]; captains: Record<number, number>; chips: Record<number, ChipName> }
+export interface WhatIfWeek {
+  gw: number; moves: Move[]; hits: number; free_transfers: number; bank: number; chip: ChipName | null;
+  squad: number[]; starting: number[]; bench: number[]; captain: number; vice: number; xpts: number;
+}
+export interface WhatIfResponse {
+  entry: number; gws: number[]; weeks: WhatIfWeek[]; xpts: number; no_transfers_xpts: number; xpts_gain: number;
+  free_transfers_after: number; problems: { gw: number | null; message: string }[]; chips_left: ChipLeft[];
+}
+export interface PlayersResponse { gws: number[]; players: Record<string, Player>; clubs: Record<string, Club> }

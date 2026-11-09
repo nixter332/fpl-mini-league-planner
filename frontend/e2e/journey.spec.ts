@@ -168,3 +168,52 @@ test("feedback on a plan, and no tracking without a PostHog key", async ({ page 
   await shot(page, "19-plan-feedback");
   expect(posthogCalls).toEqual([]);
 });
+
+test("phase 8: weak spots, replacements and the what-if sandbox", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(300_000);
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+  await page.getByRole("group", { name: "Show on pitch" }).getByRole("button", { name: "Weak spots" }).click();
+  await expect(page.getByTestId("weak-legend")).toContainText("Red", { timeout: 120_000 });
+  await shot(page, "20-team-weak-spots");
+
+  // Tap a red (or amber) player and try the top replacement in what-if.
+  const flagged = page.locator('[data-ring="red"], [data-ring="amber"]').first();
+  await flagged.click();
+  await expect(page.getByTestId("replacements")).toBeVisible();
+  await shot(page, "21-player-replacements");
+  await page.getByTestId("replacements").getByRole("link", { name: /Try in what-if/ }).first().click();
+  await expect(page).toHaveURL(/what-if\?.*m=/);
+  await expect(page.getByTestId("whatif-total")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId("whatif-moves")).toBeVisible();
+  await expect(page.getByText(/^for /).first()).toBeVisible();
+  const gain = await page.getByTestId("whatif-total").innerText();
+  expect(gain).toMatch(/[+−]\d/);
+  await shot(page, "22-whatif-with-swap");
+
+  // Make a different starter captain.
+  const nonCaptain = page.getByTestId("pitch-player").filter({ hasNot: page.getByLabel("Captain") }).nth(2);
+  await nonCaptain.click();
+  const makeCap = page.getByRole("button", { name: /Make captain/ });
+  if (await makeCap.isVisible()) {
+    await makeCap.click();
+    await expect(page).toHaveURL(/c=/);
+  } else {
+    await page.getByRole("button", { name: "Close" }).first().click();
+  }
+
+  // Transfer someone out via the search list, then undo and reset.
+  await page.getByRole("group", { name: "Gameweek" }).getByRole("button").nth(1).click();
+  await page.getByTestId("pitch-player").first().click();
+  await page.getByRole("button", { name: /Transfer out in GW/ }).click();
+  await expect(page.getByTestId("replacement-picker")).toBeVisible();
+  await shot(page, "23-whatif-picker");
+  await page.getByTestId("replacement-picker").getByRole("button").first().click();
+  await expect(page.getByTestId("whatif-moves").locator("div.border-t")).toHaveCount(2, { timeout: 60_000 });
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByTestId("whatif-moves").locator("div.border-t")).toHaveCount(1, { timeout: 60_000 });
+  await page.getByRole("button", { name: "Reset" }).click();
+  await expect(page.getByTestId("whatif-moves")).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.getByTestId("whatif-total")).toContainText("+0.0");
+});

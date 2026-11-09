@@ -5,12 +5,13 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
-import { ApiError, getTeam, waitForRivals } from "@/lib/api";
+import { ApiError, getAnalysis, getTeam, waitForRivals } from "@/lib/api";
+import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { track } from "@/lib/analytics";
 import { FeedbackLink } from "@/components/Feedback";
-import { deadlineLabel, gwOf, ordinal, pts, signed } from "@/lib/format";
-import type { Position, RivalsProgress, TeamResponse } from "@/lib/types";
+import { deadlineLabel, gwOf, money, ordinal, pts, signed } from "@/lib/format";
+import type { AnalysisResponse, Player, Position, RivalsProgress, SpotOut, TeamResponse } from "@/lib/types";
 
 export default function TeamPage() {
   return (
@@ -31,8 +32,30 @@ function TeamScreen() {
   const [data, setData] = useState<TeamResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gwIndex, setGwIndex] = useState(0);
-  const [mode, setMode] = useState<"xp" | "own">("xp");
+  const [mode, setMode] = useState<"xp" | "own" | "weak">("xp");
   const [progress, setProgress] = useState<RivalsProgress | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<number | null>(null);
+
+  // Weak spots are worked out when first asked for (same strategy rule as the plans link).
+  const rivalsReady = !data?.rivals || data.rivals.ready;
+  useEffect(() => {
+    if (mode !== "weak" || !data || !rivalsReady) return;
+    let live = true;
+    setAnalysisError(null);
+    const strategy = data.standing?.rank === 1 ? "protect" : "balanced";
+    getAnalysis(entry, data.standing?.league.id ?? 0, strategy)
+      .then((a) => {
+        if (!live) return;
+        setAnalysis(a);
+        track("analysis_loaded", { red: a.spots.filter((s) => s.level === "red").length, amber: a.spots.filter((s) => s.level === "amber").length });
+      })
+      .catch((e) => live && setAnalysisError(e instanceof ApiError ? e.message : "Couldn't find weak spots."));
+    return () => {
+      live = false;
+    };
+  }, [mode, data, rivalsReady, entry]);
 
   useEffect(() => {
     let live = true;
@@ -79,20 +102,29 @@ function TeamScreen() {
   const rivalsLoading = !!data.rivals && !data.rivals.ready;
   const loaded = progress?.loaded ?? data.rivals?.loaded ?? 0;
 
+  const spots: Record<number, SpotOut> = Object.fromEntries((analysis?.spots ?? []).map((s) => [s.player, s]));
   const token = (pid: number): PitchPlayer => {
     const p = data.players[pid];
     const g = gwOf(p, gw.id);
+    const spot = mode === "weak" ? spots[pid] : undefined;
+    const weakInfo = !spot ? (analysis ? g.fixture : "…") : spot.level === "ok" ? g.fixture : spot.reason === "unavailable" ? "Unavailable" : `+${spot.gap.toFixed(1)} upgrade`;
     return {
       id: pid,
       name: p.name,
-      info: mode === "xp" ? g.fixture : rivalsLoading ? "Loading…" : `Owned ${p.rivals_owned}/${nRivals}`,
+      info: mode === "xp" ? g.fixture : mode === "weak" ? weakInfo : rivalsLoading ? "Loading…" : `Owned ${p.rivals_owned}/${nRivals}`,
       value: mode === "xp" ? pts(g.xpts) : undefined,
       isCaptain: pid === lineup.captain,
       doubtful: p.doubtful,
       news: p.news,
       kit: kitFor(p, data.clubs),
+      ring: spot && spot.level !== "ok" ? spot.level : undefined,
+      onSelect: () => {
+        setSelected(pid);
+        track("player_details_opened", { mode, level: spot?.level ?? null });
+      },
     };
   };
+  const whatIfHref = (extra = "") => `/team/${entry}/what-if?league=${activeLeague}&strategy=${standing?.rank === 1 ? "protect" : "balanced"}${extra}`;
 
   // Leaders start on Protect lead: differentials only add swing, and swing helps the chasers.
   const defaultStrategy = standing?.rank === 1 ? "protect" : "balanced";
@@ -190,18 +222,40 @@ function TeamScreen() {
           options={[
             { key: "xp", label: "xPts" },
             { key: "own", label: "Rivals own" },
+            { key: "weak", label: "Weak spots" },
           ]}
         />
       </div>
 
       <Pitch players={lineup.starting.map(token)} positions={positions} order={order} />
       <Bench players={lineup.bench.map(token)} />
+      {mode === "weak" && (
+        <div className="text-xs leading-snug text-text3" data-testid="weak-legend">
+          {analysisError ? (
+            <span className="text-bad">{analysisError}</span>
+          ) : !analysis ? (
+            rivalsReady ? "Finding weak spots…" : "Waiting for your rivals' teams…"
+          ) : (
+            <>
+              <span className="font-semibold text-[#F87171]">Red</span>: unavailable, or an affordable swap gains {6}+ points over the next {analysis.gws.length} GWs.{" "}
+              <span className="font-semibold text-[#F59E0B]">Amber</span>: {3}+ points. Tap any player for the best replacements.
+            </>
+          )}
+        </div>
+      )}
 
       <Link
         href={plansHref}
         className="flex h-12 shrink-0 items-center justify-center rounded-xl bg-accent text-[15px] font-semibold text-white no-underline"
       >
         See transfer plans
+      </Link>
+      <Link
+        href={whatIfHref()}
+        onClick={() => track("what_if_opened", { from: "team" })}
+        className="flex h-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-[14px] font-semibold no-underline"
+      >
+        Try your own transfers
       </Link>
       <div className="text-center text-xs text-text3">
         {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
@@ -218,6 +272,77 @@ function TeamScreen() {
       )}
       <Facts facts={data.facts} />
       <FeedbackLink context={{ page: "team", gw: gw.id }} />
+      {selected !== null && data.players[selected] && (
+        <PlayerSheet
+          player={data.players[selected]}
+          spot={spots[selected]}
+          analysis={analysis}
+          weakMode={mode === "weak"}
+          nRivals={nRivals}
+          onClose={() => setSelected(null)}
+          onShowWeak={() => setMode("weak")}
+          tryHref={(into) => whatIfHref(`&m=${data.gameweeks[0].id}.${selected}.${into}`)}
+        />
+      )}
     </main>
+  );
+}
+
+function PlayerSheet({
+  player, spot, analysis, weakMode, nRivals, onClose, onShowWeak, tryHref,
+}: {
+  player: Player; spot?: SpotOut; analysis: AnalysisResponse | null; weakMode: boolean; nRivals: number;
+  onClose: () => void; onShowWeak: () => void; tryHref: (into: number) => string;
+}) {
+  const sell = player.sell_price ?? player.price;
+  return (
+    <Sheet title={player.name} onClose={onClose}>
+      <div className="text-[13px] text-text2">
+        {player.club} · {player.position} · sells for {money(sell)}
+        {nRivals ? ` · ${player.rivals_owned}/${nRivals} rivals own him` : ""}
+      </div>
+      {player.news && <div className="rounded-lg bg-warn-bg px-3 py-2 text-[12.5px] text-warn-text">{player.news}</div>}
+      <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1 text-[13px]">
+        {player.gws.slice(0, 4).map((g) => (
+          <div key={g.gw} className="contents">
+            <span className="text-text3">GW{g.gw}</span>
+            <span className="truncate">{g.fixture}</span>
+            <span className="text-right font-semibold">{pts(g.xpts)}</span>
+          </div>
+        ))}
+      </div>
+      {!weakMode || !analysis ? (
+        <button type="button" onClick={onShowWeak} className="self-start text-[13px] font-semibold text-link">
+          Show the best replacements →
+        </button>
+      ) : !spot || spot.replacements.length === 0 ? (
+        <div className="text-[13px] text-text2">No affordable swap would improve your team over the next {analysis.gws.length} GWs. Keep him.</div>
+      ) : (
+        <div className="flex flex-col gap-2" data-testid="replacements">
+          <div className="text-xs font-semibold text-text3">BEST REPLACEMENTS (next {analysis.gws.length} GWs, your whole team)</div>
+          {spot.replacements.map((r) => {
+            const c = analysis.players[r.player];
+            return (
+              <div key={r.player} className="flex items-center justify-between gap-2 rounded-xl border border-line bg-surface px-3 py-2">
+                <div className="flex min-w-0 flex-col">
+                  <span className="truncate text-sm font-semibold">{c.name}</span>
+                  <span className="truncate text-[11.5px] text-text3">
+                    {c.club} · {money(c.price)} · {c.gws[0]?.fixture}
+                    {nRivals ? ` · own ${c.rivals_owned}/${nRivals}` : ""}
+                  </span>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-sm font-bold text-good">{signed(r.gain)}</span>
+                  <Link href={tryHref(r.player)} onClick={() => track("what_if_opened", { from: "replacement" })} className="text-xs font-semibold no-underline">
+                    Try in what-if →
+                  </Link>
+                </div>
+              </div>
+            );
+          })}
+          <div className="text-[11.5px] text-text3">Points are the change in your team&apos;s projected total (best XI and captain each week) if you make the swap now.</div>
+        </div>
+      )}
+    </Sheet>
   );
 }

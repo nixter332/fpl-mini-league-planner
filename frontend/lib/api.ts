@@ -1,5 +1,5 @@
 import { track } from "./analytics";
-import type { ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, ChipAdvice, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -168,4 +168,86 @@ export async function sendFeedback(body: { kind: "plan" | "general"; useful: boo
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new ApiError("Couldn't send feedback.");
+}
+
+// ---- phase 8 ----
+const analysisCache = new Map<string, Promise<AnalysisResponse>>();
+
+export function getAnalysis(team: number, league: number | null, strategy: Strategy, horizon = 4): Promise<AnalysisResponse> {
+  const q = new URLSearchParams({ team: String(team), strategy, horizon: String(horizon) });
+  if (league !== null) q.set("league", String(league));
+  const key = q.toString();
+  let pending = analysisCache.get(key);
+  if (!pending) {
+    pending = getJSON<AnalysisResponse>(`/api/analysis?${key}`);
+    pending.catch(() => analysisCache.delete(key));
+    analysisCache.set(key, pending);
+  }
+  return pending;
+}
+
+const playersCache = new Map<string, Promise<PlayersResponse>>();
+
+/** Every player with projections (for the what-if search); fetched once per session. */
+export function getAllPlayers(team: number, league: number | null): Promise<PlayersResponse> {
+  const key = `${team}:${league}`;
+  let pending = playersCache.get(key);
+  if (!pending) {
+    pending = getJSON<PlayersResponse>(`/api/players?team=${team}${league !== null ? `&league=${league}` : ""}`);
+    pending.catch(() => playersCache.delete(key));
+    playersCache.set(key, pending);
+  }
+  return pending;
+}
+
+export async function postWhatIf(body: WhatIfRequest): Promise<WhatIfResponse> {
+  let res: Response;
+  try {
+    res = await fetch("/api/what-if", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiError("Couldn't reach the planner. Check your connection and try again.");
+  }
+  if (!res.ok) {
+    let detail = "Couldn't score that plan. Try again.";
+    try {
+      const b = await res.json();
+      if (typeof b?.detail === "string") detail = b.detail;
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(detail);
+  }
+  return res.json() as Promise<WhatIfResponse>;
+}
+
+/** What-if moves, captains and chips in the page address, so a what-if can be bookmarked or shared. */
+export function encodeWhatIf(moves: WhatIfMove[], captains: Record<number, number>, chips: Record<number, string>): string {
+  const q = new URLSearchParams();
+  if (moves.length) q.set("m", moves.map((m) => `${m.gw}.${m.out}.${m.into}`).join(","));
+  const caps = Object.entries(captains);
+  if (caps.length) q.set("c", caps.map(([g, p]) => `${g}.${p}`).join(","));
+  const ch = Object.entries(chips);
+  if (ch.length) q.set("x", ch.map(([g, c]) => `${g}.${c}`).join(","));
+  return q.toString();
+}
+
+export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; captains: Record<number, number>; chips: Record<number, ChipName> } {
+  const nums = (s: string) => s.split(".").map(Number);
+  const moves = (search.get("m") ?? "").split(",").filter(Boolean).map(nums)
+    .filter((a) => a.length === 3 && a.every((n) => Number.isInteger(n) && n > 0)).map(([gw, out, into]) => ({ gw, out, into }));
+  const captains: Record<number, number> = {};
+  for (const part of (search.get("c") ?? "").split(",").filter(Boolean)) {
+    const [g, p] = nums(part);
+    if (g > 0 && p > 0) captains[g] = p;
+  }
+  const chips: Record<number, ChipName> = {};
+  for (const part of (search.get("x") ?? "").split(",").filter(Boolean)) {
+    const [g, c] = part.split(".");
+    if (Number(g) > 0 && ["wildcard", "freehit", "bboost", "3xc"].includes(c)) chips[Number(g)] = c as ChipName;
+  }
+  return { moves, captains, chips };
 }

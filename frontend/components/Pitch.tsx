@@ -9,6 +9,8 @@ export interface PitchPlayer {
   isNew?: boolean;
   isOut?: boolean; // will be sold in this plan
   note?: string; // e.g. "for Thomas" under a new player
+  ring?: "red" | "amber"; // analysis: a weak spot
+  onSelect?: () => void; // tap to open details
   doubtful?: boolean;
   news?: string;
   kit: Kit;
@@ -34,10 +36,18 @@ export function Shirt({ kit, highlight = false }: { kit: Kit; highlight?: boolea
   );
 }
 
+const RING = { red: "ring-[2.5px] ring-[#F87171]", amber: "ring-[2.5px] ring-[#F59E0B]" };
+
 function PlayerToken({ p }: { p: PitchPlayer }) {
+  const Tag = p.onSelect ? "button" : "div";
   return (
-    <div className="flex min-w-0 max-w-[76px] flex-1 flex-col items-center gap-0.5" data-testid="pitch-player">
-      <div className="relative h-[42px] w-[42px]">
+    <Tag
+      {...(p.onSelect ? { type: "button" as const, onClick: p.onSelect, "aria-label": `${p.name}: details` } : {})}
+      className="flex min-w-0 max-w-[76px] flex-1 flex-col items-center gap-0.5"
+      data-testid="pitch-player"
+      data-ring={p.ring}
+    >
+      <div className={`relative h-[42px] w-[42px] rounded-full ${p.ring ? RING[p.ring] : ""}`}>
         <Shirt kit={p.kit} highlight={p.isNew} />
         {p.isCaptain && (
           <div className="absolute -right-2 -top-[3px] flex h-[19px] w-[19px] items-center justify-center rounded-full border-[1.5px] border-white bg-[#0B0F14] text-[10.5px] font-bold text-white" aria-label="Captain">
@@ -68,7 +78,7 @@ function PlayerToken({ p }: { p: PitchPlayer }) {
         </div>
       </div>
       {p.note && <div className="max-w-full truncate rounded bg-[#052E16]/80 px-1 text-[10px] font-semibold text-[#86EFAC]">{p.note}</div>}
-    </div>
+    </Tag>
   );
 }
 
@@ -103,7 +113,14 @@ export function Bench({ players }: { players: PitchPlayer[] }) {
       <div className="pl-1.5 text-[11.5px] font-semibold text-text3">BENCH</div>
       <div className="flex justify-evenly">
         {players.map((p) => (
-          <div key={p.id} className="flex w-[78px] flex-col items-center gap-0.5">
+          <div
+            key={p.id}
+            className={`flex w-[78px] flex-col items-center gap-0.5 rounded-lg ${p.ring === "red" ? "ring-2 ring-[#F87171]" : p.ring === "amber" ? "ring-2 ring-[#F59E0B]" : ""} ${p.onSelect ? "cursor-pointer" : ""}`}
+            onClick={p.onSelect}
+            role={p.onSelect ? "button" : undefined}
+            aria-label={p.onSelect ? `${p.name}: details` : undefined}
+            data-testid="bench-player"
+          >
             <div className="max-w-[78px] truncate text-[11.5px] font-semibold">
               {p.isNew && <span className="text-good">IN </span>}
               {p.isOut && <span className="text-out">OUT </span>}
