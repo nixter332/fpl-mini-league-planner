@@ -6,6 +6,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { Sheet } from "@/components/Sheet";
 import { FixtureStrip } from "@/components/FixtureStrip";
+import { PriceMove } from "@/components/PriceMove";
 import { BackLink, ErrorBox, Loading, ThemeToggle, Tile } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { ApiError, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
@@ -398,6 +399,7 @@ function PlayerActions({
     <>
       <div className="text-[13px] text-text2">
         {p.club} · {p.position} · {money(p.sell_price ?? p.price)}
+        <PriceMove change={p.price_change} long />
       </div>
       {p.news && <div className="rounded-lg bg-warn-bg px-3 py-2 text-[12.5px] text-warn-text">{p.news}</div>}
       <FixtureStrip gws={p.gws} from={gw} />
@@ -473,7 +475,7 @@ function ReplacementPicker({
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate text-sm font-semibold">{p.name}</span>
                   <span className="truncate text-[11.5px] text-text3">
-                    {p.club} · {money(p.price)}
+                    {p.club} · {money(p.price)}<PriceMove change={p.price_change} />
                     {short > 0 ? ` · ${money(short)} short` : ""}
                   </span>
                 </span>

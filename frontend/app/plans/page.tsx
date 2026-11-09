@@ -6,6 +6,9 @@ import { Suspense, useEffect, useState } from "react";
 import { BackLink, ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
 import { FeedbackLink, PlanFeedback } from "@/components/Feedback";
+import { Countdown } from "@/components/Countdown";
+import { SharePlan } from "@/components/SharePlan";
+import { PriceMove } from "@/components/PriceMove";
 import { track } from "@/lib/analytics";
 import { ApiError, getChipAdvice, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
 import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
@@ -89,6 +92,7 @@ function PlansScreen() {
           </div>
         )}
       </div>
+      {current?.deadline && <Countdown gw={current.gws[0]} deadline={current.deadline} />}
 
       <div className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-3.5">
         <div className="flex items-baseline justify-between gap-2">
@@ -287,13 +291,13 @@ function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansRespons
             <div key={m.player_out} className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center gap-1 rounded-[10px] bg-surface2 px-2.5 py-2">
               <div className="flex min-w-0 flex-col gap-px">
                 <div className="text-[11px] font-semibold text-out">OUT</div>
-                <div className="truncate text-sm font-semibold">{name(m.player_out)}</div>
+                <div className="truncate text-sm font-semibold">{name(m.player_out)}<PriceMove change={data.players[m.player_out]?.price_change} /></div>
                 <div className="truncate text-[11.5px] text-text3">{meta(m.player_out, m.out_price)}</div>
               </div>
               <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 5l5 5-5 5" fill="none" stroke="var(--text3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               <div className="flex min-w-0 flex-col gap-px">
                 <div className="text-[11px] font-semibold text-good">IN</div>
-                <div className="truncate text-sm font-semibold">{name(m.player_in)}</div>
+                <div className="truncate text-sm font-semibold">{name(m.player_in)}<PriceMove change={data.players[m.player_in]?.price_change} /></div>
                 <div className="truncate text-[11.5px] text-text3">{meta(m.player_in, m.in_price)}</div>
               </div>
             </div>
@@ -336,7 +340,10 @@ function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansRespons
         {!plan.proven_optimal && <div className="text-[11.5px] text-text3">Best plan found within the time limit.</div>}
       </div>
 
-      <Link href={href} className="flex min-h-8 items-center text-sm font-semibold no-underline">View on pitch →</Link>
+      <div className="flex items-center justify-between">
+        <Link href={href} className="flex min-h-8 items-center text-sm font-semibold no-underline">View on pitch →</Link>
+        <SharePlan plan={plan} data={data} className="min-h-8 px-1" />
+      </div>
       <PlanFeedback context={{ page: "plans", strategy: data.strategy, horizon: data.horizon, rank: plan.rank, gw: data.gws[0] }} />
     </div>
   );

@@ -6,6 +6,16 @@ export const money = (tenths: number) => `£${(tenths / 10).toFixed(1)}m`;
 export const signed = (n: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(1)}`;
 export const pts = (n: number) => n.toFixed(1);
 
+/** "3d 4h", "5h 12m", "9m": time left until a deadline. */
+export function timeLeft(ms: number): string {
+  const m = Math.floor(ms / 60_000);
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m % 60}m`;
+  return `${Math.max(1, m)}m`;
+}
+
 export function ordinal(n: number): string {
   const s = ["th", "st", "nd", "rd"];
   const v = n % 100;

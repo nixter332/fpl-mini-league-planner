@@ -6,6 +6,7 @@ import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { BackLink, ErrorBox, Loading, Segmented, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
 import { PlanFeedback } from "@/components/Feedback";
+import { SharePlan } from "@/components/SharePlan";
 import { track } from "@/lib/analytics";
 import { ApiError, getPlans, readPlanParams } from "@/lib/api";
 import { CHIP_LABELS, gwOf, pts, strategyLabel } from "@/lib/format";
@@ -205,6 +206,7 @@ function PlanDetail() {
         Make this transfer in the FPL app
       </a>
       <div className="-mt-1.5 text-center text-xs text-text3">We can&apos;t make transfers for you.</div>
+      <SharePlan plan={plan} data={data} className="flex h-11 items-center justify-center rounded-xl border border-line bg-surface" />
       <PlanFeedback context={{ page: "plan", strategy: data.strategy, horizon: data.horizon, rank: plan.rank, gw: first.gw }} />
     </main>
   );

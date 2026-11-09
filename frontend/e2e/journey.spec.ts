@@ -284,3 +284,36 @@ test("what-if: choose your own lineup, and clear free-transfer counts", async ({
     await expect(problem).toContainText(/fewer than|more than|goalkeeper/); // an illegal formation is explained
   }
 });
+
+test("deadline countdown, first-visit tips, sharing a plan and the home-screen app", async ({ page, context }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+  await expect(page.getByTestId("countdown")).toContainText(/GW\d+ deadline|has passed/);
+  const tips = page.getByTestId("tips");
+  await expect(tips).toBeVisible();
+  await shot(page, "26-team-countdown-tips");
+  await tips.getByRole("button", { name: "Got it" }).click();
+  await page.reload();
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+  await expect(page.getByTestId("tips")).toHaveCount(0); // remembered
+
+  await page.getByRole("link", { name: "See transfer plans" }).click();
+  await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId("countdown")).toBeVisible();
+  // Headless Chromium has no share sheet, so Share copies the message instead.
+  await page.evaluate(() => Object.defineProperty(navigator, "share", { value: undefined }));
+  await page.getByTestId("share-plan").first().click();
+  await expect(page.getByTestId("share-plan").first()).toHaveText("Copied ✓");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toMatch(/^My GW\d+ plan \(/);
+  expect(copied).toContain("Captain ");
+  expect(copied).not.toContain(TEAM); // links to the start page, never to your team
+  await shot(page, "27-plans-share");
+
+  const manifest = await (await page.request.get("/manifest.webmanifest")).json();
+  expect(manifest.short_name).toBe("ML Planner");
+  expect((await page.request.get("/icon-192.png")).status()).toBe(200);
+});

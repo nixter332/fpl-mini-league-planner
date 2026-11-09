@@ -25,6 +25,7 @@ export interface Player {
   position: Position;
   club: string;
   price: number;
+  price_change?: number; // this gameweek's price change in tenths (+1 = rose £0.1m)
   sell_price: number | null;
   status: string;
   news: string;
@@ -137,6 +138,7 @@ export interface PlansResponse {
   freehit_gw: number | null;
   auto_chips: boolean;
   gws: number[];
+  deadline?: string | null; // the first planned GW's deadline
   free_transfers: number;
   bank: number;
   standing: Standing | null;

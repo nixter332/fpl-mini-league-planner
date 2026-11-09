@@ -5,9 +5,12 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
-import { ApiError, getAnalysis, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
+import { ApiError, getAnalysis, getPlans, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
 import { Why } from "@/components/Why";
 import { FixtureStrip } from "@/components/FixtureStrip";
+import { Countdown } from "@/components/Countdown";
+import { PriceMove } from "@/components/PriceMove";
+import { Tips } from "@/components/Tips";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { track } from "@/lib/analytics";
@@ -91,6 +94,18 @@ function TeamScreen() {
       live = false;
     };
   }, [entry, league]);
+
+  // Start building the default plans as soon as the rivals are in, so "See transfer plans" opens
+  // fast. The plans page asks for exactly the same set and picks up this request.
+  const prefetchLeague = data ? (data.standing?.league.id ?? 0) : null;
+  const prefetchStrategy = data?.standing?.rank === 1 ? "protect" : "balanced";
+  useEffect(() => {
+    if (prefetchLeague === null || !rivalsReady) return;
+    const t = setTimeout(() => {
+      getPlans({ team: entry, league: prefetchLeague, strategy: prefetchStrategy, horizon: 4, hits: 0, wildcard: null, freehit: null, chips: true }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [entry, prefetchLeague, prefetchStrategy, rivalsReady]);
 
   const positions = useMemo(() => {
     const map: Record<number, Position> = {};
@@ -188,6 +203,9 @@ function TeamScreen() {
         </select>
       </label>
 
+      <Countdown gw={data.gameweeks[0].id} deadline={data.gameweeks[0].deadline} />
+      <Tips />
+
       {rivalsLoading && (
         <div className="flex items-center gap-2 text-xs text-text3" role="status" data-testid="rivals-progress">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-seg">
@@ -224,7 +242,7 @@ function TeamScreen() {
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <div className="text-xs text-text3">{deadlineLabel(gw.name, gw.deadline, gwIndex)}</div>
+        <div className="text-xs text-text3">{gwIndex === 0 ? gw.name : deadlineLabel(gw.name, gw.deadline, gwIndex)}</div>
         <Segmented
           label="Show on pitch"
           value={mode}
@@ -325,6 +343,7 @@ function PlayerSheet({
       <div className="text-[13px] text-text2">
         {player.club} · {player.position} · sells for {money(sell)}
         {nRivals ? ` · ${player.rivals_owned}/${nRivals} rivals own him` : ""}
+        <PriceMove change={player.price_change} long />
       </div>
       {player.news && <div className="rounded-lg bg-warn-bg px-3 py-2 text-[12.5px] text-warn-text">{player.news}</div>}
       <FixtureStrip gws={player.gws} />
@@ -355,7 +374,7 @@ function PlayerSheet({
                 <div className="flex min-w-0 flex-col">
                   <span className="truncate text-sm font-semibold">{c.name}</span>
                   <span className="truncate text-[11.5px] text-text3">
-                    {c.club} · {money(c.price)} · {c.gws[0]?.fixture}
+                    {c.club} · {money(c.price)}<PriceMove change={c.price_change} /> · {c.gws[0]?.fixture}
                     {nRivals ? ` · own ${c.rivals_owned}/${nRivals}` : ""}
                   </span>
                 </div>
