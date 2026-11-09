@@ -3,6 +3,8 @@
 import json
 import logging
 import os
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -21,7 +23,16 @@ from app.fpl.links import LinkParseError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ANTHROPIC_API_KEY; real env vars win
 
-app = FastAPI(title="FPL Mini-League Planner")
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Load the season's data as soon as the server starts, so the first visitor after a deploy
+    doesn't wait for it. WARM_UP=0 switches this off (tests)."""
+    if os.environ.get("WARM_UP", "1") == "1":
+        threading.Thread(target=lambda: get_service().warm_up(), name="warm-up", daemon=True).start()
+    yield
+
+
+app = FastAPI(title="FPL Mini-League Planner", lifespan=lifespan)
 _service: PlannerService | None = None
 _explainer: Explainer | None = None
 

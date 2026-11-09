@@ -39,7 +39,8 @@ from app.optimizer.state import SquadState
 log = logging.getLogger(__name__)
 
 TEAM_VIEW_GWS = 5
-CONTEXT_TTL = 10 * 60
+CONTEXT_TTL = 10 * 60  # older than this: answer from it, refresh in the background
+CONTEXT_MAX_AGE = 60 * 60  # older than this (or past a deadline): rebuild before answering
 PLAN_CACHE_SIZE = 32
 N_RIVALS = 20
 DOUBT_STATUSES = {"d", "i", "s", "u"}
@@ -93,6 +94,8 @@ class PlannerService:
         self.client = client
         self._now = now
         self._lock = threading.Lock()
+        self._build_lock = threading.Lock()  # one season build at a time
+        self._refreshing = False
         self._context: SeasonContext | None = None
         self._plans: OrderedDict[tuple, s.PlansResponse] = OrderedDict()
         # Rivals' picks are fetched in the background, one league at a time, through the same
@@ -103,11 +106,51 @@ class PlannerService:
     # ---- season-wide data ------------------------------------------------------------------
 
     def context(self) -> SeasonContext:
-        with self._lock:
-            ctx = self._context
-            if ctx is None or time.monotonic() - ctx.built_at > CONTEXT_TTL:
-                ctx = self._context = self._build_context()
+        """Season-wide data. A fresh copy is built at most every CONTEXT_TTL; until then (and up to
+        CONTEXT_MAX_AGE) requests are answered from the current copy while a new one is built in the
+        background, so nobody waits for a rebuild. Past a deadline it's rebuilt first, so plans
+        never target a gameweek that has already started."""
+        ctx = self._context
+        if ctx is None or self._must_rebuild(ctx):
+            with self._build_lock:
+                ctx = self._context
+                if ctx is None or self._must_rebuild(ctx):
+                    ctx = self._context = self._build_context()
             return ctx
+        if time.monotonic() - ctx.built_at > CONTEXT_TTL:
+            self._refresh_in_background()
+        return ctx
+
+    def _must_rebuild(self, ctx: SeasonContext) -> bool:
+        if time.monotonic() - ctx.built_at > CONTEXT_MAX_AGE:
+            return True
+        deadline = ctx.events[ctx.gws[0]].deadline_time
+        return deadline <= self._now()
+
+    def _refresh_in_background(self) -> None:
+        with self._lock:
+            if self._refreshing:
+                return
+            self._refreshing = True
+
+        def run() -> None:
+            try:
+                with self._build_lock:
+                    self._context = self._build_context()
+            except Exception as e:  # keep serving the old copy; the next request tries again
+                log.warning("Background season refresh failed: %s", e)
+            finally:
+                with self._lock:
+                    self._refreshing = False
+
+        threading.Thread(target=run, name="season-refresh", daemon=True).start()
+
+    def warm_up(self) -> None:
+        """Build the season data now (call in a background thread at start-up)."""
+        try:
+            self.context()
+        except Exception as e:
+            log.warning("Warm-up failed (the first request will try again): %s", e)
 
     def _build_context(self) -> SeasonContext:
         now = self._now()

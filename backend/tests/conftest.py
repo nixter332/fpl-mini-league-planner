@@ -14,6 +14,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # Never use a real Claude key in tests, even if backend/.env has one: an empty value here
 # stops load_dotenv from filling it in, so the app's explainer stays switched off.
 os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["WARM_UP"] = "0"  # tests build their own services; no background start-up work
 
 
 def load_fixture(name: str) -> Any:
