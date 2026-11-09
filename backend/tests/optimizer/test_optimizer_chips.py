@@ -104,3 +104,32 @@ def test_real_chips_plans_are_valid_and_fast(pool, manager_state) -> None:
     for plan in ps.plans:
         assert validate(plan.solution, players(pool), manager_state, settings) == []
         assert all(g.chip in (None, BENCH_BOOST) for g in plan.solution.gameweeks)
+
+
+def test_free_hit_this_week_gives_different_plans(pool, manager_state) -> None:
+    """Cuts must work in a Free Hit week too, or plans 2-3 repeat plan 1 (review finding)."""
+    state = with_chips(manager_state, ChipWindow(FREE_HIT, 11, 19))
+    settings = Settings(GWS, strategy="protect", chips=state.chips, forced_chips=((11, FREE_HIT),))
+    ps = make_plans(pool, state, settings)
+    squads = [frozenset(p.solution.first.squad) for p in ps.plans]
+    assert len(squads) == len(set(squads))
+
+
+def test_bench_boost_cannot_disguise_a_timed_out_plan(pool, manager_state, monkeypatch) -> None:
+    """A timed-out 'keep the squad' result is dropped even when a Bench Boost is added after solving."""
+    import app.optimizer.plans as plans_mod
+    from app.optimizer.solver import assign_chips
+
+    state = with_chips(manager_state, ChipWindow(BENCH_BOOST, 11, 14))
+    settings = Settings(GWS, strategy="protect", chips=state.chips)
+    real_solve = plans_mod.solve
+
+    def slow_solve(pool_, state_, settings_, ownership_=None, *, cuts=(), warm_start=None, **kw):
+        if len(cuts) == 2 and warm_start is not None:
+            weeks = assign_chips(list(warm_start.gameweeks), players(pool), settings_)
+            return replace(warm_start, gameweeks=tuple(weeks), proven_optimal=False)
+        return real_solve(pool_, state_, settings_, ownership_, cuts=cuts, warm_start=warm_start, **kw)
+
+    monkeypatch.setattr(plans_mod, "solve", slow_solve)
+    ps = make_plans(pool, state, settings)
+    assert len(ps.plans) == 2

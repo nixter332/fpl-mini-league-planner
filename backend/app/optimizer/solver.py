@@ -345,6 +345,12 @@ def solve(
 
     g0 = G[0]
     for cut in cuts:
+        if forced.get(g0) == FREE_HIT:
+            # A Free Hit week's changes are in the squad itself (buy/sell are fixed at 0 there):
+            # forbid a squad with all of that plan's changes.
+            same = [squad[p, g0] for p in cut.transfers_in] + [1 - squad[p, g0] for p in cut.transfers_out]
+            prob += pulp.lpSum(same) <= len(same) - 1
+            continue
         same = [buy[p, g0] for p in cut.transfers_in] + [sell[p, g0] for p in cut.transfers_out]
         other = [buy[p, g0] for p in P if p not in cut.transfers_in] + [sell[p, g0] for p in P if p not in cut.transfers_out]
         prob += pulp.lpSum(same) - pulp.lpSum(other) <= len(same) - 1

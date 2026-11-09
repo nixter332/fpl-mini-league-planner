@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
-from app.optimizer.chips import BENCH_BOOST, FREE_HIT, TRANSFER_CHIPS, TRIPLE_CAPTAIN, window_for
+from app.optimizer.chips import AUTO_CHIPS, BENCH_BOOST, FREE_HIT, TRANSFER_CHIPS, TRIPLE_CAPTAIN, window_for
 from app.optimizer.ownership import NO_RIVALS, LeagueOwnership
 from app.optimizer.solver import (
     MAX_PER_CLUB, SQUAD_BY_POSITION, SQUAD_SIZE, XI_MAX, XI_MIN, XI_SIZE,
@@ -109,7 +109,10 @@ def make_plans(
     # A solve that hit its time limit can hand back its warm start: "keep the squad", no better
     # than the baseline. That isn't a plan, so drop it (seen on the half-CPU server, 9 Nov 2026).
     def stalled(sol: Solution) -> bool:
-        return not sol.proven_optimal and score(sol, players, ownership, points_only)[0] <= floor + 1e-6
+        # Ignore Bench Boost / Triple Captain: they're added after solving, so a timed-out
+        # "keep the squad" result would otherwise look better than the no-transfer floor.
+        plain = replace(sol, gameweeks=tuple(replace(g, chip=None) if g.chip in AUTO_CHIPS else g for g in sol.gameweeks))
+        return not sol.proven_optimal and score(plain, players, ownership, points_only)[0] <= floor + 1e-6
 
     solutions = [s for i, s in enumerate(solutions) if i == 0 or not stalled(s)]
     if roll is not None and stalled(roll):
