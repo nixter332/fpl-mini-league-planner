@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-10T12:37:02.248013+00:00",
+"captured_at": "2026-11-10T21:48:03.240136+00:00",
 "deadline": "2026-11-21T11:00:00+00:00",
 "gw": 11,
 "players": {
@@ -1453,11 +1453,11 @@
 "status": "a"
 },
 "286": {
-"chance_of_playing_next_round": null,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": null,
-"news": "",
-"news_added": null,
-"status": "a"
+"news": "Hamstring injury - 75% chance of playing",
+"news_added": "2026-11-10T19:00:09.431074+00:00",
+"status": "d"
 },
 "287": {
 "chance_of_playing_next_round": 0,
