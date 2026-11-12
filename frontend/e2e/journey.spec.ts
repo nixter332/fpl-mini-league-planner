@@ -342,3 +342,34 @@ test("deadline countdown, first-visit tips, sharing a plan and the home-screen a
   expect(manifest.short_name).toBe("ML Planner");
   expect((await page.request.get("/icon-192.png")).status()).toBe(200);
 });
+
+test("league invite link, and help finding your ID", async ({ page, context }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.goto("/");
+  await page.getByTestId("id-help-toggle").click();
+  await expect(page.getByTestId("id-help")).toContainText("Leagues & Cups");
+  await shot(page, "29-main-id-help");
+
+  // The team page gives a link to pass on.
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+  await page.evaluate(() => Object.defineProperty(navigator, "share", { value: undefined }));
+  await page.getByTestId("invite-league").click();
+  await expect(page.getByTestId("invite-league")).toHaveText("Invite link copied ✓");
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toContain(`/?league=${LEAGUE}`);
+  expect(copied).not.toContain(TEAM); // the league only, never the sharer's team
+
+  // A friend opens it: the league is already found, they tap their name and they're in.
+  await page.evaluate(() => localStorage.clear());
+  await page.goto(`/?league=${LEAGUE}`);
+  const members = page.getByTestId("league-members");
+  await expect(members).toContainText("You've been invited");
+  await expect(page.getByTestId("recent-team")).toHaveCount(0);
+  await shot(page, "30-main-invited");
+  await members.getByRole("button").filter({ hasText: "Nikhil" }).first().click();
+  await page.getByRole("button", { name: "That's me, continue" }).click();
+  await expect(page).toHaveURL(new RegExp(`/team/${TEAM}\\?league=${LEAGUE}`));
+});

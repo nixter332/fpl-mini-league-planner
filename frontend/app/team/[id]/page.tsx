@@ -12,6 +12,7 @@ import { Countdown } from "@/components/Countdown";
 import { PriceMove } from "@/components/PriceMove";
 import { Tips } from "@/components/Tips";
 import { InstallHint } from "@/components/InstallHint";
+import { InviteLeague } from "@/components/InviteLeague";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { track } from "@/lib/analytics";
@@ -287,9 +288,12 @@ function TeamScreen() {
       >
         Try your own transfers
       </Link>
-      <Link href={`/team/${entry}/drafts?league=${activeLeague}`} className="-mt-1 self-center text-[13px] font-semibold no-underline" data-testid="drafts-link">
-        My drafts →
-      </Link>
+      <div className="-mt-1 flex items-center justify-center gap-5">
+        <Link href={`/team/${entry}/drafts?league=${activeLeague}`} className="text-[13px] font-semibold no-underline" data-testid="drafts-link">
+          My drafts →
+        </Link>
+        {standing && <InviteLeague leagueId={standing.league.id} leagueName={standing.league.name} />}
+      </div>
       <div className="text-center text-xs text-text3">
         {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
       </div>
