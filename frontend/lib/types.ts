@@ -174,6 +174,20 @@ export interface WhatIfResponse {
 }
 export interface WeekFlag { player: number; mine: boolean; rivals_owned: number; chance: number | null; news: string; yellow_cards: number; ban_at: number | null }
 export interface TickerRow { club: string; name: string; gws: { gw: number; fixture: string; difficulty: number[] }[]; avg_difficulty: number }
+export interface LeagueRow {
+  entry: number; name: string; entry_name: string; is_me: boolean; rank: number | null; total: number | null;
+  xpts: number | null; projected_total: number | null; projected_rank: number | null; captain: number | null;
+  differentials: number[]; my_differentials: number[]; shared: number | null;
+}
+export interface LeagueViewResponse { gw: number; league: LeagueInfo | null; ready: boolean; rows: LeagueRow[]; players: Record<string, Player>; clubs: Record<string, Club> }
+export interface ReviewPlayer { player: number; points: number; projected: number }
+export interface ReviewResponse {
+  gw: number | null; available: boolean; message: string; points: number; hit_cost: number; projected: number;
+  captain: ReviewPlayer | null; best_captain: ReviewPlayer | null; over: ReviewPlayer[]; under: ReviewPlayer[];
+  rivals: { name: string; entry_name: string; points: number; swing: number }[];
+  players: Record<string, Player>;
+}
+export interface CaptainOption { player: number; xpts: number; rivals_captained: number; rivals_owned: number }
 export interface WeekResponse {
   gw: number;
   deadline: string;
@@ -183,6 +197,7 @@ export interface WeekResponse {
   top_in: { player: number; count: number }[];
   top_out: { player: number; count: number }[];
   flags: WeekFlag[];
+  captains: CaptainOption[];
   ticker: TickerRow[];
   dream_team: { player: number; points: number; mine: boolean; rivals_owned: number }[];
   players: Record<string, Player>;

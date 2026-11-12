@@ -395,8 +395,9 @@ test("sample team for visitors, new-to-FPL intro and the bottom tabs", async ({ 
   await expect(page.getByTestId("demo-banner")).toBeVisible();
   await nav.getByRole("link", { name: "What-if" }).click();
   await expect(page.getByTestId("whatif-total")).toBeVisible({ timeout: 120_000 });
-  await nav.getByRole("link", { name: "Drafts" }).click();
+  await page.getByTestId("my-drafts-link").click(); // drafts live under What-if
   await expect(page.getByRole("heading", { name: "My drafts" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "What-if" })).toHaveAttribute("aria-current", "page");
   await nav.getByRole("link", { name: "My team" }).click();
   await expect(page.getByTestId("pitch-player")).toHaveCount(11);
 
@@ -435,4 +436,50 @@ test("ask about a plan, and the This week page", async ({ page }) => {
   await expect(page.getByTestId("week-ticker").getByTestId("fixture-strip")).toHaveCount(20);
   await expect(page.getByTestId("week-dream")).toContainText("pts");
   await shot(page, "34-week");
+});
+
+test("rivals table, captain options, review, compare and calendar", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(300_000);
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+
+  // Calendar file: one event per upcoming deadline, with reminders.
+  const download = page.waitForEvent("download");
+  await page.getByTestId("add-calendar").click();
+  const file = await (await download).path();
+  const ics = require("fs").readFileSync(file, "utf8");
+  expect(ics).toContain("BEGIN:VCALENDAR");
+  expect(ics).toMatch(/SUMMARY:FPL GW\d+ deadline/);
+  expect(ics).toContain("TRIGGER:-PT3H");
+  expect(ics).not.toContain(TEAM);
+
+  // Rivals: the table with projections; a row opens to show what separates you.
+  const nav = page.getByTestId("app-nav");
+  await nav.getByRole("link", { name: "Rivals" }).click();
+  await expect(page.getByTestId("rivals-headline")).toContainText(/Projected after GW\d+/, { timeout: 120_000 });
+  const rivalRows = page.getByTestId("rival-row");
+  await expect(rivalRows.first()).toContainText("proj");
+  await rivalRows.filter({ hasNotText: "(you)" }).first().click();
+  await expect(page.getByTestId("rival-details")).toContainText("They have, you don't");
+  await shot(page, "35-rivals");
+
+  // This week: captain options and the review card.
+  await nav.getByRole("link", { name: "This week" }).click();
+  await expect(page.getByTestId("week-captains")).toContainText("Top pick", { timeout: 120_000 });
+  await expect(page.getByTestId("week-review")).toContainText(/You scored|still being played/);
+  await shot(page, "36-week-captain-review");
+
+  // Compare: add two players and see them side by side.
+  await page.getByRole("link", { name: "Compare players" }).click();
+  for (const who of ["Haaland", "ARS"]) {
+    await page.getByLabel("Search players").fill(who);
+    await page.getByTestId("compare-result").first().click();
+  }
+  await expect(page).toHaveURL(/p=\d+,\d+/);
+  const table = page.getByTestId("compare-table");
+  await expect(table).toContainText("Haaland");
+  await expect(table).toContainText("xPts per £m");
+  await expect(table.getByTestId("fixture-strip")).toHaveCount(2);
+  await shot(page, "37-compare");
 });

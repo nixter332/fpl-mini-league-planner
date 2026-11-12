@@ -1,5 +1,5 @@
 import { reportError, scrubUrl, track } from "./analytics";
-import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, LeagueViewResponse, ReviewResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -135,6 +135,12 @@ export function askPlans(p: PlanParams, extra: { keep?: number[]; ban?: number[]
   }
   return pending;
 }
+
+const leagueQuery = (team: number, league: number | null) => `team=${team}${league !== null ? `&league=${league}` : ""}`;
+
+export const getLeagueView = (team: number, league: number | null) => getJSON<LeagueViewResponse>(`/api/league?${leagueQuery(team, league)}`);
+
+export const getReview = (team: number, league: number | null) => getJSON<ReviewResponse>(`/api/review?${leagueQuery(team, league)}`);
 
 export const getWeek = (team: number, league: number | null) =>
   getJSON<WeekResponse>(`/api/week?team=${team}${league !== null ? `&league=${league}` : ""}`);

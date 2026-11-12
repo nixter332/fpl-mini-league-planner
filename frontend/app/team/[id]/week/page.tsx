@@ -6,9 +6,10 @@ import { Countdown } from "@/components/Countdown";
 import { FixtureStrip } from "@/components/FixtureStrip";
 import { ErrorBox, Loading, ThemeToggle } from "@/components/ui";
 import { track } from "@/lib/analytics";
-import { ApiError, getWeek } from "@/lib/api";
-import { money } from "@/lib/format";
-import type { Player, WeekFlag, WeekResponse } from "@/lib/types";
+import Link from "next/link";
+import { ApiError, getReview, getWeek } from "@/lib/api";
+import { gwOf, money, pts, signed } from "@/lib/format";
+import type { Player, ReviewResponse, WeekFlag, WeekResponse } from "@/lib/types";
 
 export default function WeekPage() {
   return (
@@ -28,11 +29,14 @@ function WeekScreen() {
   const league = leagueParam === null ? null : Number(leagueParam);
   const [data, setData] = useState<WeekResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [review, setReview] = useState<ReviewResponse | null>(null);
 
   useEffect(() => {
     let live = true;
     setData(null);
     setError(null);
+    setReview(null);
+    getReview(entry, league).then((r) => live && setReview(r)).catch(() => {}); // the page works without it
     getWeek(entry, league)
       .then((d) => {
         if (!live) return;
@@ -62,6 +66,37 @@ function WeekScreen() {
         <ThemeToggle />
       </div>
       <Countdown gw={data.gw} deadline={data.deadline} />
+
+      {data.captains.length > 0 && (
+        <Card title={`Captain for GW${data.gw}`} sub="Your best options. Points shown before doubling." testid="week-captains">
+          {data.captains.map((c, i) => (
+            <div key={c.player} className="flex items-center justify-between gap-3 border-t border-line pt-2 first:border-t-0 first:pt-0">
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate text-[13.5px] font-semibold">
+                  {p(c.player).doubtful ? "! " : ""}
+                  {p(c.player).name}
+                  {i === 0 && <span className="ml-1.5 rounded-full bg-cap-bg px-2 py-0.5 text-[10.5px] font-semibold text-why-label">Top pick</span>}
+                </span>
+                <span className="truncate text-[11.5px] text-text3">
+                  {gwOf(p(c.player), data.gw).fixture}
+                  {n ? ` · ${c.rivals_captained}/${n} rivals captained him last week` : ""}
+                </span>
+              </div>
+              <span className="shrink-0 font-display text-[15px] font-bold">{pts(c.xpts)}</span>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      {review && <ReviewCard review={review} />}
+
+      <Link
+        href={`/team/${entry}/compare${league !== null ? `?league=${league}` : ""}`}
+        onClick={() => track("compare_opened", { from: "week" })}
+        className="flex h-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-[14px] font-semibold no-underline"
+      >
+        Compare players
+      </Link>
 
       <Card title="Injuries and suspensions" testid="week-flags">
         {mine.length === 0 ? (
@@ -172,5 +207,68 @@ function FlagRow({ flag, player, note }: { flag: WeekFlag; player: Player; note:
       )}
       {note && <div className="text-[11.5px] text-text3">{note}</div>}
     </div>
+  );
+}
+
+/** Last gameweek against the model's projection, and against each rival. */
+function ReviewCard({ review }: { review: ReviewResponse }) {
+  const title = `How GW${review.gw} went`;
+  if (!review.available) {
+    return (
+      <Card title={title} testid="week-review">
+        <div className="text-[13px] text-text2">{review.message}</div>
+      </Card>
+    );
+  }
+  const name = (pid: number) => review.players[pid]?.name ?? "?";
+  const diff = review.points - review.projected;
+  const cap = review.captain;
+  const best = review.best_captain;
+  const movers = (list: ReviewResponse["over"]) => list.map((m) => `${name(m.player)} ${m.points} (${pts(m.projected)})`).join(", ");
+  return (
+    <Card title={title} sub="Points scored, with our projection from before the deadline in brackets" testid="week-review">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-[13px] text-text2">
+          You scored{review.hit_cost ? ` (after a −${review.hit_cost} hit)` : ""}
+        </span>
+        <span>
+          <span className="font-display text-xl font-bold">{review.points}</span>{" "}
+          <span className={`text-xs font-semibold ${diff >= 0 ? "text-good" : "text-bad"}`}>
+            {signed(diff)} vs projected {pts(review.projected)}
+          </span>
+        </span>
+      </div>
+      {cap && (
+        <div className="text-[13px] leading-[1.45]">
+          <b>Captain:</b> {name(cap.player)} scored {cap.points} ({pts(cap.projected)}).
+          {best && best.player !== cap.player && best.points > cap.points ? ` Your top scorer was ${name(best.player)} with ${best.points}.` : best && best.player === cap.player ? " He was your top scorer." : ""}
+        </div>
+      )}
+      {review.over.length > 0 && (
+        <div className="text-[13px] leading-[1.45]">
+          <b className="text-good">Beat the projection:</b> {movers(review.over)}
+        </div>
+      )}
+      {review.under.length > 0 && (
+        <div className="text-[13px] leading-[1.45]">
+          <b className="text-bad">Fell short:</b> {movers(review.under)}
+        </div>
+      )}
+      {review.rivals.length > 0 && (
+        <div className="flex flex-col gap-1 border-t border-line pt-2">
+          <div className="text-xs font-semibold text-text3">AGAINST YOUR RIVALS</div>
+          {review.rivals.map((r) => (
+            <div key={r.entry_name + r.name} className="flex items-baseline justify-between gap-2 text-[13px]">
+              <span className="min-w-0 truncate">
+                {r.name} <span className="text-[11.5px] text-text3">scored {r.points}</span>
+              </span>
+              <span className={`shrink-0 font-semibold ${r.swing > 0 ? "text-good" : r.swing < 0 ? "text-bad" : ""}`}>
+                {r.swing > 0 ? `You gained ${r.swing}` : r.swing < 0 ? `You lost ${-r.swing}` : "Level"}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }

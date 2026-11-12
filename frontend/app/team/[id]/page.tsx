@@ -13,6 +13,7 @@ import { PriceMove } from "@/components/PriceMove";
 import { Tips } from "@/components/Tips";
 import { InstallHint } from "@/components/InstallHint";
 import { InviteLeague } from "@/components/InviteLeague";
+import { AddToCalendar } from "@/components/AddToCalendar";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { isDemo, rememberNav } from "@/lib/nav";
@@ -284,7 +285,10 @@ function TeamScreen() {
       >
         See transfer plans
       </Link>
-      {standing && <InviteLeague leagueId={standing.league.id} leagueName={standing.league.name} className="self-center" />}
+      <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
+        {standing && <InviteLeague leagueId={standing.league.id} leagueName={standing.league.name} />}
+        <AddToCalendar deadlines={data.gameweeks.map((g) => ({ gw: g.id, deadline: g.deadline }))} />
+      </div>
       <div className="text-center text-xs text-text3">
         {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
       </div>
@@ -310,6 +314,7 @@ function TeamScreen() {
           onClose={() => setSelected(null)}
           onShowWeak={() => setMode("weak")}
           tryHref={(into) => whatIfHref(`&m=${data.gameweeks[0].id}.${selected}.${into}`)}
+          compareHref={`/team/${entry}/compare?league=${activeLeague}&p=${selected}`}
           loadReason={() => getReplacementReason(entry, activeLeague, standing?.rank === 1 ? "protect" : "balanced", selected)}
         />
       )}
@@ -318,8 +323,9 @@ function TeamScreen() {
 }
 
 function PlayerSheet({
-  player, spot, analysis, weakMode, nRivals, onClose, onShowWeak, tryHref, loadReason,
+  player, spot, analysis, weakMode, nRivals, onClose, onShowWeak, tryHref, compareHref, loadReason,
 }: {
+  compareHref: string;
   player: Player; spot?: SpotOut; analysis: AnalysisResponse | null; weakMode: boolean; nRivals: number;
   onClose: () => void; onShowWeak: () => void; tryHref: (into: number) => string; loadReason: () => Promise<ReplacementReason>;
 }) {
@@ -353,6 +359,9 @@ function PlayerSheet({
           </div>
         ))}
       </div>
+      <Link href={compareHref} onClick={() => track("compare_opened", { from: "player" })} className="self-start text-[13px] font-semibold no-underline" data-testid="compare-link">
+        Compare with another player →
+      </Link>
       {!weakMode || !analysis ? (
         <button type="button" onClick={onShowWeak} className="self-start text-[13px] font-semibold text-link">
           Show the best replacements →

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { track } from "@/lib/analytics";
 import { endDemo, isDemo, loadNav, type NavContext } from "@/lib/nav";
 
-type Tab = "team" | "plans" | "whatif" | "drafts" | "week";
+type Tab = "team" | "plans" | "whatif" | "rivals" | "week";
 
 /** Which team's screens we're on, read from the address ("/team/123/…" or "/plans?team=123"). */
 function useTeam(): { team: number | null; tab: Tab; league: number | null; search: string } {
@@ -15,7 +15,7 @@ function useTeam(): { team: number | null; tab: Tab; league: number | null; sear
   const fromPath = pathname.match(/^\/team\/(\d+)/)?.[1];
   const onPlans = pathname.startsWith("/plans");
   const team = fromPath ? Number(fromPath) : onPlans && search.get("team") ? Number(search.get("team")) : null;
-  const tab: Tab = onPlans ? "plans" : pathname.includes("/what-if") ? "whatif" : pathname.includes("/drafts") ? "drafts" : pathname.endsWith("/week") ? "week" : "team";
+  const tab: Tab = onPlans ? "plans" : pathname.includes("/what-if") || pathname.includes("/drafts") ? "whatif" : pathname.endsWith("/rivals") ? "rivals" : pathname.endsWith("/week") ? "week" : "team";
   const league = search.get("league");
   return { team, tab, league: league === null ? null : Number(league), search: search.toString() };
 }
@@ -39,7 +39,7 @@ export function DemoBanner() {
   );
 }
 
-/** The bottom tab bar: My team, Plans, What-if, Drafts, This week. Only on a team's screens. */
+/** The bottom tab bar: My team, Plans, What-if, Rivals, This week. Only on a team's screens. */
 export function AppNav() {
   const { team, tab, league: urlLeague, search } = useTeam();
   const pathname = usePathname();
@@ -59,7 +59,7 @@ export function AppNav() {
       icon: <path d="M3 7h11m-3-3.5L14.5 7 11 10.5M17 13H6m3-3.5L5.5 13 9 16.5" />,
     },
     { key: "whatif", label: "What-if", href: `/team/${team}/what-if?${lq ? `${lq}&` : ""}strategy=${strategy}`, icon: <path d="M4 16l1-4 8.5-8.5 3 3L8 15l-4 1zM11.5 5.5l3 3" /> },
-    { key: "drafts", label: "Drafts", href: `/team/${team}/drafts${lq ? `?${lq}` : ""}`, icon: <path d="M5.5 3h9v14l-4.5-3-4.5 3V3z" /> },
+    { key: "rivals", label: "Rivals", href: `/team/${team}/rivals${lq ? `?${lq}` : ""}`, icon: <path d="M4 16V9m4 7V4m4 12v-9m4 9v-5" /> },
     { key: "week", label: "This week", href: `/team/${team}/week${lq ? `?${lq}` : ""}`, icon: <path d="M3.5 5.5h13v11h-13zM3.5 8.5h13M7 3.5v3M13 3.5v3" /> },
   ];
   return (
