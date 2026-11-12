@@ -358,6 +358,67 @@ class DreamPlayer(BaseModel):
     rivals_owned: int
 
 
+class CaptainOption(BaseModel):
+    player: int
+    xpts: float  # this gameweek, before doubling
+    rivals_captained: int  # rivals who captained him in their last squad
+    rivals_owned: int
+
+
+class LeagueRow(BaseModel):
+    entry: int
+    name: str
+    entry_name: str
+    is_me: bool
+    rank: int | None
+    total: int | None
+    xpts: float | None  # projected for the coming gameweek (best XI + captain); None while loading
+    projected_total: float | None
+    projected_rank: int | None
+    captain: int | None  # me: the projected best captain; rivals: who they captained last week
+    differentials: list[int] = []  # rivals: their best starters you don't own
+    my_differentials: list[int] = []  # rivals: your best starters they don't own
+    shared: int | None = None  # players in both squads
+
+
+class LeagueViewResponse(BaseModel):
+    gw: int
+    league: LeagueInfo | None
+    ready: bool  # rivals' squads are loaded
+    rows: list[LeagueRow]  # by current rank
+    players: dict[int, Player]
+    clubs: dict[str, Club]
+
+
+class ReviewPlayer(BaseModel):
+    player: int
+    points: int
+    projected: float
+
+
+class ReviewRival(BaseModel):
+    name: str
+    entry_name: str
+    points: int  # their gameweek points, net of hits
+    swing: int  # yours minus theirs: positive = you gained ground
+
+
+class ReviewResponse(BaseModel):
+    gw: int | None
+    available: bool
+    message: str = ""  # why there's no review yet
+    points: int = 0  # your gameweek points, net of hits
+    hit_cost: int = 0
+    projected: float = 0.0  # what the model projected for your XI and captain before the deadline
+    captain: ReviewPlayer | None = None
+    best_captain: ReviewPlayer | None = None  # your starter who scored most
+    over: list[ReviewPlayer] = []  # starters who beat their projection by most
+    under: list[ReviewPlayer] = []
+    rivals: list[ReviewRival] = []
+    players: dict[int, Player] = {}
+    clubs: dict[str, Club] = {}
+
+
 class WeekResponse(BaseModel):
     gw: int
     deadline: datetime
@@ -367,6 +428,7 @@ class WeekResponse(BaseModel):
     top_in: list[WeekMover]
     top_out: list[WeekMover]
     flags: list[WeekFlag]
+    captains: list[CaptainOption] = []  # your best captain options, best first
     ticker: list[TickerRow]  # easiest run first
     dream_team: list[DreamPlayer]
     players: dict[int, Player]

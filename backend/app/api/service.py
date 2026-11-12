@@ -51,6 +51,8 @@ PLAN_CACHE_SIZE = 32
 N_RIVALS = 20
 DOUBT_STATUSES = {"d", "i", "s", "u"}
 WEEK_TOP_N = 5  # most transferred in / out shown
+CAPTAIN_OPTIONS = 4
+REVIEW_MOVERS = 3  # biggest over- and under-performers shown
 WEEK_RIVAL_FLAGS = 6  # flagged players only your rivals own, most-owned first
 BLANK_DIFFICULTY = 5  # a blank gameweek counts as the hardest fixture when ranking clubs
 # Premier League yellow-card bans: 5 before a club's 19th league match is a one-match ban, 10
@@ -124,6 +126,7 @@ class PlannerService:
         self._prefetcher = ThreadPoolExecutor(max_workers=1, thread_name_prefix="rivals")
         self._jobs: dict[int, tuple[Future, float]] = {}  # league -> (job, started at)
         self._plan_locks: dict[tuple, threading.Lock] = {}  # one solve per plan set at a time
+        self._past: dict[tuple, dict[int, float]] = {}  # last gameweek's projection, for the review
 
     # ---- season-wide data ------------------------------------------------------------------
 
@@ -600,14 +603,131 @@ class PlannerService:
             picked.sort(key=lambda el: (ctx.elements[el.id].element_type, -el.stats.total_points))
             dream = [s.DreamPlayer(player=el.id, points=el.stats.total_points, mine=el.id in mine, rivals_owned=ownership.owned.get(el.id, 0)) for el in picked]
 
-        referenced = {m.id for m in top_in + top_out} | {f.player for f in flags} | {d.player for d in dream}
+        x0 = lambda p: ctx.xpts.get(p, {}).get(g0, 0.0)
+        xi = self._lineup(state.element_ids, g0, ctx).starting
+        captains = [
+            s.CaptainOption(player=p, xpts=round(x0(p), 2), rivals_owned=ownership.owned.get(p, 0),
+                            rivals_captained=round(ownership.captain_share(p) * ownership.n_rivals))
+            for p in sorted(xi, key=lambda p: -x0(p))[:CAPTAIN_OPTIONS]
+        ]
+
+        referenced = {m.id for m in top_in + top_out} | {f.player for f in flags} | {d.player for d in dream} | {c.player for c in captains}
         return s.WeekResponse(
             gw=g0, deadline=ctx.events[g0].deadline_time, last_gw=ctx.finished_gw or None,
             n_rivals=ownership.n_rivals, rivals_ready=bundle.progress.ready if bundle else True,
             top_in=[mover(e, e.transfers_in_event) for e in top_in if e.transfers_in_event > 0],
             top_out=[mover(e, e.transfers_out_event) for e in top_out if e.transfers_out_event > 0],
-            flags=flags, ticker=ticker, dream_team=dream,
+            flags=flags, captains=captains, ticker=ticker, dream_team=dream,
             players=self._players(referenced, ctx, ownership, state), clubs=self._clubs(ctx),
+        )
+
+    # ---- rivals ----------------------------------------------------------------------------
+
+    def league_view(self, entry_id: int, league_id: int | None) -> s.LeagueViewResponse:
+        """The league table with each manager's projection for the coming gameweek, where the
+        table would stand after it, and the players that separate each rival from the user."""
+        ctx = self.context()
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        g0 = ctx.gws[0]
+        if not league_id:
+            return s.LeagueViewResponse(gw=g0, league=None, ready=True, rows=[], players={}, clubs=self._clubs(ctx))
+        bundle = self._league(league_id, entry, state.picks_gw, wait=False)
+        x0 = lambda p: ctx.xpts.get(p, {}).get(g0, 0.0)
+        mine = self._lineup(state.element_ids, g0, ctx)
+        my_squad = set(state.element_ids)
+        me = bundle.standing
+        rows = [s.LeagueRow(
+            entry=entry_id, name=f"{entry.player_first_name} {entry.player_last_name}", entry_name=entry.name, is_me=True,
+            rank=me.rank, total=me.total, xpts=round(mine.xpts, 2), projected_total=None, projected_rank=None, captain=mine.captain,
+        )]
+        referenced = {mine.captain}
+        for r in bundle.rows:
+            if r.entry == entry_id or r.entry not in set(self._rival_ids(bundle.rows, entry_id)):
+                continue
+            picks = bundle.rival_picks.get(r.entry)
+            row = s.LeagueRow(entry=r.entry, name=r.player_name, entry_name=r.entry_name, is_me=False, rank=r.rank, total=r.total,
+                              xpts=None, projected_total=None, projected_rank=None, captain=None)
+            if picks:
+                squad = [p.element for p in picks.picks if p.element in ctx.elements]
+                theirs = self._lineup(squad, g0, ctx)
+                row.xpts = round(theirs.xpts, 2)
+                row.captain = next((p.element for p in picks.picks if p.is_captain and p.element in ctx.elements), None)
+                row.differentials = sorted((p for p in theirs.starting if p not in my_squad), key=lambda p: -x0(p))[:3]
+                row.my_differentials = sorted((p for p in mine.starting if p not in squad), key=lambda p: -x0(p))[:3]
+                row.shared = len(my_squad & set(squad))
+                referenced |= set(row.differentials) | set(row.my_differentials) | ({row.captain} if row.captain else set())
+            rows.append(row)
+        for row in rows:
+            if row.total is not None and row.xpts is not None:
+                row.projected_total = round(row.total + row.xpts, 1)
+        ranked = sorted((r for r in rows if r.projected_total is not None), key=lambda r: -r.projected_total)
+        if bundle.progress.ready:
+            for i, row in enumerate(ranked, 1):
+                row.projected_rank = i
+        rows.sort(key=lambda r: (r.rank is None, r.rank or 0))
+        return s.LeagueViewResponse(
+            gw=g0, league=me.league, ready=bundle.progress.ready, rows=rows,
+            players=self._players(referenced, ctx, bundle.ownership, state), clubs=self._clubs(ctx),
+        )
+
+    # ---- last gameweek's review ------------------------------------------------------------
+
+    def _past_projection(self, gw: int, ctx: SeasonContext) -> dict[int, float]:
+        """What the model projected for `gw` from data before its deadline (no injury news:
+        FPL keeps no history of it). Worked out once per season context."""
+        key = (ctx.built_at, gw)
+        with self._lock:
+            cached = self._past.get(key)
+        if cached is None:
+            frame = project(ctx.data, train_through=gw - 1, target_gws=(gw,), use_availability=False)
+            cached = {int(element): float(v) for (element, g), v in frame["xpts"].items() if g == gw}
+            with self._lock:
+                self._past = {key: cached}
+        return cached
+
+    def review(self, entry_id: int, league_id: int | None) -> s.ReviewResponse:
+        """How the last finished gameweek went: points against the model's projection, the
+        captain, the biggest surprises, and ground gained or lost on each rival."""
+        ctx = self.context()
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        gw = state.picks_gw
+        if gw > ctx.finished_gw or gw not in ctx.data.live:
+            return s.ReviewResponse(gw=gw, available=False, message=f"GW{gw} is still being played. The review appears once it has finished.")
+        if gw < 2:
+            return s.ReviewResponse(gw=gw, available=False, message="The review starts after the second gameweek.")
+        picks = EntryPicks.model_validate(self.client.entry_picks(entry_id, gw))
+        stats = {el.id: el.stats for el in ctx.data.live[gw].elements}
+        proj = self._past_projection(gw, ctx)
+        pts = lambda p: stats[p].total_points if p in stats else 0
+        played = [p for p in picks.picks if p.multiplier > 0]
+        starters = [p.element for p in played]
+        review_player = lambda p: s.ReviewPlayer(player=p, points=pts(p), projected=round(proj.get(p, 0.0), 1))
+        cap = next((p.element for p in played if p.multiplier > 1), None)
+        best = max(starters, key=pts) if starters else None
+        by_surprise = sorted(starters, key=lambda p: pts(p) - proj.get(p, 0.0))
+        my_points = picks.entry_history.points - picks.entry_history.event_transfers_cost
+
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        bundle = self._league(league_id, entry, gw, wait=False) if league_id else None
+        rivals = []
+        if bundle:
+            for r in bundle.rows:
+                pk = bundle.rival_picks.get(r.entry)
+                if pk:
+                    theirs = pk.entry_history.points - pk.entry_history.event_transfers_cost
+                    rivals.append(s.ReviewRival(name=r.player_name, entry_name=r.entry_name, points=theirs, swing=my_points - theirs))
+        referenced = set(starters)
+        return s.ReviewResponse(
+            gw=gw, available=True, points=my_points, hit_cost=picks.entry_history.event_transfers_cost,
+            projected=round(sum(proj.get(p.element, 0.0) * p.multiplier for p in played), 1),
+            captain=review_player(cap) if cap else None, best_captain=review_player(best) if best else None,
+            over=[review_player(p) for p in reversed(by_surprise[-REVIEW_MOVERS:]) if pts(p) - proj.get(p, 0.0) > 0],
+            under=[review_player(p) for p in by_surprise[:REVIEW_MOVERS] if pts(p) - proj.get(p, 0.0) < 0],
+            rivals=rivals,
+            players=self._players(referenced, ctx, bundle.ownership if bundle else NO_RIVALS, state), clubs=self._clubs(ctx),
         )
 
     def all_players(self, entry_id: int, league_id: int | None) -> s.PlayersResponse:

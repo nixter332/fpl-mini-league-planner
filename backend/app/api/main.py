@@ -164,6 +164,32 @@ def week(
     return svc.week(team, league)
 
 
+@app.get("/api/league", response_model=s.LeagueViewResponse)
+def league_view(
+    request: Request,
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    svc: PlannerService = Depends(get_service),
+) -> s.LeagueViewResponse:
+    """The league table with projections for the coming gameweek and what separates you from each rival."""
+    if not _allowed("analysis", analysis_limiter, request):
+        raise HTTPException(429, "That's a lot of requests in the last hour. Try again in a bit.")
+    return svc.league_view(team, league)
+
+
+@app.get("/api/review", response_model=s.ReviewResponse)
+def review(
+    request: Request,
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    svc: PlannerService = Depends(get_service),
+) -> s.ReviewResponse:
+    """How the last finished gameweek went against the model's projection and against your rivals."""
+    if not _allowed("analysis", analysis_limiter, request):
+        raise HTTPException(429, "That's a lot of requests in the last hour. Try again in a bit.")
+    return svc.review(team, league)
+
+
 @app.get("/api/explain", response_model=s.ExplainResponse)
 async def explain(
     request: Request,
