@@ -323,6 +323,56 @@ class ReplacementExplainResponse(BaseModel):
     watch_out: str | None = None
 
 
+class WeekMover(BaseModel):
+    player: int
+    count: int  # managers across FPL who made this move this gameweek
+
+
+class WeekFlag(BaseModel):
+    player: int
+    mine: bool  # in the user's squad (otherwise only rivals own him)
+    rivals_owned: int
+    chance: int | None = None  # % chance of playing next gameweek, when in doubt
+    news: str = ""
+    yellow_cards: int = 0
+    ban_at: int | None = None  # one yellow card from this total, which brings a ban
+
+
+class TickerGw(BaseModel):
+    gw: int
+    fixture: str
+    difficulty: list[int] = []
+
+
+class TickerRow(BaseModel):
+    club: str
+    name: str
+    gws: list[TickerGw]
+    avg_difficulty: float  # lower = easier run (a blank counts as 5)
+
+
+class DreamPlayer(BaseModel):
+    player: int
+    points: int
+    mine: bool
+    rivals_owned: int
+
+
+class WeekResponse(BaseModel):
+    gw: int
+    deadline: datetime
+    last_gw: int | None  # the gameweek the team of the week is from
+    n_rivals: int
+    rivals_ready: bool
+    top_in: list[WeekMover]
+    top_out: list[WeekMover]
+    flags: list[WeekFlag]
+    ticker: list[TickerRow]  # easiest run first
+    dream_team: list[DreamPlayer]
+    players: dict[int, Player]
+    clubs: dict[str, Club]
+
+
 class PlayersResponse(BaseModel):
     """Every player, for the what-if search (projections for the next gameweeks)."""
 

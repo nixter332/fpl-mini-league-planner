@@ -94,6 +94,7 @@ class Settings:
     forced_chips: tuple[tuple[int, str], ...] = ()  # (gw, chip) the user chose to play
     chip_keep: tuple[tuple[str, float], ...] = CHIP_KEEP
     chip_keep_gws: float = CHIP_KEEP_GWS
+    keep: frozenset[int] = frozenset()  # owned players the user wants kept: never sold in this plan
 
     @property
     def weight(self) -> float:
@@ -285,6 +286,8 @@ def solve(
             prob += start[p, g] <= squad[p, g]
             prob += cap[p, g] <= start[p, g]
             prob += benched_buy[p, g] >= buy[p, g] - start[p, g]
+            if p in settings.keep and not free_hit:
+                prob += sell[p, g] == 0
 
         # Squad shape and lineup
         prob += pulp.lpSum(squad[p, g] for p in P) == SQUAD_SIZE

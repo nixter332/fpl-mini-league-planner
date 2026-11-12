@@ -9,7 +9,7 @@ import logging
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -50,6 +50,20 @@ PREFETCH_FRESH = 10 * 60  # a finished rival prefetch counts for this long; afte
 PLAN_CACHE_SIZE = 32
 N_RIVALS = 20
 DOUBT_STATUSES = {"d", "i", "s", "u"}
+WEEK_TOP_N = 5  # most transferred in / out shown
+WEEK_RIVAL_FLAGS = 6  # flagged players only your rivals own, most-owned first
+BLANK_DIFFICULTY = 5  # a blank gameweek counts as the hardest fixture when ranking clubs
+# Premier League yellow-card bans: 5 before a club's 19th league match is a one-match ban, 10
+# before its 32nd is two. Gameweeks stand in for league matches (close enough for a warning).
+YELLOW_BANS = ((5, 19), (10, 32))
+
+
+def ban_threshold(yellow_cards: int, gw: int) -> int | None:
+    """The ban total a player is one yellow card away from, if that rule still applies in `gw`."""
+    for total, last_gw in YELLOW_BANS:
+        if gw <= last_gw and yellow_cards == total - 1:
+            return total
+    return None
 
 
 def _private_leagues(entry: Entry) -> list[s.LeagueInfo]:
@@ -291,12 +305,15 @@ class PlannerService:
     def plans(
         self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int,
         *, wildcard: int | None = None, freehit: int | None = None, chips: bool = True,
+        keep: Sequence[int] = (), ban: Sequence[int] = (),
     ) -> s.PlansResponse:
         """wildcard / freehit: the GW the user chose to play that chip in. chips: whether the
-        planner may play Bench Boost and Triple Captain when they're worth it."""
+        planner may play Bench Boost and Triple Captain when they're worth it. keep: players of
+        theirs the plan must not sell; ban: players it must not buy (both for "what if" questions)."""
         ctx = self.context()
         horizon = max(1, min(horizon, len(ctx.gws)))
-        key = (entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx.built_at)
+        keep, ban = tuple(sorted(set(keep))), tuple(sorted(set(ban)))
+        key = (entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, keep, ban, ctx.built_at)
         with self._lock:
             if key in self._plans:
                 self._plans.move_to_end(key)
@@ -308,12 +325,12 @@ class PlannerService:
                 if key in self._plans:
                     return self._plans[key]
             try:
-                return self._solve_plans(key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx)
+                return self._solve_plans(key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx, keep, ban)
             finally:
                 with self._lock:
                     self._plan_locks.pop(key, None)
 
-    def _solve_plans(self, key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx) -> s.PlansResponse:
+    def _solve_plans(self, key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx, keep=(), ban=()) -> s.PlansResponse:
 
         entry = Entry.model_validate(self.client.entry(entry_id))
         leagues = _private_leagues(entry)
@@ -337,8 +354,12 @@ class PlannerService:
         settings = Settings(
             gws, strategy=strategy, max_hits=max_hits, chips=state.chips,
             auto_chips=AUTO_CHIPS if chips else frozenset(), forced_chips=tuple(forced),
+            keep=frozenset(keep),
         )
-        pool = build_pool(ctx.data.bootstrap, ctx.projection, state, gws)
+        owned = set(state.element_ids)
+        if not set(keep) <= owned:
+            raise InvalidRequestError("You can only keep players who are in your squad.")
+        pool = [p for p in build_pool(ctx.data.bootstrap, ctx.projection, state, gws) if p.element in owned or p.element not in ban]
         plan_set = make_plans(pool, state, settings, ownership)
         g0 = gws[0]
         rivals_avg = self._rivals_avg(bundle, g0, ctx) if bundle else None
@@ -526,6 +547,67 @@ class PlannerService:
             xpts_gain=round(total - base_total, 2), free_transfers_after=ft_after,
             problems=[s.WhatIfProblemOut(gw=p.gw, message=p.message) for p in problems],
             chips_left=_chips_left(state.chips),
+        )
+
+    # ---- this week -------------------------------------------------------------------------
+
+    def week(self, entry_id: int, league_id: int | None) -> s.WeekResponse:
+        """News for the coming gameweek, all from data already loaded: what FPL managers are
+        buying and selling, each club's next fixtures, flagged players in the user's and rivals'
+        squads, and last gameweek's team of the week."""
+        ctx = self.context()
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        bundle = self._league(league_id, entry, state.picks_gw, wait=False) if league_id else None
+        ownership = bundle.ownership if bundle else NO_RIVALS
+        g0 = ctx.gws[0]
+        elements = ctx.elements.values()
+
+        def mover(e: Element, count: int) -> s.WeekMover:
+            return s.WeekMover(player=e.id, count=count)
+
+        top_in = sorted(elements, key=lambda e: -e.transfers_in_event)[:WEEK_TOP_N]
+        top_out = sorted(elements, key=lambda e: -e.transfers_out_event)[:WEEK_TOP_N]
+
+        def flag(e: Element, mine: bool) -> s.WeekFlag | None:
+            doubt = e.status in DOUBT_STATUSES or e.chance_of_playing_next_round not in (None, 100)
+            ban_near = ban_threshold(e.yellow_cards, g0)
+            if not doubt and ban_near is None:
+                return None
+            return s.WeekFlag(
+                player=e.id, mine=mine, rivals_owned=ownership.owned.get(e.id, 0),
+                chance=e.chance_of_playing_next_round if doubt else None, news=e.news if doubt else "",
+                yellow_cards=e.yellow_cards, ban_at=ban_near,
+            )
+
+        mine = set(state.element_ids)
+        flags = [f for f in (flag(ctx.elements[p], True) for p in state.element_ids) if f]
+        rival_only = sorted((p for p in ownership.owned if p not in mine and p in ctx.elements), key=lambda p: -ownership.owned[p])
+        flags += [f for f in (flag(ctx.elements[p], False) for p in rival_only) if f][:WEEK_RIVAL_FLAGS]
+
+        ticker = []
+        for t in ctx.teams.values():
+            gws = [s.TickerGw(gw=g, fixture=ctx.fixture_labels.get((t.id, g), "—"), difficulty=ctx.fixture_difficulty.get((t.id, g), [])) for g in ctx.gws]
+            ratings = [d for g in gws for d in (g.difficulty or [BLANK_DIFFICULTY])]
+            ticker.append(s.TickerRow(club=t.short_name, name=t.name, gws=gws, avg_difficulty=round(sum(ratings) / len(ratings), 2)))
+        ticker.sort(key=lambda r: (r.avg_difficulty, r.club))
+
+        dream: list[s.DreamPlayer] = []
+        last = ctx.data.live.get(ctx.finished_gw)
+        if last:
+            picked = [el for el in last.elements if el.stats.in_dreamteam and el.id in ctx.elements]
+            picked.sort(key=lambda el: (ctx.elements[el.id].element_type, -el.stats.total_points))
+            dream = [s.DreamPlayer(player=el.id, points=el.stats.total_points, mine=el.id in mine, rivals_owned=ownership.owned.get(el.id, 0)) for el in picked]
+
+        referenced = {m.id for m in top_in + top_out} | {f.player for f in flags} | {d.player for d in dream}
+        return s.WeekResponse(
+            gw=g0, deadline=ctx.events[g0].deadline_time, last_gw=ctx.finished_gw or None,
+            n_rivals=ownership.n_rivals, rivals_ready=bundle.progress.ready if bundle else True,
+            top_in=[mover(e, e.transfers_in_event) for e in top_in if e.transfers_in_event > 0],
+            top_out=[mover(e, e.transfers_out_event) for e in top_out if e.transfers_out_event > 0],
+            flags=flags, ticker=ticker, dream_team=dream,
+            players=self._players(referenced, ctx, ownership, state), clubs=self._clubs(ctx),
         )
 
     def all_players(self, entry_id: int, league_id: int | None) -> s.PlayersResponse:

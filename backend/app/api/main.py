@@ -139,13 +139,29 @@ def plans(
     wildcard: int | None = Query(None, ge=1, le=38, description="Play your Wildcard in this GW"),
     freehit: int | None = Query(None, ge=1, le=38, description="Play your Free Hit in this GW"),
     chips: bool = Query(True, description="Let the planner play Bench Boost / Triple Captain when worth it"),
+    keep: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Your players the plan must not sell (up to 3 IDs)"),
+    ban: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Players the plan must not buy (up to 3 IDs)"),
     svc: PlannerService = Depends(get_service),
 ) -> s.PlansResponse:
     if horizon < 1:
         raise HTTPException(400, "Horizon must be at least 1 gameweek.")
     if not _allowed("plans", plans_limiter, request):
         raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
-    return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips)
+    ids = lambda text: [int(x) for x in text.split(",") if x]
+    return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips, keep=ids(keep), ban=ids(ban))
+
+
+@app.get("/api/week", response_model=s.WeekResponse)
+def week(
+    request: Request,
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    svc: PlannerService = Depends(get_service),
+) -> s.WeekResponse:
+    """This week's news: top transfers, fixture ticker, flagged players, team of the week."""
+    if not _allowed("analysis", analysis_limiter, request):
+        raise HTTPException(429, "That's a lot of requests in the last hour. Try again in a bit.")
+    return svc.week(team, league)
 
 
 @app.get("/api/explain", response_model=s.ExplainResponse)

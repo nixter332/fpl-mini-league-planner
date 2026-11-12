@@ -59,6 +59,9 @@ class Element(FPLModel):
     now_cost: int
     cost_change_start: int
     cost_change_event: int = 0  # price change since this gameweek began (tenths)
+    transfers_in_event: int = 0  # managers who bought him this gameweek (all of FPL)
+    transfers_out_event: int = 0
+    yellow_cards: int = 0  # season total
     can_transact: bool
     status: str  # a available, d doubtful, i injured, s suspended, u unavailable
     chance_of_playing_next_round: int | None
@@ -161,6 +164,7 @@ class LiveStats(FPLModel):
     bonus: int
     bps: int
     yellow_cards: int
+    in_dreamteam: bool = False  # FPL's team of the week
     defensive_contribution: int
     expected_goals: float
     expected_assists: float
