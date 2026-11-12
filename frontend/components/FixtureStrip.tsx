@@ -10,7 +10,7 @@ const COLOURS: Record<number, string> = {
 };
 
 /** The next few fixtures as coloured boxes: opponent, home (upper case) or away (lower case). */
-export function FixtureStrip({ gws, from, count = 5 }: { gws: PlayerGw[]; from?: number; count?: number }) {
+export function FixtureStrip({ gws, from, count = 5, labels = true }: { gws: PlayerGw[]; from?: number; count?: number; labels?: boolean }) {
   const weeks = gws.filter((g) => from === undefined || g.gw >= from).slice(0, count);
   return (
     <div className="flex gap-0.5" data-testid="fixture-strip" aria-label="Next fixtures">
@@ -18,7 +18,7 @@ export function FixtureStrip({ gws, from, count = 5 }: { gws: PlayerGw[]; from?:
         const parts = g.fixture === "—" ? [] : g.fixture.split(", ");
         return (
           <div key={g.gw} className="flex min-w-0 flex-1 flex-col items-stretch gap-px" title={`GW${g.gw}: ${g.fixture}`}>
-            <div className="text-center text-[9.5px] text-text3">GW{g.gw}</div>
+            {labels && <div className="text-center text-[9.5px] text-text3">GW{g.gw}</div>}
             {parts.length === 0 ? (
               <div className="rounded-[3px] bg-seg py-0.5 text-center text-[10px] text-text3">–</div>
             ) : (

@@ -66,6 +66,8 @@ Each is weighted like the objective (strategy weight, decay). The chip is played
 
 *No chip advice (9 Nov 2026).* The app used to show what a Wildcard or Free Hit this week would add, with a "Plan with it" button. On 412 managers over GW4–9 (`docs/backtest-plans.md`), following that advice cost 18 points over 6 weeks for the Wildcard and 7 for the Free Hit. The planner advised a Wildcard for 84% of managers, mostly in GW4, when projections are weakest, and a higher bar barely helped. So the card and `/api/chip-advice` were removed. You can still choose either chip, and the plans are built around it.
 
+**Questions about a plan (12 Nov 2026).** The plans page offers preset questions: "Why Van Hecke?", "What if I keep Thomas?", "What if I take a hit?". Each re-runs the optimizer with one change and compares the best plan before and after: `ban=` removes a player from the pool, `keep=` forbids selling an owned player anywhere in the plan (`Settings.keep`), and the hit question raises max hits by one. The answer sentences are templates filled with the solver's numbers; no LLM is involved.
+
 **Reported numbers.** A plan's xPts gain includes chip points, and each chip week shows the points the chip adds (`chip_xpts`), so "+27.1, of which Bench Boost +12.9" is visible. `validate()` checks the chip rules independently: chips available, each used once per half, no hits in Wildcard or Free Hit weeks, Free Hit affordability, and free transfers kept.
 
 **Speed.** Bench Boost and Triple Captain cost nothing extra, since they're decided after solving. A chosen Free Hit adds a one-week squad to the model: about 4 s against 3 s on a laptop.

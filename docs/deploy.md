@@ -85,6 +85,7 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 - `plan_detail_opened`, `reason_shown` / `reason_missing`, `open_fpl_transfers`, `feedback_sent`
 - `plan_shared` (share sheet or copy), `tips_dismissed`, `plan_opened` (a second or third plan opened)
 - `nav_tab` (bottom tab bar), `demo_started` / `demo_ended` (the sample team; set `NEXT_PUBLIC_DEMO_TEAM` and `NEXT_PUBLIC_DEMO_LEAGUE` in Vercel to change which team it shows), `fpl_signup_opened`
+- `plan_question` (kind: why, keep, hit or none), `week_loaded`
 - `league_invite_shared`, `invite_opened` (someone arrived by a league invite link, `/?league=…`; the league number is never sent)
 - `app_error`: crashes and failed requests (server errors, rate limits, bad requests, no connection), with the endpoint and message. Digits of 3+ are replaced by `:id`, and at most 20 are sent per visit. In PostHog, filter on this event to see what breaks.
 

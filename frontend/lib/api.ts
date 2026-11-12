@@ -1,5 +1,5 @@
 import { reportError, scrubUrl, track } from "./analytics";
-import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -121,6 +121,23 @@ export function getPlans(p: PlanParams): Promise<PlansResponse> {
   }
   return pending;
 }
+
+/** Plans with one thing changed, for questions about a plan: a player kept or ruled out. */
+export function askPlans(p: PlanParams, extra: { keep?: number[]; ban?: number[] } = {}): Promise<PlansResponse> {
+  let key = planQuery(p);
+  if (extra.keep?.length) key += `&keep=${extra.keep.join(",")}`;
+  if (extra.ban?.length) key += `&ban=${extra.ban.join(",")}`;
+  let pending = planCache.get(key);
+  if (!pending) {
+    pending = getJSON<PlansResponse>(`/api/plans?${key}`);
+    pending.catch(() => planCache.delete(key));
+    planCache.set(key, pending);
+  }
+  return pending;
+}
+
+export const getWeek = (team: number, league: number | null) =>
+  getJSON<WeekResponse>(`/api/week?team=${team}${league !== null ? `&league=${league}` : ""}`);
 
 // Claude-written reasons, one request per plan so each card fills in as soon as it's ready.
 // Failures resolve to "unavailable": a missing reason never breaks the page.

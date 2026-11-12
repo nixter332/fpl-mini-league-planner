@@ -405,3 +405,34 @@ test("sample team for visitors, new-to-FPL intro and the bottom tabs", async ({ 
   await expect(page.getByRole("heading", { name: /Beat your mini-league/ })).toBeVisible();
   await expect(page.getByTestId("recent-team")).toHaveCount(0);
 });
+
+test("ask about a plan, and the This week page", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(300_000);
+  await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
+  await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+  const ask = page.getByTestId("ask-plan");
+  const answer = page.getByTestId("ask-answer");
+
+  // No solve needed: the plan's own numbers.
+  await ask.getByRole("button", { name: "What if I make no transfers?" }).click();
+  await expect(answer).toContainText("against making no transfers");
+
+  // Each of these re-runs the optimizer with one thing changed.
+  await ask.getByRole("button", { name: /^Why / }).first().click();
+  await expect(answer).toContainText(/Without .+, the (best plan is|planner finds)/, { timeout: 120_000 });
+  await ask.getByRole("button", { name: /^What if I keep / }).first().click();
+  await expect(answer).toContainText(/Keeping .+, the (best plan is|planner finds)/, { timeout: 120_000 });
+  await ask.getByRole("button", { name: "What if I take a hit?" }).click();
+  await expect(answer).toContainText(/hit allowed/, { timeout: 120_000 });
+  await expect(answer).toContainText("not written by AI");
+  await shot(page, "33-plans-ask");
+
+  await page.getByTestId("app-nav").getByRole("link", { name: "This week" }).click();
+  await expect(page.getByRole("heading", { name: /This week · GW\d+/ })).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId("week-flags")).toBeVisible();
+  await expect(page.getByTestId("week-transfers")).toContainText("IN");
+  await expect(page.getByTestId("week-ticker").getByTestId("fixture-strip")).toHaveCount(20);
+  await expect(page.getByTestId("week-dream")).toContainText("pts");
+  await shot(page, "34-week");
+});

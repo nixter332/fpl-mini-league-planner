@@ -8,6 +8,7 @@ import { Why, useExplanation } from "@/components/Why";
 import { FeedbackLink, PlanFeedback } from "@/components/Feedback";
 import { Countdown } from "@/components/Countdown";
 import { SharePlan } from "@/components/SharePlan";
+import { AskPlan } from "@/components/AskPlan";
 import { PriceMove } from "@/components/PriceMove";
 import { track } from "@/lib/analytics";
 import { rememberNav } from "@/lib/nav";
@@ -209,7 +210,7 @@ function PlansScreen() {
         <>
           {current.plans.map((plan) =>
             plan.rank === openRank ? (
-              <PlanCard key={plan.rank} plan={plan} data={current} params={params} href={`/plans/${plan.rank}?${search.toString()}`} />
+              <PlanCard key={plan.rank} plan={plan} data={current} params={params} href={`/plans/${plan.rank}?${search.toString()}`} onAllowHits={(hits) => go({ hits })} />
             ) : (
               <PlanRow
                 key={plan.rank}
@@ -293,7 +294,7 @@ function PlanRow({ plan, data, onOpen }: { plan: Plan; data: PlansResponse; onOp
   );
 }
 
-function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansResponse; params: PlanParams; href: string }) {
+function PlanCard({ plan, data, params, href, onAllowHits }: { plan: Plan; data: PlansResponse; params: PlanParams; href: string; onAllowHits: (hits: number) => void }) {
   const explanation = useExplanation(params, plan.rank);
   const [details, setDetails] = useState(false);
   const first = plan.gameweeks[0];
@@ -362,6 +363,7 @@ function PlanCard({ plan, data, params, href }: { plan: Plan; data: PlansRespons
       </div>
 
       <Why explanation={explanation} />
+      <AskPlan plan={plan} data={data} params={params} onAllowHits={onAllowHits} />
 
       <button
         type="button"

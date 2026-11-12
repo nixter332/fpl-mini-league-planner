@@ -172,4 +172,20 @@ export interface WhatIfResponse {
   entry: number; gws: number[]; weeks: WhatIfWeek[]; xpts: number; no_transfers_xpts: number; xpts_gain: number;
   free_transfers_after: number; problems: { gw: number | null; message: string }[]; chips_left: ChipLeft[];
 }
+export interface WeekFlag { player: number; mine: boolean; rivals_owned: number; chance: number | null; news: string; yellow_cards: number; ban_at: number | null }
+export interface TickerRow { club: string; name: string; gws: { gw: number; fixture: string; difficulty: number[] }[]; avg_difficulty: number }
+export interface WeekResponse {
+  gw: number;
+  deadline: string;
+  last_gw: number | null;
+  n_rivals: number;
+  rivals_ready: boolean;
+  top_in: { player: number; count: number }[];
+  top_out: { player: number; count: number }[];
+  flags: WeekFlag[];
+  ticker: TickerRow[];
+  dream_team: { player: number; points: number; mine: boolean; rivals_owned: number }[];
+  players: Record<string, Player>;
+  clubs: Record<string, Club>;
+}
 export interface PlayersResponse { gws: number[]; players: Record<string, Player>; clubs: Record<string, Club> }
