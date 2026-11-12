@@ -10,6 +10,7 @@ import { Countdown } from "@/components/Countdown";
 import { SharePlan } from "@/components/SharePlan";
 import { PriceMove } from "@/components/PriceMove";
 import { track } from "@/lib/analytics";
+import { rememberNav } from "@/lib/nav";
 import { ApiError, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
 import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
 import type { ChipName, Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
@@ -44,6 +45,7 @@ function PlansScreen() {
       .then((d) => {
         if (!live) return;
         setLoaded({ key, data: d });
+        rememberNav({ team: params.team, league: d.standing?.league.id ?? params.league ?? 0, strategy: params.strategy });
         track("plans_loaded", {
           strategy: params.strategy, horizon: params.horizon, hits: params.hits, chips: params.chips,
           wildcard: params.wildcard !== null, freehit: params.freehit !== null, plans: d.plans.length,

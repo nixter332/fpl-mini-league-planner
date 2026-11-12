@@ -15,6 +15,7 @@ import { InstallHint } from "@/components/InstallHint";
 import { InviteLeague } from "@/components/InviteLeague";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
+import { isDemo, rememberNav } from "@/lib/nav";
 import { track } from "@/lib/analytics";
 import { FeedbackLink } from "@/components/Feedback";
 import { deadlineLabel, gwOf, money, ordinal, pts, signed } from "@/lib/format";
@@ -76,7 +77,9 @@ function TeamScreen() {
       .then(async (d) => {
         if (!live) return;
         setData(d);
-        saveRecentTeam({ entry, league: d.standing?.league.id ?? (league === 0 ? 0 : null), name: d.team_name });
+        // The sample team is never remembered as "your team".
+        if (!isDemo(entry)) saveRecentTeam({ entry, league: d.standing?.league.id ?? (league === 0 ? 0 : null), name: d.team_name });
+        rememberNav({ team: entry, league: d.standing?.league.id ?? 0, strategy: d.standing?.rank === 1 ? "protect" : "balanced" });
         const size = d.standing?.league.size ?? 0;
         track("team_loaded", { league_size: size === 0 ? "none" : size <= 5 ? "2-5" : size <= 20 ? "6-20" : size <= 50 ? "21-50" : "51+", rivals_ready: d.rivals?.ready ?? true });
         if (d.rivals && !d.rivals.ready) {
@@ -281,19 +284,7 @@ function TeamScreen() {
       >
         See transfer plans
       </Link>
-      <Link
-        href={whatIfHref()}
-        onClick={() => track("what_if_opened", { from: "team" })}
-        className="flex h-11 shrink-0 items-center justify-center rounded-xl border border-line bg-surface text-[14px] font-semibold no-underline"
-      >
-        Try your own transfers
-      </Link>
-      <div className="-mt-1 flex items-center justify-center gap-5">
-        <Link href={`/team/${entry}/drafts?league=${activeLeague}`} className="text-[13px] font-semibold no-underline" data-testid="drafts-link">
-          My drafts →
-        </Link>
-        {standing && <InviteLeague leagueId={standing.league.id} leagueName={standing.league.name} />}
-      </div>
+      {standing && <InviteLeague leagueId={standing.league.id} leagueName={standing.league.name} className="self-center" />}
       <div className="text-center text-xs text-text3">
         {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
       </div>

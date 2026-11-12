@@ -373,3 +373,35 @@ test("league invite link, and help finding your ID", async ({ page, context }) =
   await page.getByRole("button", { name: "That's me, continue" }).click();
   await expect(page).toHaveURL(new RegExp(`/team/${TEAM}\\?league=${LEAGUE}`));
 });
+
+test("sample team for visitors, new-to-FPL intro and the bottom tabs", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(240_000);
+  await page.goto("/");
+  await expect(page.getByTestId("app-nav")).toHaveCount(0); // no tabs before a team is open
+  await page.getByTestId("new-to-fpl").click();
+  await expect(page.getByTestId("fpl-intro")).toContainText("mini-league");
+  await shot(page, "31-main-new-to-fpl");
+  await page.getByRole("button", { name: "Try a sample team" }).click();
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+  await expect(page.getByTestId("demo-banner")).toBeVisible();
+  await shot(page, "32-team-demo-tabs");
+
+  // The tabs reach every section and keep the sample banner.
+  const nav = page.getByTestId("app-nav");
+  await nav.getByRole("link", { name: "Plans" }).click();
+  await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+  await expect(nav.getByRole("link", { name: "Plans" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("demo-banner")).toBeVisible();
+  await nav.getByRole("link", { name: "What-if" }).click();
+  await expect(page.getByTestId("whatif-total")).toBeVisible({ timeout: 120_000 });
+  await nav.getByRole("link", { name: "Drafts" }).click();
+  await expect(page.getByRole("heading", { name: "My drafts" })).toBeVisible();
+  await nav.getByRole("link", { name: "My team" }).click();
+  await expect(page.getByTestId("pitch-player")).toHaveCount(11);
+
+  // Leaving the sample: it was never saved as "your team".
+  await page.getByTestId("demo-banner").getByRole("link", { name: "Use my team →" }).click();
+  await expect(page.getByRole("heading", { name: /Beat your mini-league/ })).toBeVisible();
+  await expect(page.getByTestId("recent-team")).toHaveCount(0);
+});

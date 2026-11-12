@@ -7,6 +7,7 @@ import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
 import { ApiError, resolveInput } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { forgetRecentTeam, loadRecentTeam, type RecentTeam } from "@/lib/recent";
+import { DEMO_LEAGUE, DEMO_TEAM, endDemo, startDemo } from "@/lib/nav";
 import { SignInCard } from "@/components/SignIn";
 import { ordinal } from "@/lib/format";
 import type { ResolveResponse } from "@/lib/types";
@@ -23,6 +24,7 @@ export default function MainPage() {
   const [recent, setRecent] = useState<RecentTeam | null>(null);
   const [invited, setInvited] = useState(false); // arrived by a league invite link (/?league=123)
   const [help, setHelp] = useState(false);
+  const [newbie, setNewbie] = useState(false);
   useEffect(() => setRecent(loadRecentTeam()), []);
 
   // An invite link has the league in it: find it straight away, so a friend only taps their name.
@@ -46,6 +48,7 @@ export default function MainPage() {
   }
 
   async function lookup(text: string) {
+    endDemo();
     setBusy(true);
     setSlow(false);
     const timer = setTimeout(() => setSlow(true), 4000);
@@ -106,6 +109,7 @@ export default function MainPage() {
           <button
             type="button"
             onClick={() => {
+              endDemo();
               track("recent_team_opened");
               router.push(`/team/${recent.entry}${recent.league !== null ? `?league=${recent.league}` : ""}`);
             }}
@@ -144,6 +148,47 @@ export default function MainPage() {
           </div>
         )}
       </form>
+
+      {!invited && !league && !choice && (
+        <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4" data-testid="demo-card">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <div className="text-[13px] font-semibold">Just looking?</div>
+              <div className="text-[12.5px] leading-[1.4] text-text3">See the planner on a real team and mini-league.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                startDemo();
+                track("demo_started");
+                router.push(`/team/${DEMO_TEAM}?league=${DEMO_LEAGUE}`);
+              }}
+              className="h-10 shrink-0 rounded-[10px] border border-accent-line px-3.5 text-[13px] font-semibold text-link"
+            >
+              Try a sample team
+            </button>
+          </div>
+          <button type="button" aria-expanded={newbie} onClick={() => setNewbie((v) => !v)} className="self-start text-[12.5px] font-semibold text-link" data-testid="new-to-fpl">
+            {newbie ? "Hide" : "New to FPL?"}
+          </button>
+          {newbie && (
+            <div className="flex flex-col gap-1.5 rounded-[10px] bg-surface2 p-3 text-[12.5px] leading-[1.5] text-text2" data-testid="fpl-intro">
+              <div>
+                <b className="text-text">Fantasy Premier League (FPL)</b> is the Premier League&apos;s free fantasy football game. You pick 15 real
+                players within a £100m budget, and they score points for goals, assists and clean sheets in real matches.
+              </div>
+              <div>
+                Each week you can change a player or two, and you choose a captain who scores double. Most people play in a{" "}
+                <b className="text-text">mini-league</b> against friends or colleagues. This planner works out the moves that beat them.
+              </div>
+              <a href="https://fantasy.premierleague.com" target="_blank" rel="noopener noreferrer" onClick={() => track("fpl_signup_opened")} className="font-semibold">
+                Create a free FPL team →
+              </a>
+              <div className="text-text3">You can join at any point in the season. Once you have a team, come back and paste its link.</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {error && <ErrorBox message={error} />}
 

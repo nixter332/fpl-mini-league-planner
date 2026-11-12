@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
 import { Analytics } from "@/components/Analytics";
+import { Suspense } from "react";
+import { AppNav, DemoBanner } from "@/components/AppNav";
 import { AuthProvider } from "@/components/AuthProvider";
 import { authEnabled } from "@/lib/auth";
 import "./globals.css";
@@ -28,7 +30,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans antialiased">
         <Analytics />
         <AuthProvider enabled={authEnabled}>
-          <div className="mx-auto flex min-h-dvh w-full max-w-[440px] flex-col px-5 pb-6 pt-5">{children}</div>
+          <div className="mx-auto flex min-h-dvh w-full max-w-[440px] flex-col px-5 pb-6 pt-5">
+            <Suspense fallback={null}>
+              <DemoBanner />
+            </Suspense>
+            {children}
+            <Suspense fallback={null}>
+              <AppNav />
+            </Suspense>
+          </div>
         </AuthProvider>
       </body>
     </html>
