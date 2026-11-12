@@ -87,6 +87,20 @@ test("chips: chips left and playing your Free Hit", async ({ page }) => {
   await expect(page.getByTestId("chips-left")).toContainText("Free Hit");
   await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
   await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
+  // One plan is open; the others are one-line rows. Details and settings are folded away.
+  await expect(page.getByTestId("plan-card")).toHaveCount(1);
+  await expect(page.getByTestId("plan-details")).toHaveCount(0);
+  await page.getByTestId("plan-more").click();
+  await expect(page.getByTestId("plan-details")).toBeVisible();
+  const rows = page.getByTestId("plan-row");
+  if (await rows.count()) {
+    await rows.first().click();
+    await expect(page.getByTestId("plan-card")).toHaveCount(1);
+    await expect(page.getByTestId("plan-card")).toContainText("Plan 2");
+    await expect(page.getByTestId("plan-row").first()).toContainText("Plan 1");
+  }
+  await expect(page.getByTestId("chip-controls")).toHaveCount(0);
+  await page.getByTestId("plan-settings").click();
   await expect(page.getByTestId("chip-controls")).toBeVisible();
   await shot(page, "13-plans-chips");
   const freeHit = page.getByLabel("Free Hit", { exact: true });
