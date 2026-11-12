@@ -4,7 +4,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { FixtureStrip } from "@/components/FixtureStrip";
 import { PriceMove } from "@/components/PriceMove";
-import { BackLink, ErrorBox, Loading, ThemeToggle } from "@/components/ui";
+import { ErrorBox, Loading, ThemeToggle } from "@/components/ui";
 import { track } from "@/lib/analytics";
 import { ApiError, getAllPlayers } from "@/lib/api";
 import { money, pts } from "@/lib/format";
@@ -76,10 +76,9 @@ function CompareScreen() {
   return (
     <main className="flex flex-col gap-3.5">
       <div className="flex items-center justify-between">
-        <BackLink href={`/team/${entry}${lq ? `?${lq}` : ""}`} label="My team" />
+        <h1 className="m-0 font-display text-[26px] font-bold">Compare players</h1>
         <ThemeToggle />
       </div>
-      <h1 className="m-0 font-display text-[26px] font-bold">Compare players</h1>
 
       {chosen.length < MAX && (
         <div className="flex flex-col gap-2">

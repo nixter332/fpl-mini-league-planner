@@ -16,6 +16,7 @@ import { InviteLeague } from "@/components/InviteLeague";
 import { AddToCalendar } from "@/components/AddToCalendar";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
+import { TeamSkeleton } from "@/components/Skeleton";
 import { isDemo, rememberNav } from "@/lib/nav";
 import { track } from "@/lib/analytics";
 import { FeedbackLink } from "@/components/Feedback";
@@ -122,7 +123,7 @@ function TeamScreen() {
   const order = useMemo(() => Object.fromEntries((data?.squad ?? []).map((pid, i) => [pid, i])), [data]);
 
   if (error) return <ErrorBox message={error} action={<Link href="/">Try another team</Link>} />;
-  if (!data) return <Loading message="Loading your team and your rivals…" />;
+  if (!data) return <TeamSkeleton />;
 
   const gw = data.gameweeks[gwIndex];
   const lineup = data.lineups[gwIndex];
@@ -247,6 +248,9 @@ function TeamScreen() {
           tone={lineup.edge === null ? undefined : lineup.edge >= 0 ? "good" : "bad"}
         />
       </div>
+      <div className="-mt-1 text-center text-xs text-text3" data-testid="team-budget">
+        {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
+      </div>
 
       <div className="flex items-center justify-between gap-2">
         <div className="text-xs text-text3">{gwIndex === 0 ? gw.name : deadlineLabel(gw.name, gw.deadline, gwIndex)}</div>
@@ -289,20 +293,24 @@ function TeamScreen() {
         {standing && <InviteLeague leagueId={standing.league.id} leagueName={standing.league.name} />}
         <AddToCalendar deadlines={data.gameweeks.map((g) => ({ gw: g.id, deadline: g.deadline }))} />
       </div>
-      <div className="text-center text-xs text-text3">
-        {data.free_transfers} free transfer{data.free_transfers === 1 ? "" : "s"} · £{(data.bank / 10).toFixed(1)}m in the bank
-      </div>
-      {data.chips_left.length > 0 && (
-        <div className="text-center text-xs text-text3" data-testid="chips-left">
-          Chips left:{" "}
-          {Object.entries(
-            data.chips_left.reduce<Record<number, string[]>>((acc, c) => ({ ...acc, [c.stop]: [...(acc[c.stop] ?? []), c.label] }), {}),
-          )
-            .map(([stop, labels]) => `${labels.join(", ")} (until GW${stop})`)
-            .join("; ")}
+      <details className="group text-center" data-testid="team-details">
+        <summary className="cursor-pointer list-none text-xs font-semibold text-text3 [&::-webkit-details-marker]:hidden">
+          Chips and data notes <span className="inline-block transition-transform group-open:rotate-180">▾</span>
+        </summary>
+        <div className="mt-2 flex flex-col gap-2">
+          {data.chips_left.length > 0 && (
+            <div className="text-center text-xs text-text3" data-testid="chips-left">
+              Chips left:{" "}
+              {Object.entries(
+                data.chips_left.reduce<Record<number, string[]>>((acc, c) => ({ ...acc, [c.stop]: [...(acc[c.stop] ?? []), c.label] }), {}),
+              )
+                .map(([stop, labels]) => `${labels.join(", ")} (until GW${stop})`)
+                .join("; ")}
+            </div>
+          )}
+          <Facts facts={data.facts} />
         </div>
-      )}
-      <Facts facts={data.facts} />
+      </details>
       <FeedbackLink context={{ page: "team", gw: gw.id }} />
       {selected !== null && data.players[selected] && (
         <PlayerSheet

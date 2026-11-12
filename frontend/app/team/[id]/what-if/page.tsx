@@ -7,7 +7,8 @@ import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { Sheet } from "@/components/Sheet";
 import { FixtureStrip } from "@/components/FixtureStrip";
 import { PriceMove } from "@/components/PriceMove";
-import { BackLink, ErrorBox, Loading, ThemeToggle, Tile } from "@/components/ui";
+import { ErrorBox, Loading, ThemeToggle, Tile } from "@/components/ui";
+import { TeamSkeleton } from "@/components/Skeleton";
 import { track } from "@/lib/analytics";
 import { ApiError, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
 import { getDraft, listDrafts, saveDraft, suggestName, type Draft } from "@/lib/drafts";
@@ -113,7 +114,7 @@ function WhatIf() {
   };
 
   if (error && !data) return <ErrorBox message={error} action={<Link href={`/team/${entry}`}>Back to your team</Link>} />;
-  if (!data || !all) return <Loading message="Loading your team…" />;
+  if (!data || !all) return <TeamSkeleton />;
 
   const week = data.weeks[Math.min(gwIndex, data.weeks.length - 1)];
   const player = (pid: number): Player | undefined => all.players[pid];
@@ -160,13 +161,12 @@ function WhatIf() {
 
   return (
     <main className="flex flex-col gap-3">
-      <div className="flex items-center justify-between">
-        <BackLink href={`/team/${entry}${league !== null ? `?league=${league}` : ""}`} label="My team" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="m-0 font-display text-[24px] font-bold">What-if{draft ? `: ${draft.name}` : ""}</h1>
+          <div className="text-[13px] text-text2">Tap a player to transfer him, bench him or make him captain. Points update as you go.</div>
+        </div>
         <ThemeToggle />
-      </div>
-      <div className="flex flex-col gap-1">
-        <h1 className="m-0 font-display text-[24px] font-bold">What-if{draft ? `: ${draft.name}` : ""}</h1>
-        <div className="text-[13px] text-text2">Tap a player to transfer him, bench him or make him captain. Points update as you go.</div>
       </div>
 
       {error && <ErrorBox message={`${error} The numbers below are from before your last change.`} />}

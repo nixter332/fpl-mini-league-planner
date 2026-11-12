@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { BackLink, ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
+import { ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
 import { FeedbackLink, PlanFeedback } from "@/components/Feedback";
 import { Countdown } from "@/components/Countdown";
 import { SharePlan } from "@/components/SharePlan";
 import { AskPlan } from "@/components/AskPlan";
+import { PlayerTap, usePlayerInfo } from "@/components/PlayerInfo";
+import { CardsSkeleton } from "@/components/Skeleton";
 import { PriceMove } from "@/components/PriceMove";
 import { track } from "@/lib/analytics";
 import { rememberNav } from "@/lib/nav";
 import { ApiError, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
 import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
-import type { ChipName, Plan, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
+import type { ChipName, Plan, Player, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
 
 export default function PlansPage() {
   return (
@@ -35,6 +37,7 @@ function PlansScreen() {
   const [open, setOpen] = useState(1); // the plan shown in full; the others are one-line rows
   const [showSettings, setShowSettings] = useState(false);
   const data = loaded?.data ?? null;
+  const info = usePlayerInfo(data?.standing?.n_rivals ?? 0, `/team/${params.team}/compare?${params.league !== null ? `league=${params.league}&` : ""}p=`);
 
   useEffect(() => {
     let live = true;
@@ -67,7 +70,6 @@ function PlansScreen() {
     router.replace(`/plans?${pageQuery({ ...params, ...patch })}`);
   };
 
-  const teamHref = `/team/${params.team}${params.league !== null ? `?league=${params.league}` : ""}`;
   const current = loaded?.key === key ? loaded.data : null;
   // Chip choices: only chips you still have, in GWs of this plan.
   const gws = data?.gws ?? [];
@@ -89,18 +91,16 @@ function PlansScreen() {
 
   return (
     <main className="flex flex-col gap-3.5">
-      <div className="flex items-center justify-between">
-        <BackLink href={teamHref} label="My team" />
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h1 className="m-0 font-display text-[26px] font-bold">Transfer plans{current ? ` · GW${current.gws[0]}` : ""}</h1>
+          {current && (
+            <div className="text-[13px] text-text2">
+              {current.free_transfers} free transfer{plural(current.free_transfers)} · {money(current.bank)} in the bank
+            </div>
+          )}
+        </div>
         <ThemeToggle />
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <h1 className="m-0 font-display text-[26px] font-bold">Transfer plans{current ? ` · GW${current.gws[0]}` : ""}</h1>
-        {current && (
-          <div className="text-[13px] text-text2">
-            {current.free_transfers} free transfer{plural(current.free_transfers)} · {money(current.bank)} in the bank
-          </div>
-        )}
       </div>
       {current?.deadline && <Countdown gw={current.gws[0]} deadline={current.deadline} />}
 
@@ -197,7 +197,8 @@ function PlansScreen() {
 
       {error && <ErrorBox message={error} />}
       {!current && !error && (
-        <Loading
+        <CardsSkeleton
+          rows={3}
           message={
             rivals && !rivals.ready
               ? `Loading your rivals' teams: ${rivals.loaded} of ${rivals.total}…`
@@ -210,7 +211,7 @@ function PlansScreen() {
         <>
           {current.plans.map((plan) =>
             plan.rank === openRank ? (
-              <PlanCard key={plan.rank} plan={plan} data={current} params={params} href={`/plans/${plan.rank}?${search.toString()}`} onAllowHits={(hits) => go({ hits })} />
+              <PlanCard key={plan.rank} plan={plan} data={current} params={params} href={`/plans/${plan.rank}?${search.toString()}`} onAllowHits={(hits) => go({ hits })} onPlayer={info.open} />
             ) : (
               <PlanRow
                 key={plan.rank}
@@ -228,6 +229,7 @@ function PlansScreen() {
           <FeedbackLink context={{ page: "plans", strategy: current.strategy, horizon: current.horizon, gw: current.gws[0] }} />
         </>
       )}
+      {info.sheet}
     </main>
   );
 }
@@ -294,7 +296,7 @@ function PlanRow({ plan, data, onOpen }: { plan: Plan; data: PlansResponse; onOp
   );
 }
 
-function PlanCard({ plan, data, params, href, onAllowHits }: { plan: Plan; data: PlansResponse; params: PlanParams; href: string; onAllowHits: (hits: number) => void }) {
+function PlanCard({ plan, data, params, href, onAllowHits, onPlayer }: { plan: Plan; data: PlansResponse; params: PlanParams; href: string; onAllowHits: (hits: number) => void; onPlayer: (p: Player) => void }) {
   const explanation = useExplanation(params, plan.rank);
   const [details, setDetails] = useState(false);
   const first = plan.gameweeks[0];
@@ -336,13 +338,13 @@ function PlanCard({ plan, data, params, href, onAllowHits }: { plan: Plan; data:
             <div key={m.player_out} className="grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-center gap-1 rounded-[10px] bg-surface2 px-2.5 py-2">
               <div className="flex min-w-0 flex-col gap-px">
                 <div className="text-[11px] font-semibold text-out">OUT</div>
-                <div className="truncate text-sm font-semibold">{name(m.player_out)}<PriceMove change={data.players[m.player_out]?.price_change} /></div>
+                <div className="truncate text-sm font-semibold"><PlayerTap player={data.players[m.player_out]} onOpen={onPlayer} className="font-semibold" /><PriceMove change={data.players[m.player_out]?.price_change} /></div>
                 <div className="truncate text-[11.5px] text-text3">{meta(m.player_out, m.out_price)}</div>
               </div>
               <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 5l5 5-5 5" fill="none" stroke="var(--text3)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
               <div className="flex min-w-0 flex-col gap-px">
                 <div className="text-[11px] font-semibold text-good">IN</div>
-                <div className="truncate text-sm font-semibold">{name(m.player_in)}<PriceMove change={data.players[m.player_in]?.price_change} /></div>
+                <div className="truncate text-sm font-semibold"><PlayerTap player={data.players[m.player_in]} onOpen={onPlayer} className="font-semibold" /><PriceMove change={data.players[m.player_in]?.price_change} /></div>
                 <div className="truncate text-[11.5px] text-text3">{meta(m.player_in, m.in_price)}</div>
               </div>
             </div>

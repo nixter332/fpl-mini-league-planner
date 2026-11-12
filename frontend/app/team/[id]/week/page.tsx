@@ -5,6 +5,8 @@ import { Suspense, useEffect, useState } from "react";
 import { Countdown } from "@/components/Countdown";
 import { FixtureStrip } from "@/components/FixtureStrip";
 import { ErrorBox, Loading, ThemeToggle } from "@/components/ui";
+import { PlayerTap, usePlayerInfo } from "@/components/PlayerInfo";
+import { CardsSkeleton } from "@/components/Skeleton";
 import { track } from "@/lib/analytics";
 import Link from "next/link";
 import { ApiError, getReview, getWeek } from "@/lib/api";
@@ -30,6 +32,7 @@ function WeekScreen() {
   const [data, setData] = useState<WeekResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<ReviewResponse | null>(null);
+  const info = usePlayerInfo(data?.n_rivals ?? 0, `/team/${entry}/compare?${league !== null ? `league=${league}&` : ""}p=`);
 
   useEffect(() => {
     let live = true;
@@ -50,7 +53,7 @@ function WeekScreen() {
   }, [entry, league]);
 
   if (error) return <ErrorBox message={error} />;
-  if (!data) return <Loading message="Loading this week…" />;
+  if (!data) return <CardsSkeleton rows={4} message="Loading this week…" />;
 
   const p = (pid: number): Player => data.players[pid];
   const n = data.n_rivals;
@@ -74,7 +77,7 @@ function WeekScreen() {
               <div className="flex min-w-0 flex-col">
                 <span className="truncate text-[13.5px] font-semibold">
                   {p(c.player).doubtful ? "! " : ""}
-                  {p(c.player).name}
+                  <PlayerTap player={p(c.player)} onOpen={info.open} className="font-semibold" />
                   {i === 0 && <span className="ml-1.5 rounded-full bg-cap-bg px-2 py-0.5 text-[10.5px] font-semibold text-why-label">Top pick</span>}
                 </span>
                 <span className="truncate text-[11.5px] text-text3">
@@ -102,13 +105,13 @@ function WeekScreen() {
         {mine.length === 0 ? (
           <div className="text-[13px] text-text2">Nobody in your squad is flagged.</div>
         ) : (
-          mine.map((f) => <FlagRow key={f.player} flag={f} player={p(f.player)} note={n && f.rivals_owned ? `${f.rivals_owned}/${n} rivals also own him` : ""} />)
+          mine.map((f) => <FlagRow key={f.player} flag={f} player={p(f.player)} onOpen={info.open} note={n && f.rivals_owned ? `${f.rivals_owned}/${n} rivals also own him` : ""} />)
         )}
         {theirs.length > 0 && (
           <>
             <div className="mt-1 text-xs font-semibold text-text3">YOUR RIVALS&apos; PLAYERS</div>
             {theirs.map((f) => (
-              <FlagRow key={f.player} flag={f} player={p(f.player)} note={`${f.rivals_owned}/${n} rivals own him`} />
+              <FlagRow key={f.player} flag={f} player={p(f.player)} onOpen={info.open} note={`${f.rivals_owned}/${n} rivals own him`} />
             ))}
           </>
         )}
@@ -123,7 +126,7 @@ function WeekScreen() {
               {list.map((m) => (
                 <div key={m.player} className="flex min-w-0 flex-col">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate text-[13px] font-semibold">{p(m.player).name}</span>
+                    <PlayerTap player={p(m.player)} onOpen={info.open} className="truncate text-[13px] font-semibold" />
                     <span className="shrink-0 text-xs text-text2">{compact(m.count)}</span>
                   </div>
                   <span className="truncate text-[11.5px] text-text3">
@@ -161,7 +164,7 @@ function WeekScreen() {
           {data.dream_team.map((d) => (
             <div key={d.player} className="flex items-baseline justify-between gap-2 text-[13px]">
               <span className="min-w-0 truncate">
-                <span className="text-text3">{p(d.player).position}</span> <span className="font-semibold">{p(d.player).name}</span>{" "}
+                <span className="text-text3">{p(d.player).position}</span> <PlayerTap player={p(d.player)} onOpen={info.open} className="font-semibold" />{" "}
                 <span className="text-[11.5px] text-text3">
                   {p(d.player).club}
                   {owned(d.player, d.mine) ? ` · ${owned(d.player, d.mine)}` : ""}
@@ -173,6 +176,7 @@ function WeekScreen() {
         </Card>
       )}
       <div className="text-center text-xs text-text3">From FPL&apos;s public data. Transfer counts are for the whole game, not your league.</div>
+      {info.sheet}
     </main>
   );
 }
@@ -189,13 +193,13 @@ function Card({ title, sub, testid, children }: { title: string; sub?: string; t
   );
 }
 
-function FlagRow({ flag, player, note }: { flag: WeekFlag; player: Player; note: string }) {
+function FlagRow({ flag, player, note, onOpen }: { flag: WeekFlag; player: Player; note: string; onOpen: (p: Player) => void }) {
   const out = flag.chance === 0;
   return (
     <div className="flex flex-col gap-0.5 border-t border-line pt-2 first:border-t-0 first:pt-0">
       <div className="flex items-baseline justify-between gap-2">
         <span className="truncate text-[13.5px] font-semibold">
-          {player.name} <span className="text-[11.5px] font-normal text-text3">{player.club} · {player.position}</span>
+          <PlayerTap player={player} onOpen={onOpen} className="font-semibold" /> <span className="text-[11.5px] font-normal text-text3">{player.club} · {player.position}</span>
         </span>
         {flag.chance !== null && <span className={`shrink-0 text-xs font-semibold ${out ? "text-bad" : "text-warn-text"}`}>{out ? "Out" : `${flag.chance}% to play`}</span>}
       </div>

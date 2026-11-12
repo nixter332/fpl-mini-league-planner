@@ -69,7 +69,7 @@ function Drafts() {
   return (
     <main className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
-        <BackLink href={`/team/${entry}${league !== null ? `?league=${league}` : ""}`} label="My team" />
+        <BackLink href={`/team/${entry}/what-if${league !== null ? `?league=${league}` : ""}`} label="What-if" />
         <ThemeToggle />
       </div>
       <div className="flex flex-col gap-1">

@@ -7,6 +7,7 @@ import { BackLink, ErrorBox, Loading, Segmented, ThemeToggle } from "@/component
 import { Why, useExplanation } from "@/components/Why";
 import { PlanFeedback } from "@/components/Feedback";
 import { SharePlan } from "@/components/SharePlan";
+import { usePlayerInfo } from "@/components/PlayerInfo";
 import { track } from "@/lib/analytics";
 import { ApiError, getPlans, readPlanParams } from "@/lib/api";
 import { CHIP_LABELS, gwOf, pts, strategyLabel } from "@/lib/format";
@@ -28,6 +29,7 @@ function PlanDetail() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<"before" | "after">("after");
   const explanation = useExplanation(params, Number(rank));
+  const info = usePlayerInfo(data?.standing?.n_rivals ?? 0, `/team/${params.team}/compare?${params.league !== null ? `league=${params.league}&` : ""}p=`);
 
   useEffect(() => {
     getPlans(params)
@@ -80,6 +82,7 @@ function PlanDetail() {
       doubtful: p.doubtful,
       news: p.news,
       kit: kitFor(p, data.clubs),
+      onSelect: () => info.open(p),
     };
   };
 
@@ -208,6 +211,7 @@ function PlanDetail() {
       <div className="-mt-1.5 text-center text-xs text-text3">We can&apos;t make transfers for you.</div>
       <SharePlan plan={plan} data={data} className="flex h-11 items-center justify-center rounded-xl border border-line bg-surface" />
       <PlanFeedback context={{ page: "plan", strategy: data.strategy, horizon: data.horizon, rank: plan.rank, gw: first.gw }} />
+      {info.sheet}
     </main>
   );
 }

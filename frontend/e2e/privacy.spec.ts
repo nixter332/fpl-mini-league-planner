@@ -35,6 +35,14 @@ ${text}`);
   await expect(page.getByTestId("pitch-player").first()).toBeVisible({ timeout: 120_000 });
   await page.goto("/plans?team=5179483&league=1883627&strategy=protect&horizon=4&hits=0");
   await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+  // The newer screens and their events: a plan question, rivals, this week, an invite link.
+  await page.getByTestId("ask-plan").getByRole("button", { name: "What if I make no transfers?" }).click();
+  await page.goto("/team/5179483/rivals?league=1883627");
+  await expect(page.getByTestId("rival-row").first()).toBeVisible({ timeout: 120_000 });
+  await page.goto("/team/5179483/week?league=1883627");
+  await expect(page.getByTestId("week-flags")).toBeVisible({ timeout: 120_000 });
+  await page.goto("/?league=1883627");
+  await expect(page.getByTestId("league-members")).toBeVisible({ timeout: 120_000 });
   // A failed request whose address holds both IDs: the error report must arrive without them.
   await page.route(/\/api\/analysis/, (route) => route.fulfill({ status: 500, contentType: "application/json", body: '{"detail":"Boom for team 5179483 in league 1883627"}' }));
   await page.goto("/team/5179483?league=1883627");
@@ -51,5 +59,6 @@ ${text}`);
   expect(all).toContain("/team/:id");
   expect(all).toContain('"app":"fpl-mini-league-planner"');
   expect(all).toContain('"event":"app_error"');
+  for (const event of ["plan_question", "rivals_loaded", "week_loaded", "invite_opened"]) expect(all).toContain(`"event":"${event}"`);
   expect(all).toContain("/api/analysis"); // the endpoint is reported, its query (with the IDs) is not
 });

@@ -84,6 +84,9 @@ test("chips: chips left and playing your Free Hit", async ({ page }) => {
   test.skip(claudeOnly);
   test.setTimeout(240_000);
   await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+  await expect(page.getByTestId("team-budget")).toContainText("free transfer"); // next to the tiles now
+  await expect(page.getByTestId("chips-left")).not.toBeVisible(); // folded away
+  await page.getByTestId("team-details").locator("summary").click();
   await expect(page.getByTestId("chips-left")).toContainText("Free Hit");
   await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
   await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
@@ -412,6 +415,13 @@ test("ask about a plan, and the This week page", async ({ page }) => {
   test.setTimeout(300_000);
   await page.goto(`/plans?team=${TEAM}&league=${LEAGUE}&strategy=protect&horizon=4&hits=0`);
   await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+  // A player's name anywhere opens his fixtures and numbers.
+  await page.getByTestId("plan-card").getByTestId("player-tap").first().click();
+  const sheet = page.getByTestId("sheet");
+  await expect(sheet.getByTestId("fixture-strip")).toBeVisible();
+  await expect(sheet).toContainText("Compare with another player");
+  await sheet.getByRole("button", { name: "Close" }).click();
+  await expect(sheet).toHaveCount(0);
   const ask = page.getByTestId("ask-plan");
   const answer = page.getByTestId("ask-answer");
 
@@ -462,6 +472,9 @@ test("rivals table, captain options, review, compare and calendar", async ({ pag
   await expect(rivalRows.first()).toContainText("proj");
   await rivalRows.filter({ hasNotText: "(you)" }).first().click();
   await expect(page.getByTestId("rival-details")).toContainText("They have, you don't");
+  await page.getByTestId("rival-details").getByTestId("player-tap").first().click();
+  await expect(page.getByTestId("sheet").getByTestId("fixture-strip")).toBeVisible();
+  await page.getByTestId("sheet").getByRole("button", { name: "Close" }).click();
   await shot(page, "35-rivals");
 
   // This week: captain options and the review card.

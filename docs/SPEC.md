@@ -108,6 +108,15 @@ The backend sends the Claude API a structured summary of each plan (players in/o
    - Stored on the device first, then on the server once phase 6 adds storage.
    - Gate: create, edit, compare and delete drafts on a phone.
 
+**Built from the first friends' feedback (10–12 Nov 2026, phase 6).** The phase 5 gate passed: 4 or 5 friends used it before the GW11 deadline.
+- Getting in: league invite links (`/?league=<id>`), help finding a link or ID, a sample team for visitors, a "New to FPL?" intro.
+- Navigation: a bottom tab bar (My team, Plans, What-if, Rivals, This week); drafts sit under What-if.
+- Plans page: one plan open at a time, settings and details folded; preset questions about a plan answered by re-running the optimizer (no LLM).
+- Rivals tab: projected league table and what separates you from each rival.
+- This week tab: captain options, last gameweek's review, injuries and suspensions, top transfers, fixture ticker, team of the week.
+- Also: compare players, deadline calendar file, fixture strips, price changes, deadline countdown, share a plan, home-screen app, error reports.
+- Decided against: Google sign-in to fetch leagues (needs an FPL login), price-rise predictions, live points, a free-text chatbot.
+
 *Phases 7–9 added 9 Nov 2026 from Nikhil's review. Also suggested:*
 - a 5-week fixture-difficulty strip under each player
 - a "before the deadline" screen with this week's 3 actions (transfer, captain, chip) and a countdown
