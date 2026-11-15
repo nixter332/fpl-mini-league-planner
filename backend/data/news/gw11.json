@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-14T17:59:03.773257+00:00",
+"captured_at": "2026-11-15T15:38:54.207183+00:00",
 "deadline": "2026-11-21T11:00:00+00:00",
 "gw": 11,
 "players": {
@@ -1719,11 +1719,11 @@
 "status": "u"
 },
 "32": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 0,
-"news": "",
-"news_added": "2026-10-31T22:00:07.593621+00:00",
-"status": "a"
+"news": "Concussion - 75% chance of playing",
+"news_added": "2026-11-15T10:30:05.648897+00:00",
+"status": "d"
 },
 "320": {
 "chance_of_playing_next_round": null,
