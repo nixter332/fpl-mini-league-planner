@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-15T15:38:54.207183+00:00",
+"captured_at": "2026-11-15T21:02:04.062664+00:00",
 "deadline": "2026-11-21T11:00:00+00:00",
 "gw": 11,
 "players": {
@@ -3567,11 +3567,11 @@
 "status": "a"
 },
 "558": {
-"chance_of_playing_next_round": null,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": null,
-"news": "",
-"news_added": null,
-"status": "a"
+"news": "Thigh injury - 75% chance of playing",
+"news_added": "2026-11-15T17:00:06.045512+00:00",
+"status": "d"
 },
 "559": {
 "chance_of_playing_next_round": null,
