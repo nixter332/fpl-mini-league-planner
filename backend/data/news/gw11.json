@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-15T21:02:04.062664+00:00",
+"captured_at": "2026-11-17T02:55:06.556998+00:00",
 "deadline": "2026-11-21T11:00:00+00:00",
 "gw": 11,
 "players": {
@@ -704,11 +704,11 @@
 "status": "a"
 },
 "19": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 100,
-"news": "",
-"news_added": "2026-10-12T15:00:07.563478+00:00",
-"status": "a"
+"news": "Hamstring injury - 75% chance of playing",
+"news_added": "2026-11-16T19:00:05.154377+00:00",
+"status": "d"
 },
 "190": {
 "chance_of_playing_next_round": null,
@@ -2874,11 +2874,11 @@
 "status": "a"
 },
 "469": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 100,
-"news": "",
-"news_added": "2026-10-24T00:00:10.181593+00:00",
-"status": "a"
+"news": "Ankle injury - 75% chance of playing",
+"news_added": "2026-11-16T19:00:05.480350+00:00",
+"status": "d"
 },
 "47": {
 "chance_of_playing_next_round": 100,
@@ -3784,11 +3784,11 @@
 "status": "a"
 },
 "586": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 100,
-"news": "",
-"news_added": "2026-10-16T12:30:09.976274+00:00",
-"status": "a"
+"news": "Knee injury - 75% chance of playing",
+"news_added": "2026-11-16T19:00:05.574151+00:00",
+"status": "d"
 },
 "587": {
 "chance_of_playing_next_round": null,
@@ -4589,11 +4589,11 @@
 "status": "a"
 },
 "84": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 100,
-"news": "",
-"news_added": "2026-09-05T18:00:06.182495+00:00",
-"status": "a"
+"news": "Knee injury - 75% chance of playing",
+"news_added": "2026-11-16T19:00:05.204970+00:00",
+"status": "d"
 },
 "85": {
 "chance_of_playing_next_round": 100,
