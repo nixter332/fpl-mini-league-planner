@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-17T13:22:21.422834+00:00",
+"captured_at": "2026-11-19T23:02:39.364751+00:00",
 "deadline": "2026-11-21T11:00:00+00:00",
 "gw": 11,
 "players": {
@@ -46,9 +46,9 @@
 "status": "d"
 },
 "104": {
-"chance_of_playing_next_round": 50,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 50,
-"news": "Groin injury - 50% chance of playing",
+"news": "Groin injury - 75% chance of playing",
 "news_added": "2026-11-05T09:00:09.236330+00:00",
 "status": "d"
 },
@@ -466,11 +466,11 @@
 "status": "i"
 },
 "159": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 75,
-"news": "",
-"news_added": "2026-11-06T15:30:09.180442+00:00",
-"status": "a"
+"news": "Unspecified injury - 75% chance of playing",
+"news_added": "2026-11-19T20:30:06.307481+00:00",
+"status": "d"
 },
 "16": {
 "chance_of_playing_next_round": 100,
@@ -578,9 +578,9 @@
 "status": "a"
 },
 "173": {
-"chance_of_playing_next_round": 50,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 50,
-"news": "Calf injury - 50% chance of playing",
+"news": "Calf injury - 75% chance of playing",
 "news_added": "2026-10-24T17:00:09.115906+00:00",
 "status": "d"
 },
@@ -676,11 +676,11 @@
 "status": "a"
 },
 "186": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 100,
-"news": "",
-"news_added": "2026-08-19T18:00:08.310507+00:00",
-"status": "a"
+"news": "Knee injury - 75% chance of playing",
+"news_added": "2026-11-19T19:00:05.701445+00:00",
+"status": "d"
 },
 "187": {
 "chance_of_playing_next_round": 0,
@@ -734,7 +734,7 @@
 "193": {
 "chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": 0,
-"news": "Thigh injury - Unknown return date",
+"news": "Lack of match fitness - Unknown return date",
 "news_added": "2026-08-14T22:00:07.214508+00:00",
 "status": "i"
 },
@@ -1810,11 +1810,11 @@
 "status": "a"
 },
 "331": {
-"chance_of_playing_next_round": 75,
+"chance_of_playing_next_round": 100,
 "chance_of_playing_this_round": 100,
-"news": "Hamstring injury - 75% chance of playing",
+"news": "",
 "news_added": "2026-11-08T12:30:09.622622+00:00",
-"status": "d"
+"status": "a"
 },
 "332": {
 "chance_of_playing_next_round": null,
@@ -1838,11 +1838,11 @@
 "status": "a"
 },
 "335": {
-"chance_of_playing_next_round": 50,
+"chance_of_playing_next_round": 100,
 "chance_of_playing_this_round": 50,
-"news": "Foot injury - 50% chance of playing",
+"news": "",
 "news_added": "2026-11-05T18:30:07.925529+00:00",
-"status": "d"
+"status": "a"
 },
 "336": {
 "chance_of_playing_next_round": 100,
@@ -2979,11 +2979,11 @@
 "status": "a"
 },
 "482": {
-"chance_of_playing_next_round": 100,
+"chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": 100,
-"news": "",
-"news_added": "2026-07-23T12:01:23.832709+00:00",
-"status": "a"
+"news": "Unspecified injury - Unknown return date",
+"news_added": "2026-11-19T15:30:05.816247+00:00",
+"status": "i"
 },
 "483": {
 "chance_of_playing_next_round": 100,
@@ -3462,11 +3462,11 @@
 "status": "i"
 },
 "544": {
-"chance_of_playing_next_round": 75,
+"chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": null,
-"news": "Calf injury - 75% chance of playing",
+"news": "Calf injury - Unknown return date",
 "news_added": "2026-11-08T14:30:09.504002+00:00",
-"status": "d"
+"status": "i"
 },
 "545": {
 "chance_of_playing_next_round": null,
@@ -3525,11 +3525,11 @@
 "status": "a"
 },
 "552": {
-"chance_of_playing_next_round": 75,
+"chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": 100,
-"news": "Muscular injury - 75% chance of playing",
+"news": "Muscular injury - Unknown return date",
 "news_added": "2026-11-10T11:30:10.818854+00:00",
-"status": "d"
+"status": "i"
 },
 "553": {
 "chance_of_playing_next_round": 100,
@@ -3700,11 +3700,11 @@
 "status": "a"
 },
 "575": {
-"chance_of_playing_next_round": null,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": null,
-"news": "",
-"news_added": null,
-"status": "a"
+"news": "Unspecified injury - 75% chance of playing",
+"news_added": "2026-11-19T19:00:05.972580+00:00",
+"status": "d"
 },
 "576": {
 "chance_of_playing_next_round": null,
