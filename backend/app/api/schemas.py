@@ -220,12 +220,25 @@ class ExplainResponse(BaseModel):
 # ---- chip planner (phase 7) ------------------------------------------------------------------
 
 
+class ChipSquad(BaseModel):
+    """A squad for one week, laid out the way the planner would pick it."""
+
+    starting: list[int]
+    bench: list[int]  # in FPL order: backup keeper first
+    captain: int
+    vice: int
+    xpts: float  # XI + captain (a Bench Boost adds the bench on top)
+    cost: int | None = None  # Free Hit: what the squad costs (your players at their selling price)
+    budget: int | None = None  # Free Hit: your squad's selling value plus the bank
+
+
 class ChipWeekOut(BaseModel):
     gw: int
     xpts: float  # what the chip is projected to add that week
     players: list[int]  # Bench Boost: the bench; Triple Captain: the captain; Free Hit: players in
     blanks: list[str] = []  # clubs (short names) with no match that week
     doubles: list[str] = []  # clubs with two
+    squad: ChipSquad | None = None  # Free Hit: its one-week squad; Bench Boost / Triple Captain: your squad now
 
 
 class ChipOutlookOut(BaseModel):
@@ -254,6 +267,27 @@ class ChipsResponse(BaseModel):
     players: dict[int, Player]
     clubs: dict[str, Club]
     facts: list[str]
+
+
+class ChipWeekMoves(BaseModel):
+    gw: int
+    moves: list[Move]
+    hits: int
+
+
+class BenchBuildResponse(BaseModel):
+    """A Bench Boost in `gw` with the bench built for it: Plan 1 with that week chosen."""
+
+    gw: int
+    strategy: Literal["protect", "balanced", "risky"]
+    horizon: int
+    weeks: list[ChipWeekMoves]  # transfers from now up to the boost week
+    squad: ChipSquad  # the 15 in the boost week
+    boost_xpts: float  # what the boost adds with this squad
+    boost_now_xpts: float  # what it would add with the squad you have now
+    plan_gain: float  # the plan's expected points gained over its horizon vs no transfers, boost included
+    players: dict[int, Player]
+    clubs: dict[str, Club]
 
 
 class ChipExplainResponse(BaseModel):

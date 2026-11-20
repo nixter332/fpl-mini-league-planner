@@ -300,6 +300,21 @@ def chips(
     return svc.chips(team, league)
 
 
+@app.get("/api/chips/bench", response_model=s.BenchBuildResponse)
+def chips_bench(
+    request: Request,
+    team: int = Query(..., gt=0),
+    gw: int = Query(..., ge=1, le=38),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    strategy: Literal["protect", "balanced", "risky"] = "balanced",
+    svc: PlannerService = Depends(get_service),
+) -> s.BenchBuildResponse:
+    """A Bench Boost in `gw` with the bench built for it (a plan set, so it shares the plans limit)."""
+    if not _allowed("plans", plans_limiter, request):
+        raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
+    return svc.bench_boost_build(team, league, strategy, gw)
+
+
 @app.get("/api/chips/explain", response_model=s.ChipExplainResponse)
 async def chips_explain(
     request: Request,

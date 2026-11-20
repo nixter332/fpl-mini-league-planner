@@ -141,3 +141,53 @@ def test_a_chosen_bench_boost_is_yours_in_the_plan_facts(api: TestClient) -> Non
     resp = s.PlansResponse.model_validate(api.get("/api/plans", params={**PLANS, "chips": False, "bboost": 13}).json())
     played = build_summary(resp, resp.plans[0])["plan"]["chips_played"]
     assert played == [{**played[0], "chip": "Bench Boost", "gameweek": 13, "chosen_by": "you"}]
+
+
+# ---- the squad behind each week ----------------------------------------------------------------
+
+def _gw_xpts(chips: s.ChipsResponse, pid: int, gw: int) -> float:
+    return next(g.xpts for g in chips.players[pid].gws if g.gw == gw)
+
+
+def test_every_week_has_a_squad_to_show(chips: s.ChipsResponse) -> None:
+    squad_now = None
+    for c in chips.chips:
+        for w in c.weeks:
+            sq = w.squad
+            assert sq is not None and len(sq.starting) == 11 and len(sq.bench) == 4
+            assert len(set(sq.starting) | set(sq.bench)) == 15
+            assert sq.captain in sq.starting and sq.vice in sq.starting and sq.captain != sq.vice
+            assert all(str(p) in {str(k) for k in chips.players} for p in sq.starting + sq.bench)
+            if c.name == "bboost":
+                assert sorted(sq.bench) == sorted(w.players)  # the boost is this bench
+                squad_now = squad_now or set(sq.starting) | set(sq.bench)
+                assert set(sq.starting) | set(sq.bench) == squad_now  # your squad, every week
+                assert sq.cost is None
+            else:  # Free Hit: its own squad, affordable, and the players it brings in are in it
+                assert set(w.players) <= set(sq.starting) | set(sq.bench)
+                assert sq.cost is not None and sq.budget is not None and sq.cost <= sq.budget
+                assert w.xpts >= 0
+
+
+def test_bench_built_for_a_bench_boost(api: TestClient, chips: s.ChipsResponse) -> None:
+    r = api.get("/api/chips/bench", params={"team": TEAM, "league": LEAGUE, "gw": 13, "strategy": "protect"})
+    assert r.status_code == 200, r.text
+    b = s.BenchBuildResponse.model_validate(r.json())
+    assert b.gw == 13 and [w.gw for w in b.weeks] == [11, 12, 13]
+    bb = next(c for c in chips.chips if c.name == "bboost")
+    now = next(w for w in bb.weeks if w.gw == 13)
+    assert b.boost_now_xpts == pytest.approx(now.xpts, abs=0.1)
+    # The squad is today's squad with the plan's moves applied, and the boost is its bench.
+    squad = set(now.squad.starting) | set(now.squad.bench)
+    for w in b.weeks:
+        for m in w.moves:
+            squad = (squad - {m.player_out}) | {m.player_in}
+    assert set(b.squad.starting) | set(b.squad.bench) == squad
+    x = lambda p: next(g.xpts for g in b.players[p].gws if g.gw == 13)
+    assert b.boost_xpts == pytest.approx(sum(x(p) for p in b.squad.bench), abs=0.1)
+    assert b.boost_xpts >= b.boost_now_xpts - 0.1  # building the bench never makes the boost worse here
+
+
+def test_bench_build_only_within_the_plans_reach(api: TestClient) -> None:
+    r = api.get("/api/chips/bench", params={"team": TEAM, "league": LEAGUE, "gw": 18})
+    assert r.status_code == 400 and "Plans reach GW11 to GW15" in r.json()["detail"]

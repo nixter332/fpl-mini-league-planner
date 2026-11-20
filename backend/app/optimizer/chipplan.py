@@ -45,6 +45,7 @@ class ChipWeek:
     gw: int
     xpts: float  # what the chip is projected to add that week
     players: tuple[int, ...]  # Bench Boost: the bench; Triple Captain: the captain; Free Hit: players in
+    squad: tuple[int, ...] = ()  # the 15 that week: the Free Hit squad, otherwise the squad you have now
 
 
 @dataclass(frozen=True)
@@ -138,13 +139,14 @@ def chip_outlook(
         weeks = []
         for g in weeks_in:
             x = {p: by_gw.get(g, 0.0) for p, by_gw in xpts.items()}
+            week_squad = tuple(sorted(squad))
             if win.name == BENCH_BOOST:
                 value, players = bench_boost_week(squad, position, x)
             elif win.name == TRIPLE_CAPTAIN:
                 value, players = triple_captain_week(squad, position, x)
             else:
-                value, players, _ = free_hit_week(free_hit_pool(g), state, g, discount=discount)
-            weeks.append(ChipWeek(g, round(value, 2), players))
+                value, players, week_squad = free_hit_week(free_hit_pool(g), state, g, discount=discount)
+            weeks.append(ChipWeek(g, round(value, 2), players, week_squad))
         best, now, close = decide(weeks, first)
         outlooks.append(ChipOutlook(win.name, win, tuple(weeks), best, now, close))
     return _one_chip_per_week(outlooks, first)

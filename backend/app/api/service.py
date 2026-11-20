@@ -552,11 +552,13 @@ class PlannerService:
         for o in outlooks:
             weeks = [
                 s.ChipWeekOut(gw=w.gw, xpts=round(w.xpts, 1), players=list(w.players),
-                              blanks=short(counts[w.gw][0]), doubles=short(counts[w.gw][1]))
+                              blanks=short(counts[w.gw][0]), doubles=short(counts[w.gw][1]),
+                              squad=self._chip_squad(w.squad, w.gw, ctx, state if o.chip == FREE_HIT else None) if w.squad else None)
                 for w in o.weeks
             ]
             for w in o.weeks:
                 referenced.update(w.players)
+                referenced.update(w.squad)
             plan_link = o.best_gw if o.best_gw in ctx.gws and o.chip in (BENCH_BOOST, FREE_HIT, TRIPLE_CAPTAIN) else None
             out.append(s.ChipOutlookOut(
                 name=o.chip, label=CHIP_LABELS[o.chip], start=o.window.start, stop=o.window.stop,
@@ -592,6 +594,54 @@ class PlannerService:
             while len(self._chips) > PLAN_CACHE_SIZE:
                 self._chips.popitem(last=False)
         return response
+
+    def _chip_squad(self, squad, gw: int, ctx: SeasonContext, priced_for: SquadState | None = None) -> s.ChipSquad:
+        """A squad laid out for one week (best XI and captain). priced_for: add its cost and that
+        manager's budget (a Free Hit must cost no more than their squad's selling value plus the bank)."""
+        lineup = self._lineup(squad, gw, ctx)
+        out = s.ChipSquad(starting=list(lineup.starting), bench=list(lineup.bench), captain=lineup.captain,
+                          vice=lineup.vice, xpts=round(lineup.xpts, 1))
+        if priced_for is not None:
+            state = priced_for
+            sell = {p.element: p.sell_price for p in state.players}
+            out.cost = sum(sell.get(p, ctx.elements[p].now_cost) for p in squad)
+            out.budget = state.bank + sum(sell.values())
+        return out
+
+    def bench_boost_build(self, entry_id: int, league_id: int | None, strategy: str, gw: int) -> s.BenchBuildResponse:
+        """A Bench Boost in `gw` with the bench built for it: Plan 1 with that week chosen, its
+        transfers up to `gw`, and the squad that week. Only for weeks Plans can reach (5 ahead)."""
+        ctx = self.context()
+        if gw not in ctx.gws:
+            raise InvalidRequestError(f"Plans reach GW{ctx.gws[0]} to GW{ctx.gws[-1]}; GW{gw} can be built from GW{gw - len(ctx.gws) + 1}.")
+        first = ctx.gws[0]
+        horizon = min(len(ctx.gws), max(4, gw - first + 1))  # same as the page's "Plan around" link
+        resp = self.plans(entry_id, league_id, strategy, horizon, 0, bboost=gw, chips=False)
+        if not resp.plans:
+            raise NotFoundError("The planner couldn't build a plan for that week.")
+        plan = resp.plans[0]
+        now = set(plan.before.starting) | set(plan.before.bench)
+        squad = set(now)
+        weeks = []
+        for g in plan.gameweeks:
+            if g.gw > gw:
+                break
+            weeks.append(s.ChipWeekMoves(gw=g.gw, moves=g.moves, hits=g.hits))
+            if g.chip != FREE_HIT:
+                for m in g.moves:
+                    squad.discard(m.player_out)
+                    squad.add(m.player_in)
+        x = lambda p: ctx.xpts.get(p, {}).get(gw, 0.0)
+        built = self._chip_squad(squad, gw, ctx)
+        boost_now = sum(x(p) for p in self._lineup(now, gw, ctx).bench)
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)  # cached: selling prices for the cards
+        referenced = squad | now | {m.player_in for w in weeks for m in w.moves}
+        return s.BenchBuildResponse(
+            gw=gw, strategy=strategy, horizon=horizon, weeks=weeks, squad=built,
+            boost_xpts=round(sum(x(p) for p in built.bench), 1), boost_now_xpts=round(boost_now, 1),
+            plan_gain=round(plan.xpts_gain, 1),
+            players=self._players(referenced, ctx, NO_RIVALS, state, gws=ctx.chip_gws), clubs=self._clubs(ctx),
+        )
 
     # ---- phase 8: analysis and what-if -----------------------------------------------------
 
