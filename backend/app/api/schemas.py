@@ -246,6 +246,7 @@ class ChipOutlookOut(BaseModel):
 class ChipsResponse(BaseModel):
     entry: int
     gws: list[int]  # the weeks ranked
+    gameweeks: list[Gameweek]  # their deadlines (for reminders)
     deadline: datetime | None
     chips: list[ChipOutlookOut]
     later: list[ChipLeft]  # chips whose window starts after these weeks

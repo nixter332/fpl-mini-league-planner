@@ -41,6 +41,8 @@ ${text}`);
   await expect(page.getByTestId("rival-row").first()).toBeVisible({ timeout: 120_000 });
   await page.goto("/team/5179483/week?league=1883627");
   await expect(page.getByTestId("week-flags")).toBeVisible({ timeout: 120_000 });
+  await page.goto("/team/5179483/chips?league=1883627");
+  await expect(page.getByTestId("chips-fixtures")).toBeVisible({ timeout: 120_000 });
   await page.goto("/?league=1883627");
   await expect(page.getByTestId("league-members")).toBeVisible({ timeout: 120_000 });
   // A failed request whose address holds both IDs: the error report must arrive without them.

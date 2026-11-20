@@ -577,6 +577,7 @@ class PlannerService:
 
         response = s.ChipsResponse(
             entry=entry_id, gws=list(gws), deadline=ctx.events[gws[0]].deadline_time, chips=out, later=later,
+            gameweeks=[s.Gameweek(id=g, name=ctx.events[g].name, deadline=ctx.events[g].deadline_time) for g in gws],
             fixture_note=fixture_note,
             players=self._players(referenced, ctx, ownership, state, gws=gws), clubs=self._clubs(ctx),
             facts=self._facts(state, None)[:1] + ["Every week is scored with the squad you have now; transfers before then change it."],

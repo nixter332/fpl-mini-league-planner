@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
 import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
-import { ApiError, getAnalysis, getPlans, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
+import { ApiError, NO_CHOSEN_CHIPS, getAnalysis, getPlans, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
 import { Why } from "@/components/Why";
 import { FixtureStrip } from "@/components/FixtureStrip";
 import { Countdown } from "@/components/Countdown";
@@ -14,6 +14,7 @@ import { Tips } from "@/components/Tips";
 import { InstallHint } from "@/components/InstallHint";
 import { InviteLeague } from "@/components/InviteLeague";
 import { AddToCalendar } from "@/components/AddToCalendar";
+import { DeadlineChecklist } from "@/components/DeadlineChecklist";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { TeamSkeleton } from "@/components/Skeleton";
@@ -109,7 +110,7 @@ function TeamScreen() {
   useEffect(() => {
     if (prefetchLeague === null || !rivalsReady) return;
     const t = setTimeout(() => {
-      getPlans({ team: entry, league: prefetchLeague, strategy: prefetchStrategy, horizon: 4, hits: 0, wildcard: null, freehit: null, chips: true }).catch(() => {});
+      getPlans({ team: entry, league: prefetchLeague, strategy: prefetchStrategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: true }).catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
   }, [entry, prefetchLeague, prefetchStrategy, rivalsReady]);
@@ -161,6 +162,8 @@ function TeamScreen() {
   // Leaders start on Protect lead: differentials only add swing, and swing helps the chasers.
   const defaultStrategy = standing?.rank === 1 ? "protect" : "balanced";
   const plansHref = `/plans?team=${entry}&league=${activeLeague}&strategy=${defaultStrategy}&horizon=4&hits=0`;
+  const chipsHref = `/team/${entry}/chips?league=${activeLeague}`;
+  const firstCaptain = data.players[data.lineups[0].captain];
   const gap = standing?.gap_to_first ?? null;
 
   return (
@@ -211,6 +214,16 @@ function TeamScreen() {
       </label>
 
       <Countdown gw={data.gameweeks[0].id} deadline={data.gameweeks[0].deadline} />
+      <DeadlineChecklist
+        team={entry}
+        league={activeLeague}
+        strategy={defaultStrategy}
+        gw={data.gameweeks[0].id}
+        captain={firstCaptain ? { name: firstCaptain.name, xpts: gwOf(firstCaptain, data.gameweeks[0].id).xpts } : null}
+        rivalsReady={rivalsReady}
+        plansHref={plansHref}
+        chipsHref={chipsHref}
+      />
       <Tips />
       <InstallHint />
 
@@ -305,7 +318,8 @@ function TeamScreen() {
                 data.chips_left.reduce<Record<number, string[]>>((acc, c) => ({ ...acc, [c.stop]: [...(acc[c.stop] ?? []), c.label] }), {}),
               )
                 .map(([stop, labels]) => `${labels.join(", ")} (until GW${stop})`)
-                .join("; ")}
+                .join("; ")}{" "}
+              <Link href={chipsHref} className="font-semibold no-underline" data-testid="chips-link">When to play them →</Link>
             </div>
           )}
           <Facts facts={data.facts} />

@@ -69,6 +69,18 @@ function WeekScreen() {
         <ThemeToggle />
       </div>
       <Countdown gw={data.gw} deadline={data.deadline} />
+      <Link
+        href={`/team/${entry}/chips${league !== null ? `?league=${league}` : ""}`}
+        onClick={() => track("chips_opened", { from: "week" })}
+        className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-3.5 py-3 text-text no-underline"
+        data-testid="week-chips"
+      >
+        <span className="flex min-w-0 flex-col">
+          <span className="font-display text-[15px] font-bold">Chip planner</span>
+          <span className="text-[12px] text-text3">When to play each chip you have left, week by week</span>
+        </span>
+        <span className="shrink-0 text-text3" aria-hidden="true">›</span>
+      </Link>
 
       {data.captains.length > 0 && (
         <Card title={`Captain for GW${data.gw}`} sub="Your best options. Points shown before doubling." testid="week-captains">

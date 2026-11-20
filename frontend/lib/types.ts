@@ -86,6 +86,42 @@ export interface TeamResponse {
 export interface Move { player_out: number; player_in: number; out_price: number; in_price: number }
 export type ChipName = "wildcard" | "freehit" | "bboost" | "3xc";
 export interface ChipLeft { name: ChipName; label: string; start: number; stop: number }
+
+// ---- chip planner (phase 7) ----
+export interface ChipWeek {
+  gw: number;
+  xpts: number; // what the chip is projected to add that week
+  players: number[]; // Bench Boost: the bench; Triple Captain: the captain; Free Hit: players in
+  blanks: string[]; // clubs with no match
+  doubles: string[]; // clubs playing twice
+}
+export interface ChipOutlook {
+  name: ChipName;
+  label: string;
+  start: number;
+  stop: number;
+  ranked: boolean; // false: a Wildcard (never ranked)
+  advised: boolean; // the timing passed the backtest, so the page may say play / hold
+  weeks: ChipWeek[];
+  best_gw: number | null;
+  play_now: boolean;
+  close: number[];
+  lines: string[];
+  plan_link: number | null; // a week Plans can build around
+}
+export interface ChipsResponse {
+  entry: number;
+  gws: number[];
+  gameweeks: Gameweek[]; // deadlines of the ranked weeks
+  deadline: string | null;
+  chips: ChipOutlook[];
+  later: ChipLeft[];
+  fixture_note: string;
+  players: Record<number, Player>;
+  clubs: Record<string, Club>;
+  facts: string[];
+}
+export interface ChipReason { chip: ChipName; status: "ok" | "unavailable" | "off"; why: string | null; watch_out: string | null }
 export interface PlanGw {
   gw: number;
   moves: Move[];
@@ -135,6 +171,8 @@ export interface PlansResponse {
   chips_left: ChipLeft[];
   wildcard_gw: number | null;
   freehit_gw: number | null;
+  bboost_gw?: number | null;
+  tcap_gw?: number | null;
   auto_chips: boolean;
   gws: number[];
   deadline?: string | null; // the first planned GW's deadline

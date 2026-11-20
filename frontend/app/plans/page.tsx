@@ -14,7 +14,7 @@ import { CardsSkeleton } from "@/components/Skeleton";
 import { PriceMove } from "@/components/PriceMove";
 import { track } from "@/lib/analytics";
 import { rememberNav } from "@/lib/nav";
-import { ApiError, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type PlanParams } from "@/lib/api";
+import { ApiError, CHOSEN_CHIPS, CHOSEN_CHIP_NAME, getPlans, pageQuery, planQuery, readPlanParams, waitForRivals, type ChosenChip, type PlanParams } from "@/lib/api";
 import { CHIP_LABELS, STRATEGIES, money, signed } from "@/lib/format";
 import type { ChipName, Plan, Player, PlansResponse, RivalsProgress, Strategy } from "@/lib/types";
 
@@ -52,7 +52,7 @@ function PlansScreen() {
         rememberNav({ team: params.team, league: d.standing?.league.id ?? params.league ?? 0, strategy: params.strategy });
         track("plans_loaded", {
           strategy: params.strategy, horizon: params.horizon, hits: params.hits, chips: params.chips,
-          wildcard: params.wildcard !== null, freehit: params.freehit !== null, plans: d.plans.length,
+          wildcard: params.wildcard !== null, freehit: params.freehit !== null, bboost: params.bboost !== null, plans: d.plans.length,
           plan1_chip: d.plans[0]?.gameweeks.find((g) => g.chip)?.chip ?? null,
         });
         // Warm the other strategies so the dial switches instantly.
@@ -67,7 +67,11 @@ function PlansScreen() {
 
   const go = (patch: Partial<PlanParams>) => {
     for (const [setting, value] of Object.entries(patch)) track("plan_setting_changed", { setting, value: value as string | number | boolean | null });
-    router.replace(`/plans?${pageQuery({ ...params, ...patch })}`);
+    const next = { ...params, ...patch };
+    // A shorter horizon drops chosen chip weeks that no longer fit (the planner would refuse them).
+    const first = data?.gws[0];
+    if (first !== undefined) for (const k of CHOSEN_CHIPS) if (next[k] !== null && next[k]! > first + next.horizon - 1) next[k] = null;
+    router.replace(`/plans?${pageQuery(next)}`);
   };
 
   const current = loaded?.key === key ? loaded.data : null;
@@ -76,6 +80,9 @@ function PlansScreen() {
   const chipGws = (name: ChipName) =>
     gws.filter((g) => (data?.chips_left ?? []).some((c) => c.name === name && c.start <= g && g <= c.stop));
   const hasAuto = (data?.chips_left ?? []).some((c) => (c.name === "bboost" || c.name === "3xc") && gws.some((g) => c.start <= g && g <= c.stop));
+  const chosen = CHOSEN_CHIPS.filter((k) => params[k] !== null);
+  // A week another chosen chip already has is not offered (one chip per gameweek).
+  const takenBy = (k: ChosenChip) => new Set(CHOSEN_CHIPS.filter((o) => o !== k).map((o) => params[o]));
   const strategy = STRATEGIES.find((s) => s.key === params.strategy)!;
   const gap = data?.standing?.gap_to_first ?? null;
 
@@ -83,8 +90,7 @@ function PlansScreen() {
   const settingsSummary = [
     `${params.horizon} GW${plural(params.horizon)}`,
     params.hits ? `up to ${params.hits} hit${plural(params.hits)}` : "no hits",
-    params.wildcard !== null ? `Wildcard GW${params.wildcard}` : null,
-    params.freehit !== null ? `Free Hit GW${params.freehit}` : null,
+    ...chosen.map((k) => `${CHIP_LABELS[CHOSEN_CHIP_NAME[k]]} GW${params[k]}`),
     hasAuto ? `Bench Boost / Triple Captain: ${params.chips ? "planner decides" : "off"}` : null,
   ].filter(Boolean).join(" · ");
   const openRank = current?.plans.some((p) => p.rank === open) ? open : current?.plans[0]?.rank;
@@ -160,24 +166,28 @@ function PlansScreen() {
                 </span>
               )}
             </div>
-            {(chipGws("wildcard").length > 0 || chipGws("freehit").length > 0 || hasAuto) && (
+            {(CHOSEN_CHIPS.some((k) => chipGws(CHOSEN_CHIP_NAME[k]).length > 0) || hasAuto) && (
               <div className="flex flex-wrap gap-1.5" data-testid="chip-controls">
-                {(["wildcard", "freehit"] as const).map((name) =>
-                  chipGws(name).length > 0 ? (
+                {CHOSEN_CHIPS.map((k) => {
+                  const name = CHOSEN_CHIP_NAME[k];
+                  const label = CHIP_LABELS[name];
+                  if (chipGws(name).length === 0) return null;
+                  const auto = (k === "bboost" || k === "tcap") && params.chips;
+                  return (
                     <PillSelect
-                      key={name}
-                      label={CHIP_LABELS[name]}
-                      value={params[name] ?? 0}
+                      key={k}
+                      label={label}
+                      value={params[k] ?? 0}
                       options={[
-                        { value: 0, label: `${CHIP_LABELS[name]}: not playing` },
+                        { value: 0, label: `${label}: ${auto ? "planner decides" : "not playing"}` },
                         ...chipGws(name)
-                          .filter((g) => g !== (name === "wildcard" ? params.freehit : params.wildcard))
-                          .map((g) => ({ value: g, label: `${CHIP_LABELS[name]}: GW${g}` })),
+                          .filter((g) => !takenBy(k).has(g))
+                          .map((g) => ({ value: g, label: `${label}: GW${g}${k === "bboost" ? " (builds your bench)" : ""}` })),
                       ]}
-                      onChange={(g) => go({ [name]: g || null })}
+                      onChange={(g) => go({ [k]: g || null })}
                     />
-                  ) : null,
-                )}
+                  );
+                })}
                 {hasAuto && (
                   <PillSelect
                     label="Bench Boost and Triple Captain"

@@ -496,3 +496,51 @@ test("rivals table, captain options, review, compare and calendar", async ({ pag
   await expect(table.getByTestId("fixture-strip")).toHaveCount(2);
   await shot(page, "37-compare");
 });
+
+test("phase 7: deadline checklist, chip planner, reminders and a Bench Boost week", async ({ page }) => {
+  test.skip(claudeOnly);
+  test.setTimeout(300_000);
+  await page.goto(`/team/${TEAM}?league=${LEAGUE}`);
+
+  // The checklist: this week's transfer, captain and chip, each linking to its screen.
+  const checklist = page.getByTestId("deadline-checklist");
+  await expect(checklist).toContainText(/Before the GW\d+ deadline/);
+  await expect(page.getByTestId("checklist-captain")).toContainText("expected points");
+  await expect(page.getByTestId("checklist-transfer")).not.toContainText("Working out", { timeout: 120_000 });
+  await expect(page.getByTestId("checklist-chip")).toContainText(/Play your|No chip this week|No chips/, { timeout: 60_000 });
+  await shot(page, "40-deadline-checklist");
+
+  // Chip planner, from the checklist.
+  await page.getByTestId("checklist-chip").click();
+  await expect(page).toHaveURL(new RegExp(`/team/${TEAM}/chips`));
+  await expect(page.getByTestId("app-nav").getByRole("link", { name: "This week" })).toHaveAttribute("aria-current", "page");
+  const cards = page.locator(['bboost', 'freehit', '3xc', 'wildcard'].map((c) => `[data-testid="chip-${c}"]`).concat('[data-testid="chips-none"]').join(", "));
+  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("chips-fixtures")).toContainText(/gameweek/);
+  const ranked = page.getByTestId("chip-weeks").first();
+  if (await ranked.count()) {
+    await expect(page.getByTestId("chip-verdict").first()).toBeVisible();
+    await expect(page.getByTestId("chip-lines").first()).toContainText("GW");
+    // A reminder for the best week: one event, named after the chip.
+    const download = page.waitForEvent("download");
+    await page.getByTestId("chip-remind").first().click();
+    const ics = require("fs").readFileSync(await (await download).path(), "utf8");
+    expect(ics).toMatch(/SUMMARY:FPL GW\d+: play your (Bench Boost|Free Hit|Triple Captain)/);
+    expect(ics.match(/BEGIN:VEVENT/g)).toHaveLength(1);
+    expect(ics).not.toContain(TEAM);
+  }
+  await shot(page, "41-chip-planner");
+
+  // Plans with a chosen Bench Boost week: the plan plays it there.
+  const bb = page.getByTestId("chip-bboost").getByTestId("chip-plan-link");
+  if (await bb.count()) {
+    await bb.click();
+    await expect(page).toHaveURL(/bboost=\d+/);
+    const gw = new URL(page.url()).searchParams.get("bboost");
+    await expect(page.getByTestId("plan-card").first()).toBeVisible({ timeout: 120_000 });
+    await expect(page.getByTestId("plan-chips").first()).toContainText(`Bench Boost · GW${gw}`);
+    await page.getByTestId("plan-settings").click();
+    await expect(page.getByLabel("Bench Boost", { exact: true })).toHaveValue(gw!);
+    await shot(page, "42-plans-bench-boost");
+  }
+});

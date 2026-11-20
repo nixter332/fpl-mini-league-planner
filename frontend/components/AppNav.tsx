@@ -15,7 +15,7 @@ function useTeam(): { team: number | null; tab: Tab; league: number | null; sear
   const fromPath = pathname.match(/^\/team\/(\d+)/)?.[1];
   const onPlans = pathname.startsWith("/plans");
   const team = fromPath ? Number(fromPath) : onPlans && search.get("team") ? Number(search.get("team")) : null;
-  const tab: Tab = onPlans ? "plans" : pathname.includes("/what-if") || pathname.includes("/drafts") ? "whatif" : pathname.endsWith("/rivals") ? "rivals" : pathname.endsWith("/week") ? "week" : "team";
+  const tab: Tab = onPlans ? "plans" : pathname.includes("/what-if") || pathname.includes("/drafts") ? "whatif" : pathname.endsWith("/rivals") ? "rivals" : pathname.endsWith("/week") || pathname.endsWith("/chips") ? "week" : "team";
   const league = search.get("league");
   return { team, tab, league: league === null ? null : Number(league), search: search.toString() };
 }

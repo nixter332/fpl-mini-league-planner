@@ -1,5 +1,5 @@
 import { reportError, scrubUrl, track } from "./analytics";
-import type { AnalysisResponse, ChipName, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, LeagueViewResponse, ReviewResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, ChipName, ChipReason, ChipsResponse, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, LeagueViewResponse, ReviewResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -67,8 +67,16 @@ export interface PlanParams {
   hits: number;
   wildcard: number | null; // the GW you chose to play it in
   freehit: number | null;
+  bboost: number | null; // a chosen Bench Boost week: the plan builds the bench for it
+  tcap: number | null;
   chips: boolean; // let the planner play Bench Boost / Triple Captain
 }
+
+/** Chips the user can choose a week for, as PlanParams keys (also the API's query names). */
+export const CHOSEN_CHIPS = ["wildcard", "freehit", "bboost", "tcap"] as const;
+export type ChosenChip = (typeof CHOSEN_CHIPS)[number];
+export const CHOSEN_CHIP_NAME: Record<ChosenChip, ChipName> = { wildcard: "wildcard", freehit: "freehit", bboost: "bboost", tcap: "3xc" };
+export const NO_CHOSEN_CHIPS: Pick<PlanParams, ChosenChip> = { wildcard: null, freehit: null, bboost: null, tcap: null };
 
 const gwParam = (v: string | null) => (v && Number(v) > 0 ? Number(v) : null);
 
@@ -83,16 +91,24 @@ export function readPlanParams(search: URLSearchParams): PlanParams {
     hits: Math.min(4, Math.max(0, Number(search.get("hits") ?? 0) || 0)),
     wildcard: gwParam(search.get("wildcard")),
     freehit: gwParam(search.get("freehit")),
+    bboost: gwParam(search.get("bboost")),
+    tcap: gwParam(search.get("tcap")),
     chips: search.get("chips") !== "0",
   };
+}
+
+function setChosenChips(q: URLSearchParams, p: PlanParams): void {
+  for (const k of CHOSEN_CHIPS) {
+    const gw = p[k];
+    if (gw !== null) q.set(k, String(gw));
+  }
 }
 
 /** Query for the backend API. */
 export function planQuery(p: PlanParams): string {
   const q = new URLSearchParams({ team: String(p.team), strategy: p.strategy, horizon: String(p.horizon), max_hits: String(p.hits) });
   if (p.league !== null) q.set("league", String(p.league));
-  if (p.wildcard !== null) q.set("wildcard", String(p.wildcard));
-  if (p.freehit !== null) q.set("freehit", String(p.freehit));
+  setChosenChips(q, p);
   if (!p.chips) q.set("chips", "false");
   return q.toString();
 }
@@ -101,8 +117,7 @@ export function planQuery(p: PlanParams): string {
 export function pageQuery(p: PlanParams): string {
   const q = new URLSearchParams({ team: String(p.team), strategy: p.strategy, horizon: String(p.horizon), hits: String(p.hits) });
   if (p.league !== null) q.set("league", String(p.league));
-  if (p.wildcard !== null) q.set("wildcard", String(p.wildcard));
-  if (p.freehit !== null) q.set("freehit", String(p.freehit));
+  setChosenChips(q, p);
   if (!p.chips) q.set("chips", "0");
   return q.toString();
 }
@@ -144,6 +159,27 @@ export const getReview = (team: number, league: number | null) => getJSON<Review
 
 export const getWeek = (team: number, league: number | null) =>
   getJSON<WeekResponse>(`/api/week?team=${team}${league !== null ? `&league=${league}` : ""}`);
+
+// The chip planner is shared by the Chips page and the team page's deadline checklist.
+const chipsCache = new Map<string, Promise<ChipsResponse>>();
+
+export function getChips(team: number, league: number | null): Promise<ChipsResponse> {
+  const key = leagueQuery(team, league);
+  let pending = chipsCache.get(key);
+  if (!pending) {
+    pending = getJSON<ChipsResponse>(`/api/chips?${key}`);
+    pending.catch(() => chipsCache.delete(key));
+    chipsCache.set(key, pending);
+  }
+  return pending;
+}
+
+/** Claude's reason for one chip's best week; "unavailable" on any failure. */
+export function getChipReason(team: number, league: number | null, chip: ChipName): Promise<ChipReason> {
+  return getJSON<ChipReason>(`/api/chips/explain?${leagueQuery(team, league)}&chip=${chip}`).catch(() => ({
+    chip, status: "unavailable" as const, why: null, watch_out: null,
+  }));
+}
 
 // Claude-written reasons, one request per plan so each card fills in as soon as it's ready.
 // Failures resolve to "unavailable": a missing reason never breaks the page.

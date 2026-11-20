@@ -10,7 +10,7 @@ import { PriceMove } from "@/components/PriceMove";
 import { ErrorBox, Loading, ThemeToggle, Tile } from "@/components/ui";
 import { TeamSkeleton } from "@/components/Skeleton";
 import { track } from "@/lib/analytics";
-import { ApiError, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
+import { ApiError, NO_CHOSEN_CHIPS, decodeWhatIf, encodeWhatIf, getAllPlayers, getPlans, postWhatIf } from "@/lib/api";
 import { getDraft, listDrafts, saveDraft, suggestName, type Draft } from "@/lib/drafts";
 import { CHIP_LABELS, gwOf, money, pts, signed } from "@/lib/format";
 import type { ChipName, Player, PlansResponse, PlayersResponse, Position, Strategy, WhatIfMove, WhatIfResponse, WhatIfSwap } from "@/lib/types";
@@ -71,7 +71,7 @@ function WhatIf() {
 
   useEffect(() => {
     getAllPlayers(entry, league).then(setAll).catch(() => {});
-    getPlans({ team: entry, league, strategy, horizon: 4, hits: 0, wildcard: null, freehit: null, chips: true }).then(setPlans).catch(() => {});
+    getPlans({ team: entry, league, strategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: true }).then(setPlans).catch(() => {});
   }, [entry, league, strategy]);
 
   const positions = useMemo(() => {
