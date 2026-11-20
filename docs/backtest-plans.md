@@ -124,7 +124,7 @@ Points are totals over the 6 weeks, net of hits. The leagues group is small, so 
 
 ### Run 2: the new settings, and a discount on players you'd buy
 
-The base is now the app after those changes: no Wildcard or Free Hit unless you choose one, and a saved free transfer worth 3. Run 1's results are kept in `data/cache/tune-v1/`.
+The base is now the app after those changes: no Wildcard or Free Hit unless you choose one, and a saved free transfer worth 3. Run 1's results are kept in `data/cache/tune-v1/`, run 2's in `data/cache/tune-v2/`.
 
 | Setting | vs real, all (±3.7) | Leagues | ~1M–10k | ~1k | India top 200 | vs no transfers |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -135,6 +135,23 @@ The base is now the app after those changes: no Wildcard or Free Hit unless you 
 
 - The new settings gained 22 real points over the 6 weeks: "vs no transfers" went from −14.0 to +8.0. Counting the Wildcard and Free Hit still in hand, the total is 32 points (−88.7 to −56.3).
 - The "buy discount" lowers the projections of players you don't own by that share when planning; scoring still uses real points. Compared with the new base, same manager to same manager: 10% +1.2 ± 1.7, 20% +2.1 ± 2.0, 30% −0.3 ± 2.0. 20% is only just outside the noise, about 0.3 points a week, and it was tested only on GW4–9, when projections are weakest. Not applied yet; retest at the GW19 rerun, perhaps with a discount that fades as the season goes on.
+
+### Run 3 (20 Nov 2026): the buy discount with GW10 added
+
+Same 412 managers, now GW4–10 (GW10 picks added with `collect_managers --extend`). Base is the app as it is. `python -m scripts.tune --from 4 --to 10 --configs base "buy discount 10%" "buy discount 20%" "buy discount 30%" "buy discount 30% fading"`, about 45 minutes with 11 workers. Results are in `data/cache/tune/`.
+
+| Setting | vs real, all (±4) | Leagues | ~1M–10k | ~1k | India top 200 | vs no transfers | vs base, same managers |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Base | −50.2 | +8.6 | −29.3 | −72.4 | −65.6 | +29.1 | |
+| Buy discount 10% | −50.3 | +5.3 | −29.3 | −76.5 | −64.3 | +29.1 | +0.1 ± 2.2 |
+| Buy discount 20% | −53.2 | +6.4 | −29.9 | −78.7 | −69.6 | +26.1 | −3.0 ± 2.5 |
+| Buy discount 30% | −58.3 | +4.0 | −34.7 | −82.2 | −75.5 | +21.3 | −7.7 ± 2.7 |
+| 30%, fading to 0 by GW19 | −56.4 | +5.5 | −32.4 | −80.6 | −73.8 | +23.1 | −5.9 ± 2.6 |
+
+- **The buy discount is rejected.** On GW4–9 the 20% discount again looked slightly better (+1.9 ± 2.0, as in run 2). In GW10 alone it lost 4.8, so over the whole window it's −3.0. The players it stopped the planner from buying were the ones who scored in GW10.
+- **GW10 was the planner's best week by far.** On base settings its transfers gained 21.1 over keeping the squad that week, and it beat the real managers by 4.1. That's one week, so the jump in "vs no transfers" (+8.0 over GW4–9 in run 2, +29.1 over GW4–10 here) is mostly GW10.
+- **The overrating of bought players (projected 15.4, scored 11.6) stays a known limit.** A flat discount on buys doesn't fix it. Something more targeted might, such as shrinking only the projections that rest on few minutes. That's for the GW19 rerun.
+- Against the members of Nikhil's leagues, the planner is now ahead (+8.6, a small and noisy group). It's still well behind the top 10k, top 1k and India top 200.
 
 ## Next
 
