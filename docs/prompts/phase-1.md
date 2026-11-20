@@ -19,5 +19,5 @@ Build:
 
 Before writing code, show me a short plan and the file list, and wait for my OK. When done, tell me how to run the tests and the snapshot script, and stop. Don't start phase 2.
 
-My team ID: [YOUR TEAM ID]
-A league ID to test with: [YOUR LEAGUE ID]
+My team ID: 5179483
+A league ID to test with: 1883627

@@ -2,6 +2,6 @@
 
 Transfer plans that beat your mini-league, not the template. Paste your FPL team or league link, pick a strategy (Protect lead, Balanced, Risky), and get the top 3 transfer plans with a reason for each move.
 
-Status: phase 4 (pitch UI). See `docs/SPEC.md` for the build plan.
+Status: phase 7 (chip planner) built; phase 6 (launch and learn) ongoing. See `docs/SPEC.md` for the build plan.
 
 Built by Nikhil Philip, with Claude Code.

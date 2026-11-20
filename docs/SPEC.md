@@ -100,6 +100,11 @@ The backend sends the Claude API a structured summary of each plan (players in/o
    - The solver ranks the weeks from projections and fixtures (blank and double gameweeks) to the end of each chip's window. Claude explains the ranking.
    - Builds on the GW19 chip backtest, which tunes the chip values first.
    - Gate: chip weeks ranked for Nikhil's squad, with every number traceable to the solver, and a backtest showing the suggestions beat the chip-matched baseline.
+   - *Built 20 Nov 2026* (`docs/chip-planner.md`), before GW19 so Nikhil can time his Free Hit and Bench Boost. Also built:
+     - a Bench Boost or Triple Captain week you choose in Plans (the plan builds the bench)
+     - the "before the deadline" checklist on the team page
+     - chip reminders in the calendar
+   - Gate result: the weeks are ranked and traceable, but no chip's timing beat the baseline on GW5–10. So the page shows the values as a guide, with no "play now" or "hold". Rerun after GW19 with saved injury news.
 8. **Analysis and what-if** (proposed plan: `docs/plans/phase-8.md`):
    - **Analysis:** weak spots on the user's pitch, flagged amber or red by projected points against the best options at the same price and position. Tapping a player shows the best replacements, ranked by the solver, with Claude explaining why.
    - **What-if:** a sandbox where the user makes their own transfers across gameweeks and sees projected points, bank and free transfers update. The backend validates and scores any user-made plan with the same rules as the solver (`validate`, `score`).
@@ -118,7 +123,5 @@ The backend sends the Claude API a structured summary of each plan (players in/o
 - Decided against: Google sign-in to fetch leagues (needs an FPL login), price-rise predictions, live points, a free-text chatbot.
 
 *Phases 7–9 added 9 Nov 2026 from Nikhil's review. Also suggested:*
-- a 5-week fixture-difficulty strip under each player
-- a "before the deadline" screen with this week's 3 actions (transfer, captain, chip) and a countdown
-
-These have no phase yet.
+- a 5-week fixture-difficulty strip under each player (built 9 Nov as the fixture strip)
+- a "before the deadline" screen with this week's 3 actions (transfer, captain, chip) and a countdown (built 20 Nov as the team page's checklist, phase 7)

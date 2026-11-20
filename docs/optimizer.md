@@ -60,6 +60,8 @@ Each is weighted like the objective (strategy weight, decay). The chip is played
 
 *Why after, not inside the model (9 Nov 2026):* the first version decided these chips inside the MILP. That made it much harder to solve. On Render's half CPU, Plan 1's transfers dropped from +14.2 to about +0.7, with the Bench Boost hiding it, and one plan came back as "roll +0.0". Deciding them afterwards costs no solver time. What's lost is buying bench players just for a Bench Boost week, which is a small loss.
 
+**Choosing a Bench Boost or Triple Captain week (20 Nov 2026).** `bboost=` / `tcap=` on `/api/plans` play the chip in that week, inside the model (as the first version did). A chosen Bench Boost counts the bench fully that week, so the plan builds the bench for it. On Nikhil's team, a GW13 Bench Boost goes from +5.7 with his current bench to +20.7, with one extra move (backup keeper Bentley → Trafford in GW12). The chip planner (`docs/chip-planner.md`) links here with "Plan around GWx". Only one chip per week; a week outside the horizon is refused.
+
 **Wildcard and Free Hit: you choose.** A Wildcard's benefit lasts long after a 4-week plan ends, so a 4-week model deciding on its own would be guessing. The user picks the gameweek (`wildcard=` / `freehit=` on `/api/plans`):
 - **Wildcard:** unlimited free transfers that week with no hits. The banked free transfers are kept, with no +1. The new squad stays.
 - **Free Hit:** a separate one-week squad. It must cost no more than the bank plus the squad's selling value, it takes no hits, the bank and banked free transfers are unchanged, and the old squad is back the week after.
