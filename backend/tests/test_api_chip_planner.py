@@ -133,3 +133,11 @@ def test_chip_explain_hides_invented_numbers(api: TestClient, fake_claude: FakeC
 def test_chip_explain_for_a_chip_you_dont_have(api: TestClient, fake_claude: FakeClaude) -> None:
     r = api.get("/api/chips/explain", params={"team": TEAM, "league": LEAGUE, "chip": "3xc"})
     assert r.json()["status"] == "unavailable" and not fake_claude.calls
+
+
+def test_a_chosen_bench_boost_is_yours_in_the_plan_facts(api: TestClient) -> None:
+    from app.explain.summary import build_summary
+
+    resp = s.PlansResponse.model_validate(api.get("/api/plans", params={**PLANS, "chips": False, "bboost": 13}).json())
+    played = build_summary(resp, resp.plans[0])["plan"]["chips_played"]
+    assert played == [{**played[0], "chip": "Bench Boost", "gameweek": 13, "chosen_by": "you"}]

@@ -119,7 +119,8 @@ def _chips(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
     for g in plan.gameweeks:
         if not g.chip:
             continue
-        chosen = g.chip in ("wildcard", "freehit") and g.gw in (resp.wildcard_gw, resp.freehit_gw)
+        chosen_weeks = {"wildcard": resp.wildcard_gw, "freehit": resp.freehit_gw, "bboost": resp.bboost_gw, "3xc": resp.tcap_gw}
+        chosen = chosen_weeks.get(g.chip) == g.gw
         row: dict[str, Any] = {"chip": CHIP_LABELS[g.chip], "gameweek": g.gw, "chosen_by": "you" if chosen else "the planner"}
         if g.chip_xpts:
             row["expected_points_from_chip"] = r1(g.chip_xpts)
