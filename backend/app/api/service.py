@@ -104,8 +104,8 @@ def _chip_lines(o: ChipOutlook, first: int, advised: bool) -> list[str]:
     now = next((w for w in o.weeks if w.gw == first), None)
     lines = []
     if not advised:
-        lines.append(f"Its best projected week is GW{best.gw} (+{best.xpts:.1f}). Our backtest didn't show that this "
-                     "timing beats picking a week at random, so treat it as a guide.")
+        lines.append(f"Its best projected week is GW{best.gw} (+{best.xpts:.1f}). In our backtest, picking the best "
+                     "projected week didn't reliably beat picking a week at random, so treat this as a guide.")
     elif o.play_now:
         lines.append(f"Play it this week: GW{first} is its best week (+{best.xpts:.1f}).")
     else:
@@ -118,11 +118,16 @@ def _chip_lines(o: ChipOutlook, first: int, advised: bool) -> list[str]:
         weeks = ", ".join(f"GW{g}" for g in o.close)
         lines.append(f"{weeks} {'is' if len(o.close) == 1 else 'are'} within a point of it, so it's a close call.")
     if o.chip == BENCH_BOOST:
-        lines.append("This counts the bench you have now. A stronger bench makes it worth more: plan around it and the "
-                     "planner builds the bench for that week.")
+        # docs/chip-planner.md: 70 managers who played it in GW5-10, their boost week vs their other weeks.
+        lines.append("This counts the bench you have now. Building the bench matters more than the week: managers who "
+                     "played it in GW5-10 got 20.8 points from their bench that week, against 11.7 in their other weeks. "
+                     "Plan around it and the planner builds the bench for that week.")
     elif o.chip == FREE_HIT:
-        lines.append(f"Players you'd bring in are projected {FREE_HIT_BUY_DISCOUNT:.0%} lower, because players the "
-                     "planner buys have scored below their projections.")
+        if FREE_HIT_BUY_DISCOUNT:
+            lines.append(f"Players you'd bring in are projected {FREE_HIT_BUY_DISCOUNT:.0%} lower, because players the "
+                         "planner buys have scored below their projections.")
+        lines.append("Treat these numbers as a best case: in our backtest, Free Hit squads scored well below their "
+                     "projections. A Free Hit usually pays most in a blank or double gameweek.")
     lines.append(expires)
     return lines
 

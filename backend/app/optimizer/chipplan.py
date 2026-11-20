@@ -5,9 +5,9 @@ The planner decides; nothing here is written by an LLM. For each week:
 - Bench Boost: the projected points of the bench (all four) in the best lineup of the squad.
 - Triple Captain: the captain's projected points again.
 - Free Hit: a one-week solve for the best squad the manager can afford (squad selling value plus
-  bank), minus the best lineup of their own squad. Players bought for it are projected lower by
-  FREE_HIT_BUY_DISCOUNT: the transfer diagnosis (docs/backtest-plans.md) found players the
-  planner buys score well below their projection, and a Free Hit squad is mostly buys.
+  bank), minus the best lineup of their own squad. FREE_HIT_BUY_DISCOUNT can shrink the
+  projections of players it brings in; it's 0 because the backtest couldn't calibrate it (see
+  docs/chip-planner.md: without past injury news, Free Hit squads scored far below projection).
 - Wildcard: not ranked. Its value lasts for weeks after it's played, and our Wildcard advice
   lost 18 points on 412 managers, so the page only says when it expires.
 
@@ -29,12 +29,14 @@ from app.optimizer.state import SquadState
 # How many weeks ahead are ranked. Covers GW11-19 from GW11; weeks further out are too uncertain.
 LOOKAHEAD = 9
 # Share taken off the projections of players a Free Hit brings in (see the module docstring).
-FREE_HIT_BUY_DISCOUNT = 0.25
+FREE_HIT_BUY_DISCOUNT = 0.0
 # Weeks whose values are this close count as a tie: small differences are noise, not advice.
 CLOSE = 1.0
 RANKED = (BENCH_BOOST, TRIPLE_CAPTAIN, FREE_HIT)
 # Chips whose "play now / hold" rule passed the backtest gate (docs/chip-planner.md). For the
 # others the page shows the weeks' values without telling the manager when to play.
+# None yet (20 Nov 2026, GW5-10 on 416 managers): Bench Boost timing did no better than a random
+# week, Free Hit timing did worse, and Triple Captain's edge came from a single week (GW7).
 ADVISED: frozenset[str] = frozenset()
 
 
