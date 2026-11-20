@@ -4,15 +4,16 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { saveIcs } from "@/components/AddToCalendar";
+import { ChipSquadView } from "@/components/ChipSquad";
 import { Countdown } from "@/components/Countdown";
-import { PlayerTap, usePlayerInfo } from "@/components/PlayerInfo";
+import { usePlayerInfo } from "@/components/PlayerInfo";
 import { CardsSkeleton } from "@/components/Skeleton";
 import { ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
 import { Why } from "@/components/Why";
 import { track } from "@/lib/analytics";
 import { ApiError, getChipReason, getChips } from "@/lib/api";
 import { loadNav } from "@/lib/nav";
-import { gwOf, pts } from "@/lib/format";
+import { pts } from "@/lib/format";
 import type { ChipOutlook, ChipReason, ChipsResponse, Player } from "@/lib/types";
 
 export default function ChipsPage() {
@@ -30,7 +31,6 @@ const WHAT_IT_ADDS: Record<string, string> = {
   "3xc": "Your captain's projected points once more",
   freehit: "A one-week squad's projected gain over your own best lineup",
 };
-const PLAYERS_LABEL: Record<string, string> = { bboost: "Your bench", "3xc": "Your captain", freehit: "Players it brings in" };
 
 function ChipsScreen() {
   const { id } = useParams<{ id: string }>();
@@ -101,7 +101,7 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
   chip: ChipOutlook; data: ChipsResponse; entry: number; league: number | null; onOpen: (p: Player) => void;
 }) {
   const [reason, setReason] = useState<ChipReason | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [selected, setSelected] = useState<number | null>(chip.best_gw); // the week whose squad is shown
   const ranked = chip.ranked && chip.best_gw !== null;
   useEffect(() => {
     if (!ranked) return;
@@ -118,8 +118,9 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
 
   const first = data.gws[0];
   const best = chip.weeks.find((w) => w.gw === chip.best_gw) ?? null;
+  const week = chip.weeks.find((w) => w.gw === selected) ?? best;
+  const target = week?.gw ?? chip.best_gw; // reminders and plans follow the week you're looking at
   const max = Math.max(0.1, ...chip.weeks.map((w) => w.xpts));
-  const p = (pid: number) => data.players[pid];
   const badge = !ranked
     ? { text: "Your call", tone: "bg-pill text-text2" }
     : !chip.advised
@@ -129,19 +130,18 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
         : { text: `Hold · best GW${chip.best_gw}`, tone: "bg-cap-bg text-why-label" };
 
   const strategy = loadNav(entry)?.strategy ?? "balanced";
-  const planHref = chip.plan_link !== null
+  const inReach = target !== null && target <= first + 4 && chip.name in PLAN_PARAM;
+  const planHref = inReach
     ? `/plans?team=${entry}${league !== null ? `&league=${league}` : ""}&strategy=${strategy}` +
-      `&horizon=${Math.min(5, Math.max(4, chip.plan_link - first + 1))}&hits=0&${PLAN_PARAM[chip.name]}=${chip.plan_link}`
+      `&horizon=${Math.min(5, Math.max(4, target! - first + 1))}&hits=0&${PLAN_PARAM[chip.name]}=${target}`
     : null;
   const remind = () => {
-    const gw = data.gameweeks.find((g) => g.id === chip.best_gw);
+    const gw = data.gameweeks.find((g) => g.id === target);
     if (!gw) return;
     saveIcs([{ gw: gw.id, deadline: gw.deadline, note: `play your ${chip.label}` }], `fpl-${chip.name}-gw${gw.id}.ics`);
     track("chip_reminder_added", { chip: chip.name, weeks_ahead: gw.id - first });
   };
 
-  const players = best ? [...best.players].sort((a, b) => gwOf(p(b), best.gw).xpts - gwOf(p(a), best.gw).xpts) : [];
-  const shown = showAll ? players : players.slice(0, 5);
   return (
     <section className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-3.5" data-testid={`chip-${chip.name}`}>
       <div className="flex items-start justify-between gap-2">
@@ -157,13 +157,24 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
       </div>
 
       {ranked && (
-        <div className="flex items-end gap-1" role="img" aria-label={`Projected points the ${chip.label} adds each week`} data-testid="chip-weeks">
+        <div className="flex items-end gap-1" role="group" aria-label={`Projected points the ${chip.label} adds each week. Tap a week to see its squad.`} data-testid="chip-weeks">
           {chip.weeks.map((w) => {
             const isBest = w.gw === chip.best_gw;
             const isClose = chip.close.includes(w.gw);
             const odd = w.blanks.length > 0 || w.doubles.length > 0;
+            const isSelected = w.gw === week?.gw;
             return (
-              <div key={w.gw} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <button
+                key={w.gw}
+                type="button"
+                aria-pressed={isSelected}
+                aria-label={`GW${w.gw}: ${pts(w.xpts)}`}
+                onClick={() => {
+                  setSelected(w.gw);
+                  track("chip_week_selected", { chip: chip.name, weeks_ahead: w.gw - first, best: isBest });
+                }}
+                className={`flex min-w-0 flex-1 flex-col items-center gap-1 rounded-md pb-0.5 pt-1 ${isSelected ? "bg-pill" : ""}`}
+              >
                 <span className={`text-[10.5px] tabular-nums ${isBest ? "font-bold text-text" : "text-text3"}`}>{pts(w.xpts)}</span>
                 <div className="flex h-16 w-full items-end">
                   <div
@@ -179,7 +190,7 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
                     {w.doubles.length ? "DGW" : "BGW"}
                   </span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>
@@ -193,24 +204,18 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
 
       {ranked && <Why explanation={reason} label={`Why GW${chip.best_gw}`} />}
 
-      {best && players.length > 0 && (
-        <div className="flex flex-col gap-1.5">
-          <div className="text-xs font-semibold text-text3">{PLAYERS_LABEL[chip.name].toUpperCase()} · GW{best.gw}</div>
-          {shown.map((pid) => (
-            <div key={pid} className="flex items-center justify-between gap-3 border-t border-line pt-1.5 first:border-t-0 first:pt-0">
-              <div className="flex min-w-0 flex-col">
-                <PlayerTap player={p(pid)} onOpen={onOpen} className="truncate text-[13px] font-semibold" />
-                <span className="truncate text-[11.5px] text-text3">{p(pid).club} · {gwOf(p(pid), best.gw).fixture}</span>
-              </div>
-              <span className="shrink-0 font-display text-[14px] font-bold">{pts(gwOf(p(pid), best.gw).xpts)}</span>
-            </div>
-          ))}
-          {players.length > 5 && (
-            <button type="button" onClick={() => setShowAll((v) => !v)} className="self-start text-[12.5px] font-semibold text-link">
-              {showAll ? "Show fewer" : `Show all ${players.length}`}
-            </button>
-          )}
-        </div>
+      {ranked && week?.squad && (
+        <ChipSquadView
+          chip={chip.name}
+          week={week}
+          first={first}
+          players={data.players}
+          clubs={data.clubs}
+          team={entry}
+          league={league}
+          strategy={strategy}
+          onOpen={onOpen}
+        />
       )}
 
       {ranked && (
@@ -218,18 +223,18 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
           {planHref && (
             <Link
               href={planHref}
-              onClick={() => track("chip_plan_opened", { chip: chip.name, weeks_ahead: (chip.plan_link ?? first) - first })}
+              onClick={() => track("chip_plan_opened", { chip: chip.name, weeks_ahead: target! - first })}
               className="text-[13px] font-semibold no-underline"
               data-testid="chip-plan-link"
             >
-              Plan around GW{chip.plan_link} →
+              Plan around GW{target} →
             </Link>
           )}
-          {!planHref && chip.best_gw !== null && (
-            <span className="text-[12px] text-text3">Plans reach GW{first + 4}; you can plan around GW{chip.best_gw} from GW{chip.best_gw - 4}.</span>
+          {!planHref && target !== null && chip.name in PLAN_PARAM && (
+            <span className="text-[12px] text-text3">Plans reach GW{first + 4}; you can plan around GW{target} from GW{target - 4}.</span>
           )}
           <button type="button" onClick={remind} className="text-[13px] font-semibold text-link" data-testid="chip-remind">
-            Remind me before GW{chip.best_gw}
+            Remind me before GW{target}
           </button>
         </div>
       )}

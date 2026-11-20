@@ -1,5 +1,5 @@
 import { reportError, scrubUrl, track } from "./analytics";
-import type { AnalysisResponse, ChipName, ChipReason, ChipsResponse, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, LeagueViewResponse, ReviewResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
+import type { AnalysisResponse, BenchBuildResponse, ChipName, ChipReason, ChipsResponse, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, LeagueViewResponse, ReviewResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
 export class ApiError extends Error {}
 
@@ -170,6 +170,20 @@ export function getChips(team: number, league: number | null): Promise<ChipsResp
     pending = getJSON<ChipsResponse>(`/api/chips?${key}`);
     pending.catch(() => chipsCache.delete(key));
     chipsCache.set(key, pending);
+  }
+  return pending;
+}
+
+/** A Bench Boost in `gw` with the bench built for it (a plan run on the server, so cached here). */
+const benchCache = new Map<string, Promise<BenchBuildResponse>>();
+
+export function getBenchBuild(team: number, league: number | null, strategy: Strategy, gw: number): Promise<BenchBuildResponse> {
+  const key = `${leagueQuery(team, league)}&strategy=${strategy}&gw=${gw}`;
+  let pending = benchCache.get(key);
+  if (!pending) {
+    pending = getJSON<BenchBuildResponse>(`/api/chips/bench?${key}`);
+    pending.catch(() => benchCache.delete(key));
+    benchCache.set(key, pending);
   }
   return pending;
 }

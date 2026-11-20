@@ -88,12 +88,34 @@ export type ChipName = "wildcard" | "freehit" | "bboost" | "3xc";
 export interface ChipLeft { name: ChipName; label: string; start: number; stop: number }
 
 // ---- chip planner (phase 7) ----
+export interface ChipSquad {
+  starting: number[];
+  bench: number[]; // backup keeper first
+  captain: number;
+  vice: number;
+  xpts: number; // XI + captain
+  cost: number | null; // Free Hit: what the squad costs
+  budget: number | null; // Free Hit: your squad's selling value plus the bank
+}
 export interface ChipWeek {
   gw: number;
   xpts: number; // what the chip is projected to add that week
   players: number[]; // Bench Boost: the bench; Triple Captain: the captain; Free Hit: players in
   blanks: string[]; // clubs with no match
   doubles: string[]; // clubs playing twice
+  squad: ChipSquad | null; // Free Hit: its one-week squad; otherwise your squad now
+}
+export interface BenchBuildResponse {
+  gw: number;
+  strategy: Strategy;
+  horizon: number;
+  weeks: { gw: number; moves: Move[]; hits: number }[]; // transfers up to the boost week
+  squad: ChipSquad;
+  boost_xpts: number;
+  boost_now_xpts: number;
+  plan_gain: number;
+  players: Record<number, Player>;
+  clubs: Record<string, Club>;
 }
 export interface ChipOutlook {
   name: ChipName;

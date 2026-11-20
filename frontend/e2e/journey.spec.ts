@@ -531,6 +531,28 @@ test("phase 7: deadline checklist, chip planner, reminders and a Bench Boost wee
   }
   await shot(page, "41-chip-planner");
 
+  // The squad behind a week: tap a week, see it on a pitch; reminders follow the week you picked.
+  const fh = page.getByTestId("chip-freehit");
+  if (await fh.count()) {
+    await expect(fh.getByTestId("chip-squad")).toContainText(/FREE HIT SQUAD · GW\d+/);
+    await expect(fh.getByTestId("chip-squad").getByTestId("pitch-player")).toHaveCount(11);
+    const third = fh.getByTestId("chip-weeks").getByRole("button").nth(2);
+    await third.click();
+    await expect(third).toHaveAttribute("aria-pressed", "true");
+    const gw = (await third.getAttribute("aria-label"))!.split(":")[0];
+    await expect(fh.getByTestId("chip-squad")).toContainText(`FREE HIT SQUAD · ${gw}`);
+    await expect(fh.getByTestId("chip-remind")).toContainText(`before ${gw}`);
+  }
+  const boost = page.getByTestId("chip-bboost");
+  if (await boost.count()) {
+    await boost.getByTestId("chip-weeks").getByRole("button").nth(1).click(); // a week Plans can reach
+    await expect(boost.getByTestId("chip-squad").getByTestId("pitch-player")).toHaveCount(11);
+    await boost.getByRole("button", { name: "Bench built for it" }).click();
+    await expect(boost.getByTestId("chip-bench-moves")).toContainText("The boost adds", { timeout: 120_000 });
+    await expect(boost.getByTestId("chip-bench-moves")).toContainText(/GW\d+:/);
+    await shot(page, "43-chip-squads");
+  }
+
   // Plans with a chosen Bench Boost week: the plan plays it there.
   const bb = page.getByTestId("chip-bboost").getByTestId("chip-plan-link");
   if (await bb.count()) {
