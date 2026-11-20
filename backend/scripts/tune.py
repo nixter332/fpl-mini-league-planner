@@ -59,6 +59,9 @@ CONFIGS: dict[str, dict[str, Any]] = {
     "buy discount 10%": {"buy_discount": 0.10},
     "buy discount 20%": {"buy_discount": 0.20},
     "buy discount 30%": {"buy_discount": 0.30},
+    # Run 3 (20 Nov 2026): projections improve as the season goes on, so the overrating may
+    # shrink too. This one starts at 30% in GW4 and fades to 0 by GW19.
+    "buy discount 30% fading": {"buy_discount": 0.30, "buy_discount_fade": 19},
     "no chips": {"chips": None},
     "chips matched to the real manager": {"chips": "matched"},
     "WC bar 15": {"wc_bar": 15.0},
@@ -130,8 +133,8 @@ def simulate(manager: dict, name: str, cfg: dict) -> dict:
     if manager["league"]:
         rivals = {e: p for e, p in W["league_picks"][manager["league"]].items() if e != manager["entry"]}
 
-    settings_kw = {k: v for k, v in cfg.items() if k not in ("chips", "wc_bar", "fh_bar", "buy_discount")}
-    discount = cfg.get("buy_discount", 0.0)
+    settings_kw = {k: v for k, v in cfg.items() if k not in ("chips", "wc_bar", "fh_bar", "buy_discount", "buy_discount_fade")}
+    base_discount, fade = cfg.get("buy_discount", 0.0), cfg.get("buy_discount_fade")
     state, pts, played, hits = first, {}, {}, 0
     for gw in gws:
         targets = tuple(g for g in range(gw, gw + HORIZON) if g <= len(W["data"].bootstrap.events))
@@ -140,6 +143,7 @@ def simulate(manager: dict, name: str, cfg: dict) -> dict:
             if rivals else NO_RIVALS
         )
         pool = build_pool(W["data"].bootstrap, W["projections"][gw], state, targets, available=W["exists"][gw])
+        discount = base_discount * (max(0.0, (fade - gw) / (fade - 4)) if fade else 1.0)
         if discount:
             owned = set(state.element_ids)
             pool = [p if p.element in owned else replace(p, xpts={g: x * (1 - discount) for g, x in p.xpts.items()}) for p in pool]

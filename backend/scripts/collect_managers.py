@@ -10,6 +10,7 @@ data/cache/manager-sample/{entry}.json as soon as it's complete, and skipped nex
 Finished gameweeks' picks also land in the normal disk cache for good.
 
 Usage (from backend/):  python -m scripts.collect_managers --to 9
+                        python -m scripts.collect_managers --extend --to 10   # add GW10 to the sample
 """
 
 import argparse
@@ -66,9 +67,38 @@ def collect_one(client: FPLClient, row: dict[str, Any], last_gw: int) -> dict[st
     }
 
 
+def extend(client: FPLClient, last: int) -> None:
+    """Bring managers already in the sample up to `last`: fetch only the gameweeks' picks they're
+    missing (from the first week they have), and refresh their history (points and chips)."""
+    files = sorted(f for f in OUT.glob("*.json") if not f.name.startswith("_"))
+    print(f"Extending {len(files)} managers to GW{last}", flush=True)
+    started = time.perf_counter()
+    for i, path in enumerate(files, 1):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        joined = min((int(g) for g in data["picks"]), default=1)
+        missing = [gw for gw in range(joined, last + 1) if str(gw) not in data["picks"]]
+        if not missing:
+            continue
+        try:
+            for gw in missing:
+                try:
+                    data["picks"][str(gw)] = client.entry_picks(data["entry"], gw)
+                except FPLNotFound:
+                    continue
+            data["history"] = client.entry_history(data["entry"])
+        except Exception as e:  # keep going; a rerun retries the ones that failed
+            print(f"  {data['entry']} failed: {e}", flush=True)
+            continue
+        path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        if i % 25 == 0 or i == len(files):
+            mins = (time.perf_counter() - started) / 60
+            print(f"  {i}/{len(files)} ({mins:.0f} min, {client.network_calls} requests)", flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--to", type=int, default=None, help="last GW to collect picks for (default: latest finished)")
+    ap.add_argument("--extend", action="store_true", help="add missing gameweeks to managers already in the sample")
     args = ap.parse_args()
     sys.stdout.reconfigure(encoding="utf-8")
     OUT.mkdir(parents=True, exist_ok=True)
@@ -77,6 +107,9 @@ def main() -> None:
         last = args.to or latest_finished_gameweek(Bootstrap.model_validate(client.bootstrap()).events).id
         rows = sample(client)
         (OUT / "_sample.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
+        if args.extend:
+            extend(client, last)
+            return
         todo = [r for r in rows if not (OUT / f"{r['entry']}.json").exists()]
         print(f"{len(rows)} managers in the sample, {len(todo)} to collect (picks GW1-{last})", flush=True)
         started = time.perf_counter()
