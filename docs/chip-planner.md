@@ -34,6 +34,13 @@ On Nikhil's team (20 Nov, 5-week Protect plan):
 - **Bench Boost in GW13:** the boost adds +20.7 and the plan gains +33.5. The planner also swaps the backup keeper (Bentley → Trafford) in GW12.
 - **Without preparing the bench:** the boost would add +5.7 that week.
 
+**The squad behind each week (20 Nov 2026).** Tap any week on the Chips page to see a squad on a pitch.
+- **Free Hit:** the one-week squad, with its cost against your budget and new players marked.
+- **Bench Boost:** your squad now, or "Bench built for it", which uses `GET /api/chips/bench?gw=`. That's Plan 1 with the Bench Boost chosen in that week: its transfers up to the week, the 15 then, and what the boost adds against your bench now. It only works for weeks Plans can reach (5 ahead).
+- **Triple Captain:** your squad and its captain.
+
+A squad for a later week is labelled a draft.
+
 **Deadline checklist.** The team page now opens with "Before the GW deadline", showing this week's transfer (Plan 1), captain and chip. Each row links to its screen.
 
 **Reminders.** "Remind me before GW16" saves a calendar file with one event, "FPL GW16: play your Bench Boost", with reminders a day and 3 hours before.
