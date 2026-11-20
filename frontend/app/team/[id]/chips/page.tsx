@@ -195,7 +195,7 @@ function ChipCard({ chip, data, entry, league, onOpen }: {
 
       {best && players.length > 0 && (
         <div className="flex flex-col gap-1.5">
-          <div className="text-xs font-semibold text-text3">{PLAYERS_LABEL[chip.name].toUpperCase()} IN GW{best.gw}</div>
+          <div className="text-xs font-semibold text-text3">{PLAYERS_LABEL[chip.name].toUpperCase()} · GW{best.gw}</div>
           {shown.map((pid) => (
             <div key={pid} className="flex items-center justify-between gap-3 border-t border-line pt-1.5 first:border-t-0 first:pt-0">
               <div className="flex min-w-0 flex-col">

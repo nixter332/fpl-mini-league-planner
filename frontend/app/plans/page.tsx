@@ -79,7 +79,10 @@ function PlansScreen() {
   const gws = data?.gws ?? [];
   const chipGws = (name: ChipName) =>
     gws.filter((g) => (data?.chips_left ?? []).some((c) => c.name === name && c.start <= g && g <= c.stop));
-  const hasAuto = (data?.chips_left ?? []).some((c) => (c.name === "bboost" || c.name === "3xc") && gws.some((g) => c.start <= g && g <= c.stop));
+  // Chips the planner may still decide on: Bench Boost / Triple Captain you have, and haven't given a week yourself.
+  const autoNames = (["bboost", "tcap"] as const).filter((k) => params[k] === null && chipGws(CHOSEN_CHIP_NAME[k]).length > 0);
+  const hasAuto = autoNames.length > 0;
+  const autoLabel = autoNames.map((k) => CHIP_LABELS[CHOSEN_CHIP_NAME[k]]).join(" / ");
   const chosen = CHOSEN_CHIPS.filter((k) => params[k] !== null);
   // A week another chosen chip already has is not offered (one chip per gameweek).
   const takenBy = (k: ChosenChip) => new Set(CHOSEN_CHIPS.filter((o) => o !== k).map((o) => params[o]));
@@ -91,7 +94,7 @@ function PlansScreen() {
     `${params.horizon} GW${plural(params.horizon)}`,
     params.hits ? `up to ${params.hits} hit${plural(params.hits)}` : "no hits",
     ...chosen.map((k) => `${CHIP_LABELS[CHOSEN_CHIP_NAME[k]]} GW${params[k]}`),
-    hasAuto ? `Bench Boost / Triple Captain: ${params.chips ? "planner decides" : "off"}` : null,
+    hasAuto ? `${autoLabel}: ${params.chips ? "planner decides" : "off"}` : null,
   ].filter(Boolean).join(" · ");
   const openRank = current?.plans.some((p) => p.rank === open) ? open : current?.plans[0]?.rank;
 
@@ -193,8 +196,8 @@ function PlansScreen() {
                     label="Bench Boost and Triple Captain"
                     value={params.chips ? 1 : 0}
                     options={[
-                      { value: 1, label: "Bench Boost / Triple Captain: planner decides" },
-                      { value: 0, label: "Bench Boost / Triple Captain: don't play" },
+                      { value: 1, label: `${autoLabel}: planner decides` },
+                      { value: 0, label: `${autoLabel}: don't play` },
                     ]}
                     onChange={(v) => go({ chips: v === 1 })}
                   />
