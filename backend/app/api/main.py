@@ -16,8 +16,8 @@ from starlette.concurrency import run_in_threadpool
 from app.api import schemas as s
 from app.api.limits import RateLimiter, client_key
 from app.api.service import InvalidRequestError, NotFoundError, PlannerService
-from app.explain.explainer import REPLACEMENT_SYSTEM, Explainer
-from app.explain.summary import build_replacement_summary, build_summary
+from app.explain.explainer import CHIP_SYSTEM, REPLACEMENT_SYSTEM, Explainer
+from app.explain.summary import build_chip_summary, build_replacement_summary, build_summary
 from app.fpl.client import FPLClient, FPLError, FPLNotFound
 from app.fpl.links import LinkParseError
 
@@ -138,6 +138,8 @@ def plans(
     max_hits: int = Query(0, ge=0, le=4, description="Most -4 hits over the whole horizon"),
     wildcard: int | None = Query(None, ge=1, le=38, description="Play your Wildcard in this GW"),
     freehit: int | None = Query(None, ge=1, le=38, description="Play your Free Hit in this GW"),
+    bboost: int | None = Query(None, ge=1, le=38, description="Play your Bench Boost in this GW (the plan builds the bench)"),
+    tcap: int | None = Query(None, ge=1, le=38, description="Play your Triple Captain in this GW"),
     chips: bool = Query(True, description="Let the planner play Bench Boost / Triple Captain when worth it"),
     keep: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Your players the plan must not sell (up to 3 IDs)"),
     ban: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Players the plan must not buy (up to 3 IDs)"),
@@ -148,7 +150,8 @@ def plans(
     if not _allowed("plans", plans_limiter, request):
         raise HTTPException(429, "You've built a lot of plans in the last hour. Try again in a bit.")
     ids = lambda text: [int(x) for x in text.split(",") if x]
-    return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips, keep=ids(keep), ban=ids(ban))
+    return svc.plans(team, league, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, bboost=bboost, tcap=tcap,
+                     chips=chips, keep=ids(keep), ban=ids(ban))
 
 
 @app.get("/api/week", response_model=s.WeekResponse)
@@ -200,6 +203,8 @@ async def explain(
     max_hits: int = Query(0, ge=0, le=4),
     wildcard: int | None = Query(None, ge=1, le=38),
     freehit: int | None = Query(None, ge=1, le=38),
+    bboost: int | None = Query(None, ge=1, le=38),
+    tcap: int | None = Query(None, ge=1, le=38),
     chips: bool = Query(True),
     rank: int = Query(..., ge=1, le=3),
     svc: PlannerService = Depends(get_service),
@@ -211,7 +216,8 @@ async def explain(
     if not explain_limiter.allow(client_key(request)):
         return s.ExplainResponse(rank=rank, status="unavailable")  # the plan still shows, without a reason
     resp, plan = await run_in_threadpool(
-        lambda: svc.plan(team, league, strategy, horizon, max_hits, rank, wildcard=wildcard, freehit=freehit, chips=chips)
+        lambda: svc.plan(team, league, strategy, horizon, max_hits, rank, wildcard=wildcard, freehit=freehit,
+                         bboost=bboost, tcap=tcap, chips=chips)
     )
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_summary(resp, plan), known)
@@ -224,7 +230,10 @@ analysis_limiter = RateLimiter(240, 3600)  # cheap, but each call scores ~200 li
 what_if_limiter = RateLimiter(600, 3600)  # one call per change in the sandbox
 # Overall caps (all visitors together). The per-visitor limits key on X-Forwarded-For, which a
 # caller hitting the backend directly could fake; these bound the solver's CPU regardless.
-overall_limiter = {"plans": RateLimiter(1500, 3600), "analysis": RateLimiter(3000, 3600), "what-if": RateLimiter(8000, 3600)}
+overall_limiter = {
+    "plans": RateLimiter(1500, 3600), "analysis": RateLimiter(3000, 3600), "what-if": RateLimiter(8000, 3600),
+    "chips": RateLimiter(3000, 3600),
+}
 
 
 def _allowed(kind: str, limiter: RateLimiter, request: Request) -> bool:
@@ -273,6 +282,47 @@ async def analysis_explain(
     if result is None:
         return s.ReplacementExplainResponse(player=player, status="unavailable")
     return s.ReplacementExplainResponse(player=player, status="ok", why=result.why, watch_out=result.watch_out)
+
+
+chips_limiter = RateLimiter(240, 3600)  # cheap: 9 one-week solves, cached per team
+
+
+@app.get("/api/chips", response_model=s.ChipsResponse)
+def chips(
+    request: Request,
+    team: int = Query(..., gt=0),
+    league: int | None = Query(None, ge=0, description="0 = no league"),
+    svc: PlannerService = Depends(get_service),
+) -> s.ChipsResponse:
+    """Chip planner: what each chip left adds in every week to the end of its window, and when to play it."""
+    if not _allowed("chips", chips_limiter, request):
+        raise HTTPException(429, "That's a lot of chip plans in an hour. Try again in a bit.")
+    return svc.chips(team, league)
+
+
+@app.get("/api/chips/explain", response_model=s.ChipExplainResponse)
+async def chips_explain(
+    request: Request,
+    team: int = Query(..., gt=0),
+    chip: Literal["bboost", "3xc", "freehit"] = Query(...),
+    league: int | None = Query(None, ge=0),
+    svc: PlannerService = Depends(get_service),
+    explainer: Explainer = Depends(get_explainer),
+) -> s.ChipExplainResponse:
+    """A Claude-written reason for one chip's ranking (numbers from the chip planner)."""
+    if not explainer.enabled:
+        return s.ChipExplainResponse(chip=chip, status="off")
+    if not explain_limiter.allow(client_key(request)):
+        return s.ChipExplainResponse(chip=chip, status="unavailable")
+    resp = await run_in_threadpool(svc.chips, team, league)
+    outlook = next((c for c in resp.chips if c.name == chip and c.ranked and c.best_gw is not None), None)
+    if outlook is None:
+        return s.ChipExplainResponse(chip=chip, status="unavailable")
+    known = await run_in_threadpool(svc.known_names)
+    result = await explainer.explain(build_chip_summary(resp, outlook), known, CHIP_SYSTEM)
+    if result is None:
+        return s.ChipExplainResponse(chip=chip, status="unavailable")
+    return s.ChipExplainResponse(chip=chip, status="ok", why=result.why, watch_out=result.watch_out)
 
 
 @app.post("/api/what-if", response_model=s.WhatIfResponse)

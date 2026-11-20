@@ -33,6 +33,8 @@ from app.optimizer.chips import (
     AUTO_CHIPS, BENCH_BOOST, CHIP_LABELS, FREE_HIT, TRIPLE_CAPTAIN, WILDCARD, ChipWindow, window_for,
 )
 from app.optimizer.analysis import analyse
+from app.optimizer.chipplan import ADVISED, CLOSE, FREE_HIT_BUY_DISCOUNT, LOOKAHEAD as CHIP_LOOKAHEAD, ChipOutlook
+from app.optimizer.chipplan import chip_outlook, fixture_counts
 from app.optimizer.plans import make_plans, paired_transfers
 from app.optimizer.solver import PoolPlayer
 from app.optimizer.whatif import Move as WhatIfMove
@@ -87,12 +89,51 @@ def _chips_left(chips: tuple[ChipWindow, ...]) -> list[s.ChipLeft]:
     return [s.ChipLeft(name=c.name, label=CHIP_LABELS[c.name], start=c.start, stop=c.stop) for c in chips]
 
 
+def _chip_lines(o: ChipOutlook, first: int, advised: bool) -> list[str]:
+    """The chip planner's verdict in plain English, filled from its numbers (no LLM)."""
+    expires = f"It's lost after GW{o.window.stop}."
+    if not o.weeks:
+        return [
+            "Not ranked. A Wildcard's value lasts for weeks after you play it, and in our tests the planner's "
+            "Wildcard advice lost points, so the timing is your call.",
+            expires,
+        ]
+    best = o.best
+    if best is None:
+        return ["It's projected to add nothing in any of these weeks.", expires]
+    now = next((w for w in o.weeks if w.gw == first), None)
+    lines = []
+    if not advised:
+        lines.append(f"Its best projected week is GW{best.gw} (+{best.xpts:.1f}). Our backtest didn't show that this "
+                     "timing beats picking a week at random, so treat it as a guide.")
+    elif o.play_now:
+        lines.append(f"Play it this week: GW{first} is its best week (+{best.xpts:.1f}).")
+    else:
+        this_week = f", against +{now.xpts:.1f} this week" if now else ""
+        lines.append(f"Hold it: its best week is GW{best.gw} (+{best.xpts:.1f}){this_week}.")
+    values = [w.xpts for w in o.weeks]
+    if len(values) > 1 and max(values) - min(values) <= CLOSE:
+        lines.append("Every week is within a point of the others, so no week stands out yet.")
+    elif o.close:
+        weeks = ", ".join(f"GW{g}" for g in o.close)
+        lines.append(f"{weeks} {'is' if len(o.close) == 1 else 'are'} within a point of it, so it's a close call.")
+    if o.chip == BENCH_BOOST:
+        lines.append("This counts the bench you have now. A stronger bench makes it worth more: plan around it and the "
+                     "planner builds the bench for that week.")
+    elif o.chip == FREE_HIT:
+        lines.append(f"Players you'd bring in are projected {FREE_HIT_BUY_DISCOUNT:.0%} lower, because players the "
+                     "planner buys have scored below their projections.")
+    lines.append(expires)
+    return lines
+
+
 @dataclass(frozen=True)
 class SeasonContext:
     data: SeasonData
     now: datetime
     finished_gw: int
     gws: tuple[int, ...]  # the next actionable GW and the ones after it
+    chip_gws: tuple[int, ...]  # the weeks the chip planner ranks: the next actionable GW and up to 8 more
     events: dict[int, Event]
     xpts: dict[int, dict[int, float]]  # element -> gw -> xPts
     projection: pd.DataFrame
@@ -127,6 +168,7 @@ class PlannerService:
         self._jobs: dict[int, tuple[Future, float]] = {}  # league -> (job, started at)
         self._plan_locks: dict[tuple, threading.Lock] = {}  # one solve per plan set at a time
         self._past: dict[tuple, dict[int, float]] = {}  # last gameweek's projection, for the review
+        self._chips: OrderedDict[tuple, s.ChipsResponse] = OrderedDict()
 
     # ---- season-wide data ------------------------------------------------------------------
 
@@ -186,11 +228,13 @@ class PlannerService:
         if actionable is None:
             raise NotFoundError("The season's last deadline has passed. See you next season!")
         gws = tuple(g for g in range(actionable.id, actionable.id + TEAM_VIEW_GWS) if g <= len(bootstrap.events))
+        chip_gws = tuple(g for g in range(actionable.id, actionable.id + CHIP_LOOKAHEAD) if g <= len(bootstrap.events))
         live = {gw: EventLive.model_validate(self.client.event_live(gw)) for gw in range(1, finished_gw + 1)}
         fixtures = [Fixture.model_validate(f) for f in self.client.fixtures()]
         data = SeasonData(bootstrap, fixtures, live)
 
-        projection = project(data, train_through=finished_gw, target_gws=gws)
+        # Projected out to the chip planner's lookahead (~0.1 s more); other screens use `gws`.
+        projection = project(data, train_through=finished_gw, target_gws=sorted(set(gws) | set(chip_gws)))
         xpts: dict[int, dict[int, float]] = {}
         for (element, gw), value in projection["xpts"].items():
             xpts.setdefault(int(element), {})[int(gw)] = round(float(value), 2)
@@ -199,13 +243,13 @@ class PlannerService:
         labels: dict[tuple[int, int], list[str]] = {}
         difficulty: dict[tuple[int, int], list[int]] = {}
         for f in sorted(fixtures, key=lambda f: (f.kickoff_time is None, f.kickoff_time)):
-            if f.event in gws:
+            if f.event in gws or f.event in chip_gws:
                 labels.setdefault((f.team_h, f.event), []).append(f"{teams[f.team_a].short_name} (H)")
                 labels.setdefault((f.team_a, f.event), []).append(f"{teams[f.team_h].short_name} (A)")
                 difficulty.setdefault((f.team_h, f.event), []).append(f.team_h_difficulty)
                 difficulty.setdefault((f.team_a, f.event), []).append(f.team_a_difficulty)
         return SeasonContext(
-            data=data, now=now, finished_gw=finished_gw, gws=gws,
+            data=data, now=now, finished_gw=finished_gw, gws=gws, chip_gws=chip_gws,
             events={e.id: e for e in bootstrap.events}, xpts=xpts, projection=projection,
             elements={e.id: e for e in bootstrap.elements}, teams=teams,
             fixture_labels={k: ", ".join(v) for k, v in labels.items()},
@@ -307,16 +351,18 @@ class PlannerService:
 
     def plans(
         self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int,
-        *, wildcard: int | None = None, freehit: int | None = None, chips: bool = True,
-        keep: Sequence[int] = (), ban: Sequence[int] = (),
+        *, wildcard: int | None = None, freehit: int | None = None, bboost: int | None = None, tcap: int | None = None,
+        chips: bool = True, keep: Sequence[int] = (), ban: Sequence[int] = (),
     ) -> s.PlansResponse:
-        """wildcard / freehit: the GW the user chose to play that chip in. chips: whether the
+        """wildcard / freehit / bboost / tcap: the GW the user chose to play that chip in (a chosen
+        Bench Boost week counts the bench fully, so the plan builds it). chips: whether the
         planner may play Bench Boost and Triple Captain when they're worth it. keep: players of
         theirs the plan must not sell; ban: players it must not buy (both for "what if" questions)."""
         ctx = self.context()
         horizon = max(1, min(horizon, len(ctx.gws)))
         keep, ban = tuple(sorted(set(keep))), tuple(sorted(set(ban)))
-        key = (entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, keep, ban, ctx.built_at)
+        chosen = (wildcard, freehit, bboost, tcap)
+        key = (entry_id, league_id, strategy, horizon, max_hits, chosen, chips, keep, ban, ctx.built_at)
         with self._lock:
             if key in self._plans:
                 self._plans.move_to_end(key)
@@ -328,13 +374,13 @@ class PlannerService:
                 if key in self._plans:
                     return self._plans[key]
             try:
-                return self._solve_plans(key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx, keep, ban)
+                return self._solve_plans(key, entry_id, league_id, strategy, horizon, max_hits, chosen, chips, ctx, keep, ban)
             finally:
                 with self._lock:
                     self._plan_locks.pop(key, None)
 
-    def _solve_plans(self, key, entry_id, league_id, strategy, horizon, max_hits, wildcard, freehit, chips, ctx, keep=(), ban=()) -> s.PlansResponse:
-
+    def _solve_plans(self, key, entry_id, league_id, strategy, horizon, max_hits, chosen, chips, ctx, keep=(), ban=()) -> s.PlansResponse:
+        wildcard, freehit, bboost, tcap = chosen
         entry = Entry.model_validate(self.client.entry(entry_id))
         leagues = _private_leagues(entry)
         league_id = self._pick_league(league_id, leagues)
@@ -344,7 +390,7 @@ class PlannerService:
 
         gws = ctx.gws[:horizon]
         forced = []
-        for name, gw in ((WILDCARD, wildcard), (FREE_HIT, freehit)):
+        for name, gw in ((WILDCARD, wildcard), (FREE_HIT, freehit), (BENCH_BOOST, bboost), (TRIPLE_CAPTAIN, tcap)):
             if gw is None:
                 continue
             if gw not in gws:
@@ -352,7 +398,7 @@ class PlannerService:
             if window_for(state.chips, name, gw) is None:
                 raise InvalidRequestError(f"You don't have a {CHIP_LABELS[name]} to play in GW{gw}.")
             forced.append((gw, name))
-        if wildcard is not None and wildcard == freehit:
+        if len({gw for gw, _ in forced}) < len(forced):
             raise InvalidRequestError("Only one chip can be played per gameweek.")
         settings = Settings(
             gws, strategy=strategy, max_hits=max_hits, chips=state.chips,
@@ -384,7 +430,8 @@ class PlannerService:
         response = s.PlansResponse(
             entry=entry_id, strategy=strategy, horizon=horizon, max_hits=max_hits, gws=list(gws),
             deadline=ctx.events[gws[0]].deadline_time,
-            chips_left=_chips_left(state.chips), wildcard_gw=wildcard, freehit_gw=freehit, auto_chips=chips,
+            chips_left=_chips_left(state.chips), wildcard_gw=wildcard, freehit_gw=freehit, bboost_gw=bboost, tcap_gw=tcap,
+            auto_chips=chips,
             free_transfers=state.free_transfers, bank=state.bank,
             standing=bundle.standing if bundle else None,
             captain_note=self._captain_note(plans[0], ctx, ownership) if plans else "",
@@ -463,13 +510,82 @@ class PlannerService:
 
     def plan(
         self, entry_id: int, league_id: int | None, strategy: str, horizon: int, max_hits: int, rank: int,
-        *, wildcard: int | None = None, freehit: int | None = None, chips: bool = True,
+        *, wildcard: int | None = None, freehit: int | None = None, bboost: int | None = None, tcap: int | None = None,
+        chips: bool = True,
     ) -> tuple[s.PlansResponse, s.Plan]:
-        resp = self.plans(entry_id, league_id, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit, chips=chips)
+        resp = self.plans(entry_id, league_id, strategy, horizon, max_hits, wildcard=wildcard, freehit=freehit,
+                          bboost=bboost, tcap=tcap, chips=chips)
         plan = next((p for p in resp.plans if p.rank == rank), None)
         if plan is None:
             raise NotFoundError("That plan isn't available any more.")
         return resp, plan
+
+    # ---- phase 7: chip planner -------------------------------------------------------------
+
+    def chips(self, entry_id: int, league_id: int | None) -> s.ChipsResponse:
+        """What each chip left is projected to add in every week to the end of its window (up to
+        CHIP_LOOKAHEAD weeks), and whether to play it now. Uses the squad as of the last deadline."""
+        ctx = self.context()
+        key = (entry_id, league_id, ctx.built_at)
+        with self._lock:
+            if key in self._chips:
+                return self._chips[key]
+        entry = Entry.model_validate(self.client.entry(entry_id))
+        league_id = self._pick_league(league_id, _private_leagues(entry))
+        state = load_state(self.client, entry_id, ctx.data.bootstrap, ctx.now)
+        bundle = self._league(league_id, entry, state.picks_gw, wait=False) if league_id else None
+        ownership = bundle.ownership if bundle else NO_RIVALS
+        gws = ctx.chip_gws
+        position = {e.id: e.element_type for e in ctx.elements.values()}
+        pool_for = lambda g: build_pool(ctx.data.bootstrap, ctx.projection, state, (g,))
+        outlooks = chip_outlook(state.chips, state, gws, position, ctx.xpts, pool_for)
+
+        counts = fixture_counts(((f.event, f.team_h, f.team_a) for f in ctx.data.fixtures), ctx.teams, gws)
+        short = lambda ids: [ctx.teams[t].short_name for t in ids]
+        out = []
+        referenced = set(state.element_ids)
+        for o in outlooks:
+            weeks = [
+                s.ChipWeekOut(gw=w.gw, xpts=round(w.xpts, 1), players=list(w.players),
+                              blanks=short(counts[w.gw][0]), doubles=short(counts[w.gw][1]))
+                for w in o.weeks
+            ]
+            for w in o.weeks:
+                referenced.update(w.players)
+            plan_link = o.best_gw if o.best_gw in ctx.gws and o.chip in (BENCH_BOOST, FREE_HIT, TRIPLE_CAPTAIN) else None
+            out.append(s.ChipOutlookOut(
+                name=o.chip, label=CHIP_LABELS[o.chip], start=o.window.start, stop=o.window.stop,
+                ranked=bool(o.weeks), advised=o.chip in ADVISED, weeks=weeks, best_gw=o.best_gw,
+                play_now=o.play_now and o.chip in ADVISED, close=list(o.close),
+                lines=_chip_lines(o, gws[0], o.chip in ADVISED), plan_link=plan_link,
+            ))
+        covered = {(o.window.name, o.window.start) for o in outlooks}
+        later = [c for c in _chips_left(state.chips) if (c.name, c.start) not in covered]
+
+        odd = [g for g in gws if counts[g][0] or counts[g][1]]
+        if odd:
+            parts = []
+            for g in odd:
+                blanks, doubles = counts[g]
+                bits = ([f"{len(blanks)} club{'s' if len(blanks) != 1 else ''} without a match"] if blanks else []) + (
+                    [f"{len(doubles)} club{'s' if len(doubles) != 1 else ''} playing twice"] if doubles else [])
+                parts.append(f"GW{g}: {' and '.join(bits)}")
+            fixture_note = "Blank and double gameweeks: " + "; ".join(parts) + "."
+        else:
+            fixture_note = (f"No blank or double gameweeks are scheduled from GW{gws[0]} to GW{gws[-1]}, so the weeks differ "
+                            "only by fixtures. If FPL moves matches, the best weeks can change: check back each week.")
+
+        response = s.ChipsResponse(
+            entry=entry_id, gws=list(gws), deadline=ctx.events[gws[0]].deadline_time, chips=out, later=later,
+            fixture_note=fixture_note,
+            players=self._players(referenced, ctx, ownership, state, gws=gws), clubs=self._clubs(ctx),
+            facts=self._facts(state, None)[:1] + ["Every week is scored with the squad you have now; transfers before then change it."],
+        )
+        with self._lock:
+            self._chips[key] = response
+            while len(self._chips) > PLAN_CACHE_SIZE:
+                self._chips.popitem(last=False)
+        return response
 
     # ---- phase 8: analysis and what-if -----------------------------------------------------
 
@@ -920,7 +1036,9 @@ class PlannerService:
             note += f" {k} of {ownership.n_rivals} rivals captained him last week."
         return note
 
-    def _players(self, ids, ctx: SeasonContext, ownership: LeagueOwnership, state: SquadState) -> dict[int, s.Player]:
+    def _players(self, ids, ctx: SeasonContext, ownership: LeagueOwnership, state: SquadState, gws=None) -> dict[int, s.Player]:
+        """gws: the weeks shown per player (default: the team view's 5)."""
+        gws = ctx.gws if gws is None else gws
         sell = {p.element: p.sell_price for p in state.players}
         out = {}
         for pid in ids:
@@ -934,7 +1052,7 @@ class PlannerService:
                 gws=[
                     s.PlayerGw(gw=g, fixture=ctx.fixture_labels.get((e.team, g), "—"), xpts=ctx.xpts.get(pid, {}).get(g, 0.0),
                                difficulty=ctx.fixture_difficulty.get((e.team, g), []))
-                    for g in ctx.gws
+                    for g in gws
                 ],
             )
         return out

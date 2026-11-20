@@ -240,6 +240,62 @@ def build_summary(resp: s.PlansResponse, plan: s.Plan) -> dict[str, Any]:
     return summary
 
 
+CHIP_ADDS = {
+    "bboost": "the points of your four bench players that week",
+    "3xc": "your captain's points once more that week",
+    "freehit": "a one-week squad picked for that week, against your own best lineup; your squad comes back the week after",
+}
+CHIP_PLAYERS = {"bboost": "your_bench", "3xc": "your_captain", "freehit": "players_it_brings_in"}
+MAX_CHIP_PLAYERS = 5
+
+
+def build_chip_summary(resp: s.ChipsResponse, outlook: s.ChipOutlookOut) -> dict[str, Any]:
+    """Facts for explaining one chip's ranking (phase 7). Differences are precomputed."""
+    first = resp.gws[0]
+    by_gw = {w.gw: w for w in outlook.weeks}
+    best = by_gw[outlook.best_gw]
+    now = by_gw.get(first)
+
+    def players(week: s.ChipWeekOut) -> list[dict[str, Any]]:
+        cards = []
+        for pid in week.players:
+            p = resp.players[pid]
+            g = next((x for x in p.gws if x.gw == week.gw), None)
+            cards.append({
+                "name": p.name, "club": _club_name(resp, p.club), "position": POSITIONS[p.position],
+                "opponent": _opponents(resp, g.fixture) if g else "no game",
+                "expected_points": r1(g.xpts) if g else 0.0,
+            })
+        return sorted(cards, key=lambda c: -c["expected_points"])[:MAX_CHIP_PLAYERS]
+
+    if not outlook.advised:
+        verdict = "guide only"
+    elif outlook.play_now:
+        verdict = "play this week"
+    else:
+        verdict = "hold"
+    key = CHIP_PLAYERS[outlook.name]
+    summary: dict[str, Any] = {
+        "chip": outlook.label,
+        "what_it_adds": CHIP_ADDS[outlook.name],
+        "this_gameweek": f"GW{first}",
+        "last_gameweek_to_play_it": f"GW{outlook.stop}",
+        "verdict": verdict,
+        "best_week": f"GW{best.gw}",
+        "best_week_expected_points_added": r1(best.xpts),
+        "weeks": [{"gameweek": f"GW{w.gw}", "expected_points_added": r1(w.xpts)} for w in outlook.weeks],
+        "weeks_within_a_point_of_the_best": [f"GW{g}" for g in outlook.close],
+        f"best_week_{key}": players(best),
+        "fixtures": resp.fixture_note,
+        "squad": "Every week is scored with the squad the manager has now.",
+    }
+    if now is not None and now.gw != best.gw:
+        summary["this_week_expected_points_added"] = r1(now.xpts)
+        summary["best_week_more_than_this_week"] = r1(best.xpts - now.xpts)
+        summary[f"this_week_{key}"] = players(now)
+    return summary
+
+
 def build_replacement_summary(resp: s.AnalysisResponse, spot: s.SpotOut) -> dict[str, Any]:
     """Facts for explaining the top replacement for one squad player (phase 8 analysis)."""
     gws = resp.gws

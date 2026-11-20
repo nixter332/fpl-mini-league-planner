@@ -33,6 +33,9 @@ FREE_HIT_BUY_DISCOUNT = 0.25
 # Weeks whose values are this close count as a tie: small differences are noise, not advice.
 CLOSE = 1.0
 RANKED = (BENCH_BOOST, TRIPLE_CAPTAIN, FREE_HIT)
+# Chips whose "play now / hold" rule passed the backtest gate (docs/chip-planner.md). For the
+# others the page shows the weeks' values without telling the manager when to play.
+ADVISED: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -183,7 +186,7 @@ def fixture_counts(fixtures: Iterable[tuple[int | None, int, int]], teams: Itera
 
 
 __all__ = [
-    "BENCH_BOOST", "CLOSE", "FREE_HIT", "FREE_HIT_BUY_DISCOUNT", "LOOKAHEAD", "TRIPLE_CAPTAIN", "WILDCARD",
+    "ADVISED", "BENCH_BOOST", "CLOSE", "FREE_HIT", "FREE_HIT_BUY_DISCOUNT", "LOOKAHEAD", "TRIPLE_CAPTAIN", "WILDCARD",
     "ChipOutlook", "ChipWeek", "bench_boost_week", "chip_outlook", "decide", "fixture_counts", "free_hit_week",
     "triple_captain_week",
 ]

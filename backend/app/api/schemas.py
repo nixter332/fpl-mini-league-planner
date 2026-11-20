@@ -194,6 +194,8 @@ class PlansResponse(BaseModel):
     chips_left: list[ChipLeft] = []
     wildcard_gw: int | None = None  # the user chose to play these
     freehit_gw: int | None = None
+    bboost_gw: int | None = None  # chosen Bench Boost week: the plan builds the bench for it
+    tcap_gw: int | None = None
     auto_chips: bool = True  # the planner may play Bench Boost / Triple Captain
     gws: list[int]
     deadline: datetime | None = None  # the first planned GW's deadline
@@ -211,6 +213,51 @@ class PlansResponse(BaseModel):
 class ExplainResponse(BaseModel):
     rank: int
     status: Literal["ok", "unavailable", "off"]  # off = no API key configured
+    why: str | None = None
+    watch_out: str | None = None
+
+
+# ---- chip planner (phase 7) ------------------------------------------------------------------
+
+
+class ChipWeekOut(BaseModel):
+    gw: int
+    xpts: float  # what the chip is projected to add that week
+    players: list[int]  # Bench Boost: the bench; Triple Captain: the captain; Free Hit: players in
+    blanks: list[str] = []  # clubs (short names) with no match that week
+    doubles: list[str] = []  # clubs with two
+
+
+class ChipOutlookOut(BaseModel):
+    name: ChipName
+    label: str
+    start: int
+    stop: int  # last GW it can be played (lost after this)
+    ranked: bool  # False: a Wildcard, never ranked
+    advised: bool  # the timing rule passed the backtest for this chip, so the page may say play / hold
+    weeks: list[ChipWeekOut]
+    best_gw: int | None
+    play_now: bool
+    close: list[int]  # other weeks within a point of the best
+    lines: list[str]  # the planner's plain-English summary (templates, no LLM)
+    plan_link: int | None = None  # a week Plans can build around (within its 5-week horizon)
+
+
+class ChipsResponse(BaseModel):
+    entry: int
+    gws: list[int]  # the weeks ranked
+    deadline: datetime | None
+    chips: list[ChipOutlookOut]
+    later: list[ChipLeft]  # chips whose window starts after these weeks
+    fixture_note: str  # blank and double gameweeks in the ranked weeks, or that there are none
+    players: dict[int, Player]
+    clubs: dict[str, Club]
+    facts: list[str]
+
+
+class ChipExplainResponse(BaseModel):
+    chip: ChipName
+    status: Literal["ok", "unavailable", "off"]
     why: str | None = None
     watch_out: str | None = None
 
