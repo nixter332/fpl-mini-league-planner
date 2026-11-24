@@ -415,6 +415,12 @@ function PlanCard({ plan, data, params, href, onAllowHits, onPlayer }: { plan: P
               <div className="font-display text-base font-bold text-good">{signed(plan.differential_gain)}</div>
             </div>
           )}
+          {n > 0 && n < 4 && (
+            <div className="text-[12px] leading-[1.4] text-text3" data-testid="few-rivals">
+              With only {n} rival{n === 1 ? "" : "s"}, this swings a lot: almost every player you buy is one they don&apos;t have. It
+              measures swing, not extra points. A bigger league in the League menu gives a steadier read.
+            </div>
+          )}
           <div className="text-[13px] leading-[1.45]">
             {plan.is_roll ? `${signed(plan.xpts_gain)} xPts over ${data.horizon} GWs vs making no transfers.` : plan.summary}
             {later.length > 0 && (

@@ -32,7 +32,7 @@ def test_what_if_round_trip(api: TestClient) -> None:
 
 def test_what_if_reports_illegal_moves(api: TestClient) -> None:
     squad = set(api.post("/api/what-if", json={"team": TEAM, "horizon": 2}).json()["weeks"][0]["squad"])
-    outsider = next(int(p) for p in api.get("/api/players", params={"team": TEAM}).json()["players"] if int(p) not in squad)
+    outsider = next(int(p) for p in api.get("/api/players", params={"team": TEAM, "league": 0}).json()["players"] if int(p) not in squad)
     r = api.post("/api/what-if", json={"team": TEAM, "horizon": 2, "moves": [{"gw": 11, "out": outsider, "into": min(squad)}]}).json()
     assert r["problems"] and "isn't in your squad" in r["problems"][0]["message"]
     bad = api.post("/api/what-if", json={"team": TEAM, "moves": [{"gw": 11, "out": 1}]})

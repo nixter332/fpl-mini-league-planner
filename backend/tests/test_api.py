@@ -42,9 +42,10 @@ def test_unknown_team_is_a_404(api: TestClient) -> None:
 
 
 def test_team_screen(api: TestClient) -> None:
-    body = api.get(f"/api/team/{TEAM}", params={"wait_rivals": True}).json()  # no league: the smallest private one
+    # The fixtures hold rivals' squads for LEAGUE only (3 managers, so not the default: see below).
+    body = api.get(f"/api/team/{TEAM}", params={"league": LEAGUE, "wait_rivals": True}).json()
     assert body["standing"]["league"]["id"] == LEAGUE
-    assert body["leagues"][0]["id"] == LEAGUE
+    assert body["leagues"][0]["id"] == LEAGUE  # smallest first, for the League menu
     sizes = [l["size"] for l in body["leagues"]]
     assert sizes == sorted(sizes)
     assert body["free_transfers"] == 2 and body["bank"] == 11
@@ -124,3 +125,14 @@ def test_default_league_is_the_first_private_one() -> None:
     assert PlannerService._pick_league(0, leagues) is None  # 0 = no league
     assert PlannerService._pick_league(9, leagues) == 9
     assert PlannerService._pick_league(None, []) is None
+
+
+def test_default_league_skips_tiny_ones_when_theres_a_bigger_one() -> None:
+    """A 2-3 manager league makes the rival numbers swing wildly, so it's not the default unless
+    it's all there is (leagues come smallest first)."""
+    from app.api.schemas import LeagueInfo
+
+    duo, five, big = LeagueInfo(id=1, name="Duo", size=2), LeagueInfo(id=2, name="Mates", size=5), LeagueInfo(id=3, name="Work", size=40)
+    assert PlannerService._pick_league(None, [duo, five, big]) == 2
+    assert PlannerService._pick_league(None, [duo]) == 1
+    assert PlannerService._pick_league(1, [duo, five, big]) == 1  # still yours to pick
