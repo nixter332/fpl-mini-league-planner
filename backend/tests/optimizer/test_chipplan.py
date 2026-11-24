@@ -143,3 +143,13 @@ def test_chips_outside_the_lookahead_or_window_are_left_out(state, position, xpt
     only_fh = replace(state, chips=(ChipWindow(FREE_HIT, 11, 19),))
     [o] = chip_outlook(only_fh.chips, only_fh, GWS, position, xpts)
     assert o.chip == FREE_HIT and o.best_gw is None
+
+
+def test_a_window_that_opens_later_isnt_ranked_even_inside_the_lookahead(state, position, xpts) -> None:
+    """Seen from GW12, the lookahead reaches GW20, the first week of the second-half chips. Those
+    must not appear as a second Bench Boost "best in GW20" next to the first-half one."""
+    gws = tuple(range(GWS[0], GWS[0] + 9))
+    halves = replace(state, chips=(ChipWindow(BENCH_BOOST, GWS[0], gws[-2]), ChipWindow(BENCH_BOOST, gws[-1], 38)))
+    outlooks = chip_outlook(halves.chips, halves, gws, position, xpts)
+    assert [(o.chip, o.window.start) for o in outlooks] == [(BENCH_BOOST, GWS[0])]
+    assert all(w.gw <= gws[-2] for w in outlooks[0].weeks)
