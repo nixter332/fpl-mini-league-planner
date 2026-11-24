@@ -24,10 +24,13 @@ Rules:
 - Two chips never share a week. If their best weeks clash, the chip that loses less by moving takes its next-best week.
 - Weeks within 1 point of the best count as close.
 - The page names any blank or double gameweeks in the window. If there are none, it says so.
+- Only chip windows open now are ranked. A window that opens later, such as the second-half chips from GW20 seen from GW12, is listed under "Also left", even when its first week is inside the 9-week lookahead. *Fixed 24 Nov 2026:* before, the page showed a second Bench Boost and Free Hit "best in GW20" next to the first-half ones, and a reason written for the other card.
 
 The planner's verdict is written from templates filled with its numbers. Claude adds a short reason for the best week from the same numbers, through the same trust check as plan reasons (`CHIP_SYSTEM` in `explainer.py`).
 
 **Plan around it.** In Plans you can now choose a Bench Boost or Triple Captain week (`bboost=` / `tcap=` on `/api/plans`), as well as a Wildcard or Free Hit week. A chosen Bench Boost week counts the bench fully in the solver, so the plan builds the bench for it.
+
+**Plans don't spend chips unless asked** (24 Nov 2026). Since no chip's timing passed the gate below, Plans no longer let the planner play Bench Boost or Triple Captain by default (`chips=false` is the API default; the page sends `chips=1` only when the user picks "planner decides"). Before, the sample team's recommended plan played a Bench Boost the chip page called a guide only, and its +13.5 sat inside the headline gain. Scripts and backtests still default to the old behaviour.
 
 On Nikhil's team (20 Nov, 5-week Protect plan):
 - **No chip:** the plan gains +16.4.
