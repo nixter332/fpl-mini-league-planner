@@ -19,7 +19,7 @@ import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { TeamSkeleton } from "@/components/Skeleton";
 import { DEMO_LEAGUE, DEMO_TEAM, type AltLeague, forgetAltLeague, isDemo, loadAltLeague, rememberNav, startDemo } from "@/lib/nav";
-import { track } from "@/lib/analytics";
+import { setGameweek, track } from "@/lib/analytics";
 import { FeedbackLink } from "@/components/Feedback";
 import { deadlineLabel, gwOf, money, ordinal, pts, signed } from "@/lib/format";
 import type { AnalysisResponse, Player, Position, RivalsProgress, SpotOut, TeamResponse } from "@/lib/types";
@@ -90,7 +90,14 @@ function TeamScreen() {
         if (!isDemo(entry)) saveRecentTeam({ entry, league: d.standing?.league.id ?? (league === 0 ? 0 : null), name: d.team_name });
         rememberNav({ team: entry, league: d.standing?.league.id ?? 0, strategy: d.standing?.rank === 1 ? "protect" : "balanced" });
         const size = d.standing?.league.size ?? 0;
-        track("team_loaded", { league_size: size === 0 ? "none" : size <= 5 ? "2-5" : size <= 20 ? "6-20" : size <= 50 ? "21-50" : "51+", rivals_ready: d.rivals?.ready ?? true });
+        setGameweek(d.gameweeks[0]?.id ?? 0);
+        track("team_loaded", {
+          league_size: size === 0 ? "none" : size <= 5 ? "2-5" : size <= 20 ? "6-20" : size <= 50 ? "21-50" : "51+",
+          rivals_ready: d.rivals?.ready ?? true,
+          demo: isDemo(entry),
+          has_league: !!d.standing,
+          leagues: d.leagues.length === 0 ? "0" : d.leagues.length === 1 ? "1" : "2+",
+        });
         if (d.rivals && !d.rivals.ready) {
           // Show the team now; fill in the rival numbers once their squads are loaded.
           setProgress(d.rivals);

@@ -30,6 +30,7 @@ export default function MainPage() {
   // `from=id` is the team page's "Meant the league instead?" link: the same lookup, not an invite.
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
+    if (query.get("ref") === "plan") track("shared_link_opened", { kind: "plan" });
     const id = query.get("league");
     if (!id || !/^\d{1,9}$/.test(id)) return;
     if (query.get("from") !== "id") {

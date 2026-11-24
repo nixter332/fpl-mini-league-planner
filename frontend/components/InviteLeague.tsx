@@ -4,7 +4,7 @@ import { useState } from "react";
 import { track } from "@/lib/analytics";
 
 /** A link that opens the app with this league already found, so a friend only taps their name. */
-export const inviteUrl = (origin: string, leagueId: number) => `${origin}/?league=${leagueId}`;
+export const inviteUrl = (origin: string, leagueId: number) => `${origin}/?league=${leagueId}&ref=invite`;
 
 export function InviteLeague({ leagueId, leagueName, className = "" }: { leagueId: number; leagueName: string; className?: string }) {
   const [copied, setCopied] = useState(false);
