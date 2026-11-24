@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-23T20:12:20.632138+00:00",
+"captured_at": "2026-11-24T04:46:13.476183+00:00",
 "deadline": "2026-11-27T18:30:00+00:00",
 "gw": 12,
 "players": {
@@ -1012,11 +1012,11 @@
 "status": "a"
 },
 "229": {
-"chance_of_playing_next_round": null,
+"chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": null,
-"news": "",
-"news_added": null,
-"status": "a"
+"news": "Suspended until 13 Dec",
+"news_added": "2026-11-23T21:00:06.268052+00:00",
+"status": "s"
 },
 "23": {
 "chance_of_playing_next_round": 0,
@@ -4129,7 +4129,7 @@
 "63": {
 "chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": 0,
-"news": "Thigh injury - Expected back 31 Oct",
+"news": "Thigh injury - Unknown return date",
 "news_added": "2026-08-06T10:00:10.456051+00:00",
 "status": "i"
 },
