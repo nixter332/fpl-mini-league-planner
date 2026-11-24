@@ -12,6 +12,11 @@ services:
     startCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeploy: true
+    # The injury-news Action commits backend/data/news/ every few hours. The app never reads it
+    # (only backtests do), and each redeploy wipes the FPL cache, saved reasons and rate limits.
+    buildFilter:
+      ignoredPaths:
+        - "**/data/news/**"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
