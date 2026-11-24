@@ -5,12 +5,24 @@ from datetime import datetime
 
 import pandas as pd
 
-from app.fpl.client import FPLClient
+from app.fpl.client import FPLClient, FPLNotFound
 from app.fpl.gameweeks import latest_started_gameweek
 from app.fpl.models import Bootstrap, EntryHistory, EntryPicks, LeagueStandings, Transfer
 from app.model.scoring import DEF, FWD, GKP, MID
 from app.optimizer.solver import PoolPlayer
 from app.optimizer.state import SquadState, build_state
+
+
+class TeamNotStartedError(LookupError):
+    """The team exists but was created after the last deadline, so FPL has no squad for it yet."""
+
+    def __init__(self, starts_gw: int, deadline: datetime | None) -> None:
+        self.starts_gw = starts_gw
+        self.deadline = deadline
+        super().__init__(
+            f"This team's first gameweek is GW{starts_gw}, so FPL doesn't show its squad yet. "
+            f"Come back after the GW{starts_gw} deadline and your plans will be here."
+        )
 
 # Top N per position by horizon xPts, plus the cheapest few available (bench fodder).
 POOL_SIZES = {GKP: 10, DEF: 30, MID: 30, FWD: 20}
@@ -62,7 +74,16 @@ def load_state(client: FPLClient, entry_id: int, bootstrap: Bootstrap, now: date
     if started is None:
         raise ValueError("The season hasn't started; there are no picks yet.")
     gw = started.id
-    picks = EntryPicks.model_validate(client.entry_picks(entry_id, gw))
+    try:
+        picks = EntryPicks.model_validate(client.entry_picks(entry_id, gw))
+    except FPLNotFound:
+        # A team created since the last deadline has no picks yet. Tell its manager when it will,
+        # rather than "we couldn't find that team" (raises FPLNotFound if the team doesn't exist).
+        starts = client.entry(entry_id).get("started_event")
+        if isinstance(starts, int) and starts > gw:
+            deadline = next((e.deadline_time for e in bootstrap.events if e.id == starts), None)
+            raise TeamNotStartedError(starts, deadline) from None
+        raise
     if picks.active_chip == "freehit" and gw > 1:
         gw -= 1
         picks = EntryPicks.model_validate(client.entry_picks(entry_id, gw))

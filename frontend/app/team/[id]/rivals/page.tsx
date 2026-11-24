@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { ErrorBox, Loading, ThemeToggle } from "@/components/ui";
@@ -58,8 +59,17 @@ function RivalsScreen() {
     return (
       <main className="flex flex-col gap-3.5">
         <h1 className="m-0 font-display text-[26px] font-bold">Rivals</h1>
-        <div className="rounded-2xl border border-line bg-surface p-3.5 text-[13px] text-text2">
-          No mini-league is selected. Pick one in the League menu on the My team tab to see your rivals here.
+        <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-3.5 text-[13px] leading-[1.45] text-text2" data-testid="no-league">
+          <div>No mini-league is selected, so there are no rivals to show. Your plans still aim for the most points.</div>
+          <div>
+            In a mini-league? Pick it in the League menu on <b className="text-text">My team</b>, or{" "}
+            <Link href="/">paste its link</Link>.
+          </div>
+          <div>
+            Not in one yet? Create a private league on the{" "}
+            <a href="https://fantasy.premierleague.com/leagues" target="_blank" rel="noopener noreferrer">FPL website</a>, invite
+            friends, then paste its link here.
+          </div>
         </div>
       </main>
     );

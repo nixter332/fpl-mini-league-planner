@@ -108,6 +108,38 @@ export function Loading({ message }: { message: string }) {
   );
 }
 
+/** True once `active` has lasted `ms`: for a "still working" note on slow loads. */
+export function useSlow(active: boolean, ms = 8000): boolean {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    setSlow(false);
+    if (!active) return;
+    const t = setTimeout(() => setSlow(true), ms);
+    return () => clearTimeout(t);
+  }, [active, ms]);
+  return slow;
+}
+
+export function SlowNote({ children }: { children?: React.ReactNode }) {
+  return (
+    <div className="text-center text-[12.5px] leading-[1.45] text-text2" role="status" data-testid="slow-note">
+      {children ?? "Still working… FPL can be slow, especially near a deadline. This can take up to a minute."}
+    </div>
+  );
+}
+
+/** "Try again" (and optionally a second link) under an error. */
+export function RetryActions({ onRetry, children }: { onRetry: () => void; children?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-5">
+      <button type="button" onClick={onRetry} className="font-semibold text-link" data-testid="retry">
+        Try again
+      </button>
+      {children}
+    </div>
+  );
+}
+
 export function ErrorBox({ message, action }: { message: string; action?: React.ReactNode }) {
   return (
     <div role="alert" className="flex flex-col gap-2 rounded-xl bg-warn-bg px-3.5 py-3 text-[13px] leading-snug text-warn-text">

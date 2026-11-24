@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Bench, Pitch, kitFor, type PitchPlayer } from "@/components/Pitch";
-import { ErrorBox, Facts, Loading, Segmented, ThemeToggle, Tile } from "@/components/ui";
+import { ErrorBox, Facts, Loading, RetryActions, Segmented, SlowNote, ThemeToggle, Tile, useSlow } from "@/components/ui";
 import { ApiError, NO_CHOSEN_CHIPS, getAnalysis, getPlans, getReplacementReason, getTeam, waitForRivals, type ReplacementReason } from "@/lib/api";
 import { Why } from "@/components/Why";
 import { FixtureStrip } from "@/components/FixtureStrip";
@@ -18,7 +18,7 @@ import { DeadlineChecklist } from "@/components/DeadlineChecklist";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { TeamSkeleton } from "@/components/Skeleton";
-import { isDemo, rememberNav } from "@/lib/nav";
+import { DEMO_LEAGUE, DEMO_TEAM, isDemo, rememberNav, startDemo } from "@/lib/nav";
 import { track } from "@/lib/analytics";
 import { FeedbackLink } from "@/components/Feedback";
 import { deadlineLabel, gwOf, money, ordinal, pts, signed } from "@/lib/format";
@@ -41,7 +41,8 @@ function TeamScreen() {
   const league = leagueParam === null ? null : Number(leagueParam);
 
   const [data, setData] = useState<TeamResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ApiError | null>(null);
+  const [attempt, setAttempt] = useState(0); // "Try again" re-runs the load
   const [gwIndex, setGwIndex] = useState(0);
   const [mode, setMode] = useState<"xp" | "own" | "weak">("xp");
   const [progress, setProgress] = useState<RivalsProgress | null>(null);
@@ -75,7 +76,12 @@ function TeamScreen() {
     setError(null);
     setProgress(null);
     setRivalsFailed(false);
-    const fail = (e: unknown) => live && setError(e instanceof ApiError ? e.message : "Couldn't load your team.");
+    const fail = (e: unknown) => {
+      if (!live) return;
+      const err = e instanceof ApiError ? e : new ApiError("Couldn't load your team.");
+      setError(err);
+      if (err.status === 404) track("team_not_found", { reason: err.code ?? "missing" });
+    };
     getTeam(entry, league)
       .then(async (d) => {
         if (!live) return;
@@ -101,7 +107,8 @@ function TeamScreen() {
     return () => {
       live = false;
     };
-  }, [entry, league]);
+  }, [entry, league, attempt]);
+  const slow = useSlow(!data && !error);
 
   // Start building the default plans as soon as the rivals are in, so "See transfer plans" opens
   // fast. The plans page asks for exactly the same set and picks up this request.
@@ -110,7 +117,7 @@ function TeamScreen() {
   useEffect(() => {
     if (prefetchLeague === null || !rivalsReady) return;
     const t = setTimeout(() => {
-      getPlans({ team: entry, league: prefetchLeague, strategy: prefetchStrategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: true }).catch(() => {});
+      getPlans({ team: entry, league: prefetchLeague, strategy: prefetchStrategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: false }).catch(() => {});
     }, 1500);
     return () => clearTimeout(t);
   }, [entry, prefetchLeague, prefetchStrategy, rivalsReady]);
@@ -123,8 +130,28 @@ function TeamScreen() {
   // A fixed left-to-right spot per player, so switching gameweeks doesn't shuffle the pitch.
   const order = useMemo(() => Object.fromEntries((data?.squad ?? []).map((pid, i) => [pid, i])), [data]);
 
-  if (error) return <ErrorBox message={error} action={<Link href="/">Try another team</Link>} />;
-  if (!data) return <TeamSkeleton />;
+  if (error?.code === "not_started") return <NotStarted error={error} />;
+  if (error) {
+    const missing = error.status === 404 || error.status === 400;
+    return (
+      <ErrorBox
+        message={error.message}
+        action={missing ? <Link href="/">Try another team</Link> : (
+          <RetryActions onRetry={() => setAttempt((n) => n + 1)}>
+            <Link href="/">Try another team</Link>
+          </RetryActions>
+        )}
+      />
+    );
+  }
+  if (!data) {
+    return (
+      <>
+        <TeamSkeleton />
+        {slow && <SlowNote />}
+      </>
+    );
+  }
 
   const gw = data.gameweeks[gwIndex];
   const lineup = data.lineups[gwIndex];
@@ -421,5 +448,43 @@ function PlayerSheet({
         </div>
       )}
     </Sheet>
+  );
+}
+
+/** A team created since the last deadline: FPL has no squad for it yet, so say when it will. */
+function NotStarted({ error }: { error: ApiError }) {
+  const router = useRouter();
+  const gw = typeof error.data.starts_gw === "number" ? error.data.starts_gw : null;
+  const deadline = typeof error.data.deadline === "string" ? error.data.deadline : null;
+  const when = deadline
+    ? new Date(deadline).toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })
+    : null;
+  return (
+    <main className="flex flex-col gap-3 pt-2" data-testid="not-started">
+      <h1 className="m-0 font-display text-xl font-bold">{gw ? `Your team starts in GW${gw}` : "Your team hasn't started yet"}</h1>
+      <p className="m-0 text-[14px] leading-[1.5] text-text2">
+        FPL shows a new team&apos;s squad once its first deadline has passed{when ? ` (${when})` : ""}. Come back after that and your
+        transfer plans will be here.
+      </p>
+      {gw && deadline && <AddToCalendar deadlines={[{ gw, deadline, note: "check your plans" }]} className="self-start" />}
+      <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4">
+        <div className="text-[13px] font-semibold">Meanwhile, see how it works</div>
+        <div className="text-[12.5px] leading-[1.4] text-text3">The planner on a real team and mini-league.</div>
+        <button
+          type="button"
+          onClick={() => {
+            startDemo();
+            track("demo_started", { from: "not_started" });
+            router.push(`/team/${DEMO_TEAM}?league=${DEMO_LEAGUE}`);
+          }}
+          className="mt-1 h-10 self-start rounded-[10px] border border-accent-line px-3.5 text-[13px] font-semibold text-link"
+        >
+          Try a sample team
+        </button>
+      </div>
+      <Link href="/" className="self-start text-[13px] font-semibold">
+        Try another team
+      </Link>
+    </main>
   );
 }

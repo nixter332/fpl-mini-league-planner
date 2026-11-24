@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import { ErrorBox, Facts, Loading, ThemeToggle } from "@/components/ui";
+import { ErrorBox, Facts, Loading, RetryActions, SlowNote, ThemeToggle, useSlow } from "@/components/ui";
 import { Why, useExplanation } from "@/components/Why";
 import { FeedbackLink, PlanFeedback } from "@/components/Feedback";
 import { Countdown } from "@/components/Countdown";
@@ -33,6 +33,7 @@ function PlansScreen() {
   const key = planQuery(params);
   const [loaded, setLoaded] = useState<{ key: string; data: PlansResponse } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0); // "Try again" re-runs the load
   const [rivals, setRivals] = useState<RivalsProgress | null>(null);
   const [open, setOpen] = useState(1); // the plan shown in full; the others are one-line rows
   const [showSettings, setShowSettings] = useState(false);
@@ -63,7 +64,7 @@ function PlansScreen() {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, attempt]);
 
   const go = (patch: Partial<PlanParams>) => {
     for (const [setting, value] of Object.entries(patch)) track("plan_setting_changed", { setting, value: value as string | number | boolean | null });
@@ -75,6 +76,10 @@ function PlansScreen() {
   };
 
   const current = loaded?.key === key ? loaded.data : null;
+  const rivalsLoading = !!rivals && !rivals.ready;
+  const slow = useSlow(!current && !error && !rivalsLoading, 10_000);
+  // No mini-league: every strategy is the same "most points" plan, so don't talk about rivals.
+  const noLeague = !!current && !current.standing;
   // Chip choices: only chips you still have, in GWs of this plan.
   const gws = data?.gws ?? [];
   const chipGws = (name: ChipName) =>
@@ -135,7 +140,16 @@ function PlansScreen() {
             </button>
           ))}
         </div>
-        <div className="text-[13px] leading-[1.45] text-text2">{strategy.desc}</div>
+        <div className="text-[13px] leading-[1.45] text-text2" data-testid="strategy-desc">
+          {noLeague ? (
+            <>
+              No mini-league is selected, so every strategy plans for the most points. To plan against rivals,{" "}
+              <Link href="/">paste your mini-league link</Link>.
+            </>
+          ) : (
+            strategy.desc
+          )}
+        </div>
         <button
           type="button"
           aria-expanded={showSettings}
@@ -208,16 +222,19 @@ function PlansScreen() {
         )}
       </div>
 
-      {error && <ErrorBox message={error} />}
+      {error && <ErrorBox message={error} action={<RetryActions onRetry={() => setAttempt((n) => n + 1)} />} />}
       {!current && !error && (
-        <CardsSkeleton
-          rows={3}
-          message={
-            rivals && !rivals.ready
-              ? `Loading your rivals' teams: ${rivals.loaded} of ${rivals.total}…`
-              : "Building your plans. This takes a few seconds…"
-          }
-        />
+        <>
+          <CardsSkeleton
+            rows={3}
+            message={
+              rivals && !rivals.ready
+                ? `Loading your rivals' teams: ${rivals.loaded} of ${rivals.total}…`
+                : "Building your plans. This takes a few seconds…"
+            }
+          />
+          {slow && <SlowNote />}
+        </>
       )}
 
       {current && (

@@ -39,7 +39,7 @@ export function DeadlineChecklist({ team, league, strategy, gw, captain, rivalsR
     if (!rivalsReady) return;
     let live = true;
     setPlans(null);
-    getPlans({ team, league, strategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: true })
+    getPlans({ team, league, strategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: false })
       .then((p) => live && setPlans(p))
       .catch(() => live && setPlansFailed(true));
     return () => {

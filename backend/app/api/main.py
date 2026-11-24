@@ -20,6 +20,7 @@ from app.explain.explainer import CHIP_SYSTEM, REPLACEMENT_SYSTEM, Explainer
 from app.explain.summary import build_chip_summary, build_replacement_summary, build_summary
 from app.fpl.client import FPLClient, FPLError, FPLNotFound
 from app.fpl.links import LinkParseError
+from app.optimizer.inputs import TeamNotStartedError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ANTHROPIC_API_KEY; real env vars win
 
@@ -81,6 +82,15 @@ def _fpl_not_found(_: Request, exc: FPLNotFound) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": "We couldn't find that team or league on FPL. Check the ID or link."})
 
 
+@app.exception_handler(TeamNotStartedError)
+def _not_started(_: Request, exc: TeamNotStartedError) -> JSONResponse:
+    """A brand-new team: say when it starts, so the frontend can show the deadline and a sample team."""
+    return JSONResponse(status_code=404, content={
+        "detail": str(exc), "code": "not_started", "starts_gw": exc.starts_gw,
+        "deadline": exc.deadline.isoformat() if exc.deadline else None,
+    })
+
+
 @app.exception_handler(NotFoundError)
 def _not_found(_: Request, exc: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -140,7 +150,8 @@ def plans(
     freehit: int | None = Query(None, ge=1, le=38, description="Play your Free Hit in this GW"),
     bboost: int | None = Query(None, ge=1, le=38, description="Play your Bench Boost in this GW (the plan builds the bench)"),
     tcap: int | None = Query(None, ge=1, le=38, description="Play your Triple Captain in this GW"),
-    chips: bool = Query(True, description="Let the planner play Bench Boost / Triple Captain when worth it"),
+    # Off by default: the chip backtest found projected chip weeks no better than random ones.
+    chips: bool = Query(False, description="Let the planner play Bench Boost / Triple Captain when worth it"),
     keep: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Your players the plan must not sell (up to 3 IDs)"),
     ban: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Players the plan must not buy (up to 3 IDs)"),
     svc: PlannerService = Depends(get_service),
@@ -205,7 +216,7 @@ async def explain(
     freehit: int | None = Query(None, ge=1, le=38),
     bboost: int | None = Query(None, ge=1, le=38),
     tcap: int | None = Query(None, ge=1, le=38),
-    chips: bool = Query(True),
+    chips: bool = Query(False),
     rank: int = Query(..., ge=1, le=3),
     svc: PlannerService = Depends(get_service),
     explainer: Explainer = Depends(get_explainer),
