@@ -71,7 +71,7 @@ function WhatIf() {
 
   useEffect(() => {
     getAllPlayers(entry, league).then(setAll).catch(() => {});
-    getPlans({ team: entry, league, strategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: true }).then(setPlans).catch(() => {});
+    getPlans({ team: entry, league, strategy, horizon: 4, hits: 0, ...NO_CHOSEN_CHIPS, chips: false }).then(setPlans).catch(() => {});
   }, [entry, league, strategy]);
 
   const positions = useMemo(() => {

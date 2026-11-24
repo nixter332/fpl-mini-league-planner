@@ -119,6 +119,18 @@ def test_explain_hides_a_reason_that_fails_the_check(api: TestClient, fake_claud
     assert len(fake_claude.calls) == 2  # one retry
 
 
+def test_explain_says_paused_when_todays_cap_is_used_up(api: TestClient, tmp_path: Path) -> None:
+    """The page can then say reasons are paused, instead of quietly showing none."""
+    fake = FakeClaude({"why": "placeholder", "watch_out": "placeholder"})
+    set_explainer(Explainer(fake, DiskCache(tmp_path), daily_calls=0))
+    try:
+        r = api.get("/api/explain", params={**PARAMS, "rank": 1})
+        assert r.json()["status"] == "paused" and r.json()["why"] is None
+        assert fake.calls == []
+    finally:
+        set_explainer(None)
+
+
 def test_explain_validates_rank(api: TestClient, fake_claude: FakeClaude) -> None:
     assert api.get("/api/explain", params={**PARAMS, "rank": 0}).status_code == 422
     assert api.get("/api/explain", params={**PARAMS, "rank": 4}).status_code == 422

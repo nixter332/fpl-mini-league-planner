@@ -23,7 +23,7 @@ export function SharePlan({ plan, data, className = "" }: { plan: Plan; data: Pl
   const [copied, setCopied] = useState(false);
   const share = async () => {
     const text = shareText(plan, data);
-    const url = window.location.origin;
+    const url = `${window.location.origin}/?ref=plan`; // ref: so we can count visits from shared plans
     const intro = "Plan yours against your own mini-league:";
     if (typeof navigator.share === "function") {
       try {

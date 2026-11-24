@@ -20,6 +20,7 @@ from app.explain.explainer import CHIP_SYSTEM, REPLACEMENT_SYSTEM, Explainer
 from app.explain.summary import build_chip_summary, build_replacement_summary, build_summary
 from app.fpl.client import FPLClient, FPLError, FPLNotFound
 from app.fpl.links import LinkParseError
+from app.optimizer.inputs import TeamNotStartedError
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # ANTHROPIC_API_KEY; real env vars win
 
@@ -81,6 +82,15 @@ def _fpl_not_found(_: Request, exc: FPLNotFound) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": "We couldn't find that team or league on FPL. Check the ID or link."})
 
 
+@app.exception_handler(TeamNotStartedError)
+def _not_started(_: Request, exc: TeamNotStartedError) -> JSONResponse:
+    """A brand-new team: say when it starts, so the frontend can show the deadline and a sample team."""
+    return JSONResponse(status_code=404, content={
+        "detail": str(exc), "code": "not_started", "starts_gw": exc.starts_gw,
+        "deadline": exc.deadline.isoformat() if exc.deadline else None,
+    })
+
+
 @app.exception_handler(NotFoundError)
 def _not_found(_: Request, exc: NotFoundError) -> JSONResponse:
     return JSONResponse(status_code=404, content={"detail": str(exc)})
@@ -140,7 +150,8 @@ def plans(
     freehit: int | None = Query(None, ge=1, le=38, description="Play your Free Hit in this GW"),
     bboost: int | None = Query(None, ge=1, le=38, description="Play your Bench Boost in this GW (the plan builds the bench)"),
     tcap: int | None = Query(None, ge=1, le=38, description="Play your Triple Captain in this GW"),
-    chips: bool = Query(True, description="Let the planner play Bench Boost / Triple Captain when worth it"),
+    # Off by default: the chip backtest found projected chip weeks no better than random ones.
+    chips: bool = Query(False, description="Let the planner play Bench Boost / Triple Captain when worth it"),
     keep: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Your players the plan must not sell (up to 3 IDs)"),
     ban: str = Query("", pattern=r"^(\d{1,6}(,\d{1,6}){0,2})?$", description="Players the plan must not buy (up to 3 IDs)"),
     svc: PlannerService = Depends(get_service),
@@ -193,6 +204,11 @@ def review(
     return svc.review(team, league)
 
 
+def _missing(explainer: Explainer) -> Literal["paused", "unavailable"]:
+    """Why a reason didn't come back: today's Claude cap ("paused", try tomorrow) or anything else."""
+    return "paused" if explainer.at_cap else "unavailable"
+
+
 @app.get("/api/explain", response_model=s.ExplainResponse)
 async def explain(
     request: Request,
@@ -205,7 +221,7 @@ async def explain(
     freehit: int | None = Query(None, ge=1, le=38),
     bboost: int | None = Query(None, ge=1, le=38),
     tcap: int | None = Query(None, ge=1, le=38),
-    chips: bool = Query(True),
+    chips: bool = Query(False),
     rank: int = Query(..., ge=1, le=3),
     svc: PlannerService = Depends(get_service),
     explainer: Explainer = Depends(get_explainer),
@@ -214,7 +230,7 @@ async def explain(
     if not explainer.enabled:
         return s.ExplainResponse(rank=rank, status="off")
     if not explain_limiter.allow(client_key(request)):
-        return s.ExplainResponse(rank=rank, status="unavailable")  # the plan still shows, without a reason
+        return s.ExplainResponse(rank=rank, status="paused")  # the plan still shows, without a reason
     resp, plan = await run_in_threadpool(
         lambda: svc.plan(team, league, strategy, horizon, max_hits, rank, wildcard=wildcard, freehit=freehit,
                          bboost=bboost, tcap=tcap, chips=chips)
@@ -222,7 +238,7 @@ async def explain(
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_summary(resp, plan), known)
     if result is None:
-        return s.ExplainResponse(rank=rank, status="unavailable")
+        return s.ExplainResponse(rank=rank, status=_missing(explainer))
     return s.ExplainResponse(rank=rank, status="ok", why=result.why, watch_out=result.watch_out)
 
 
@@ -270,7 +286,7 @@ async def analysis_explain(
     if not explainer.enabled:
         return s.ReplacementExplainResponse(player=player, status="off")
     if not explain_limiter.allow(client_key(request)):
-        return s.ReplacementExplainResponse(player=player, status="unavailable")
+        return s.ReplacementExplainResponse(player=player, status="paused")
     resp = await run_in_threadpool(svc.analysis, team, league, strategy, horizon)
     spot = next((sp for sp in resp.spots if sp.player == player), None)
     if spot is None:
@@ -280,7 +296,7 @@ async def analysis_explain(
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_replacement_summary(resp, spot), known, REPLACEMENT_SYSTEM)
     if result is None:
-        return s.ReplacementExplainResponse(player=player, status="unavailable")
+        return s.ReplacementExplainResponse(player=player, status=_missing(explainer))
     return s.ReplacementExplainResponse(player=player, status="ok", why=result.why, watch_out=result.watch_out)
 
 
@@ -328,7 +344,7 @@ async def chips_explain(
     if not explainer.enabled:
         return s.ChipExplainResponse(chip=chip, status="off")
     if not explain_limiter.allow(client_key(request)):
-        return s.ChipExplainResponse(chip=chip, status="unavailable")
+        return s.ChipExplainResponse(chip=chip, status="paused")
     resp = await run_in_threadpool(svc.chips, team, league)
     outlook = next((c for c in resp.chips if c.name == chip and c.ranked and c.best_gw is not None), None)
     if outlook is None:
@@ -336,7 +352,7 @@ async def chips_explain(
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_chip_summary(resp, outlook), known, CHIP_SYSTEM)
     if result is None:
-        return s.ChipExplainResponse(chip=chip, status="unavailable")
+        return s.ChipExplainResponse(chip=chip, status=_missing(explainer))
     return s.ChipExplainResponse(chip=chip, status="ok", why=result.why, watch_out=result.watch_out)
 
 

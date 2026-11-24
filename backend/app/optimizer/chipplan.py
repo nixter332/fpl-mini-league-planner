@@ -121,7 +121,11 @@ def chip_outlook(
     *,
     discount: float = FREE_HIT_BUY_DISCOUNT,
 ) -> list[ChipOutlook]:
-    """An outlook for every chip window that's open in `gws` (the next actionable GW first).
+    """An outlook for every chip window that's open now, at `gws[0]` (the next actionable GW).
+
+    A window that opens later (e.g. the second-half chips from GW20, seen from GW12) is left out,
+    even if its first week is inside `gws`: one week isn't a ranking, and it would duplicate the
+    first-half chip of the same name. The API lists those under "later".
 
     `free_hit_pool(gw)` returns the player pool for a one-week Free Hit; without it the Free Hit
     isn't ranked. Only one chip can be played per week, so if two chips' best weeks clash, the
@@ -131,7 +135,7 @@ def chip_outlook(
     outlooks = []
     for win in chips:
         weeks_in = [g for g in gws if win.covers(g)]
-        if not weeks_in or win.start > first + LOOKAHEAD - 1:
+        if not weeks_in or win.start > first:
             continue
         if win.name not in RANKED or (win.name == FREE_HIT and free_hit_pool is None):
             outlooks.append(ChipOutlook(win.name, win, (), None, False))

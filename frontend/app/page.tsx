@@ -7,7 +7,7 @@ import { Logo, ThemeToggle, ErrorBox } from "@/components/ui";
 import { ApiError, resolveInput } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import { forgetRecentTeam, loadRecentTeam, type RecentTeam } from "@/lib/recent";
-import { DEMO_LEAGUE, DEMO_TEAM, endDemo, startDemo } from "@/lib/nav";
+import { DEMO_LEAGUE, DEMO_TEAM, endDemo, forgetAltLeague, rememberAltLeague, startDemo } from "@/lib/nav";
 import { SignInCard } from "@/components/SignIn";
 import { ordinal } from "@/lib/format";
 import type { ResolveResponse } from "@/lib/types";
@@ -19,7 +19,6 @@ export default function MainPage() {
   const [error, setError] = useState<string | null>(null);
   const [league, setLeague] = useState<ResolveResponse | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
-  const [choice, setChoice] = useState<ResolveResponse | null>(null);
   const [slow, setSlow] = useState(false);
   const [recent, setRecent] = useState<RecentTeam | null>(null);
   const [invited, setInvited] = useState(false); // arrived by a league invite link (/?league=123)
@@ -28,16 +27,21 @@ export default function MainPage() {
   useEffect(() => setRecent(loadRecentTeam()), []);
 
   // An invite link has the league in it: find it straight away, so a friend only taps their name.
+  // `from=id` is the team page's "Meant the league instead?" link: the same lookup, not an invite.
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("league");
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("ref") === "plan") track("shared_link_opened", { kind: "plan" });
+    const id = query.get("league");
     if (!id || !/^\d{1,9}$/.test(id)) return;
-    setInvited(true);
-    track("invite_opened");
+    if (query.get("from") !== "id") {
+      setInvited(true);
+      track("invite_opened");
+    }
     lookup(`fantasy.premierleague.com/leagues/${id}/standings/c`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Free hosting sleeps when idle; start waking the backend while the user pastes their link.
+  // A redeploy restarts the server; start warming it while the user pastes their link.
   useEffect(() => {
     fetch("/api/health").catch(() => {});
   }, []);
@@ -54,14 +58,19 @@ export default function MainPage() {
     const timer = setTimeout(() => setSlow(true), 4000);
     setError(null);
     setLeague(null);
-    setChoice(null);
     setPicked(null);
     try {
       const res = await resolveInput(text);
       track("lookup", { type: res.type });
-      if (res.type === "team") router.push(`/team/${res.id}`);
-      else if (res.type === "choice") setChoice(res);
-      else setLeague(res);
+      if (res.type === "team") {
+        forgetAltLeague();
+        router.push(`/team/${res.id}`);
+      } else if (res.type === "choice") {
+        // Both a team and a league: most people type their team ID, so open the team and let the
+        // team page offer the league instead.
+        rememberAltLeague({ team: res.id, id: res.id, name: res.league_name ?? "" });
+        router.push(`/team/${res.id}`);
+      } else setLeague(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
       track("lookup_failed");
@@ -90,7 +99,7 @@ export default function MainPage() {
         </div>
       )}
 
-      {recent && !league && !choice && !invited && (
+      {recent && !league && !invited && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border-[1.5px] border-accent-line bg-surface px-3.5 py-3" data-testid="recent-team">
           <div className="flex min-w-0 flex-col gap-0.5">
             <div className="text-xs text-text3">Welcome back</div>
@@ -144,12 +153,12 @@ export default function MainPage() {
         {help && <IdHelp />}
         {busy && slow && (
           <div className="text-[12.5px] leading-[1.45] text-text2" role="status">
-            Waking up the server. It sleeps when nobody&apos;s used it for a while, so the first visit can take up to a minute.
+            Still looking… FPL can be slow, especially near a deadline. This can take up to a minute.
           </div>
         )}
       </form>
 
-      {!invited && !league && !choice && (
+      {!invited && !league && (
         <div className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-4" data-testid="demo-card">
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-col gap-0.5">
@@ -191,31 +200,6 @@ export default function MainPage() {
       )}
 
       {error && <ErrorBox message={error} />}
-
-      {choice && (
-        <div className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-accent-line bg-surface px-3.5 pb-3 pt-3.5" data-testid="resolve-choice">
-          <div className="text-[15px] font-semibold">{choice.id} is both a team and a league. Which did you mean?</div>
-          <button
-            type="button"
-            onClick={() => router.push(`/team/${choice.id}`)}
-            className="flex min-h-12 w-full flex-col items-start justify-center rounded-[10px] border border-line px-3 py-1.5 text-left"
-          >
-            <span className="text-xs text-text3">Team</span>
-            <span className="text-sm font-semibold text-text">{choice.team_name} · {choice.manager_name}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setLeague({ ...choice, type: "league" });
-              setChoice(null);
-            }}
-            className="flex min-h-12 w-full flex-col items-start justify-center rounded-[10px] border border-line px-3 py-1.5 text-left"
-          >
-            <span className="text-xs text-text3">League</span>
-            <span className="text-sm font-semibold text-text">{choice.league_name}</span>
-          </button>
-        </div>
-      )}
 
       {league && (
         <div className="flex flex-col gap-2 rounded-2xl border-[1.5px] border-accent-line bg-surface px-3.5 pb-3 pt-3.5" data-testid="league-members">

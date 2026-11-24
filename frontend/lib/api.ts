@@ -1,33 +1,57 @@
 import { reportError, scrubUrl, track } from "./analytics";
 import type { AnalysisResponse, BenchBuildResponse, ChipName, ChipReason, ChipsResponse, PlayersResponse, WhatIfMove, WhatIfRequest, WhatIfResponse, WhatIfSwap, ExplainResponse, PlansResponse, WeekResponse, LeagueViewResponse, ReviewResponse, ResolveResponse, RivalsProgress, Strategy, TeamResponse } from "./types";
 
-export class ApiError extends Error {}
+/** A failed request. `code` is set for errors the screens handle specially ("not_started",
+ * "timeout", "network"); `data` is the error body (e.g. `starts_gw` and `deadline` for a new team). */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number | null = null,
+    readonly code: string | null = null,
+    readonly data: Record<string, unknown> = {},
+  ) {
+    super(message);
+  }
+}
 
-/** Failed requests worth knowing about: server errors, rate limits, and requests we built wrong. */
-function reportFailure(path: string, status: number | null, detail: string): void {
+const TIMEOUT_MS = 90_000; // plans on a cold cache take seconds, not minutes; past this, say so
+const UNREACHABLE = "Couldn't reach the planner. Check your connection and try again.";
+const SERVER_DOWN = "The planner's server isn't answering right now. Try again in a minute.";
+const TOO_SLOW = "The planner is taking too long to answer. It may be busy: try again in a minute.";
+
+/** Failed requests worth knowing about: server errors, rate limits, timeouts, and requests we built wrong. */
+function reportFailure(path: string, status: number | null, detail: string, timedOut = false): void {
   const endpoint = scrubUrl(path);
-  if (status === null) reportError("network", "couldn't reach the server", { endpoint });
+  if (timedOut) reportError("network", "timed out", { endpoint });
+  else if (status === null) reportError("network", "couldn't reach the server", { endpoint });
   else if (status >= 500 || status === 429 || status === 422) reportError("api", detail, { endpoint, status });
 }
 
 async function getJSON<T>(path: string): Promise<T> {
   let res: Response;
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), TIMEOUT_MS);
   try {
-    res = await fetch(path, { headers: { Accept: "application/json" } });
+    res = await fetch(path, { headers: { Accept: "application/json" }, signal: abort.signal });
   } catch {
-    reportFailure(path, null, "");
-    throw new ApiError("Couldn't reach the planner. Check your connection and try again.");
+    const timedOut = abort.signal.aborted;
+    reportFailure(path, null, "", timedOut);
+    throw new ApiError(timedOut ? TOO_SLOW : UNREACHABLE, null, timedOut ? "timeout" : "network");
+  } finally {
+    clearTimeout(timer);
   }
   if (!res.ok) {
-    let detail = "Something went wrong. Try again in a moment.";
+    // A proxy error page (502/504 while the server restarts) isn't JSON: say the server is down.
+    let detail = res.status >= 500 ? SERVER_DOWN : "Something went wrong. Try again in a moment.";
+    let body: Record<string, unknown> = {};
     try {
-      const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
+      body = (await res.json()) ?? {};
+      if (typeof body.detail === "string") detail = body.detail;
     } catch {
       /* not JSON */
     }
     reportFailure(path, res.status, detail);
-    throw new ApiError(detail);
+    throw new ApiError(detail, res.status, typeof body.code === "string" ? body.code : null, body);
   }
   return res.json() as Promise<T>;
 }
@@ -93,7 +117,9 @@ export function readPlanParams(search: URLSearchParams): PlanParams {
     freehit: gwParam(search.get("freehit")),
     bboost: gwParam(search.get("bboost")),
     tcap: gwParam(search.get("tcap")),
-    chips: search.get("chips") !== "0",
+    // Off unless asked for: picking Bench Boost / Triple Captain weeks by projection didn't beat a
+    // random week in the backtest (docs/chip-planner.md), so plans don't spend chips by default.
+    chips: search.get("chips") === "1",
   };
 }
 
@@ -109,7 +135,7 @@ export function planQuery(p: PlanParams): string {
   const q = new URLSearchParams({ team: String(p.team), strategy: p.strategy, horizon: String(p.horizon), max_hits: String(p.hits) });
   if (p.league !== null) q.set("league", String(p.league));
   setChosenChips(q, p);
-  if (!p.chips) q.set("chips", "false");
+  q.set("chips", p.chips ? "true" : "false");
   return q.toString();
 }
 
@@ -118,7 +144,7 @@ export function pageQuery(p: PlanParams): string {
   const q = new URLSearchParams({ team: String(p.team), strategy: p.strategy, horizon: String(p.horizon), hits: String(p.hits) });
   if (p.league !== null) q.set("league", String(p.league));
   setChosenChips(q, p);
-  if (!p.chips) q.set("chips", "0");
+  if (p.chips) q.set("chips", "1");
   return q.toString();
 }
 
@@ -323,7 +349,7 @@ export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; ca
   return { moves, captains, chips, swaps };
 }
 
-export interface ReplacementReason { player: number; status: "ok" | "unavailable" | "off"; why: string | null; watch_out: string | null }
+export interface ReplacementReason { player: number; status: "ok" | "unavailable" | "paused" | "off"; why: string | null; watch_out: string | null }
 const reasonCache = new Map<string, Promise<ReplacementReason>>();
 
 /** Claude's reason for the top replacement of one squad player (cached for the session). */

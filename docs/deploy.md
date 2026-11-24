@@ -1,6 +1,6 @@
 # Deploying
 
-- **Backend:** FastAPI on Render's **Starter** plan ($7/month), set up by `render.yaml` in the repo root. Every push to `main` redeploys it.
+- **Backend:** FastAPI on Render's **Starter** plan ($7/month), set up by `render.yaml` in the repo root. Every push to `main` redeploys it, except pushes that only change `backend/data/news/` (the injury-news Action's commits; see `buildFilter` in `render.yaml`).
 - **Frontend:** Next.js on Vercel's free Hobby plan. Vercel forwards `/api/*` to the backend, so browsers only ever talk to Vercel.
 
 **Why not free?** (8 Nov 2026)
@@ -13,7 +13,8 @@ Facts to know:
 - The server's disk is wiped on every redeploy or restart, so the FPL cache and saved reasons start empty again. The first plans after a deploy take a few seconds longer and may call Claude again.
 - Protection for the Claude credit:
   - each visitor gets at most 60 reason requests an hour
-  - the whole app makes at most 200 new Claude calls a day (`EXPLAIN_DAILY_CALLS`)
+  - the whole app makes at most 1000 new Claude calls a day (`EXPLAIN_DAILY_CALLS`; raised from 200 for the launch on 24 Nov 2026, about $10–20 a day if it's all used). The count is in memory, so it restarts with the server.
+  - when the cap or a visitor's hourly limit is reached, reasons come back as `paused` and the page says so; plans are unaffected
   - each visitor can build at most 120 plan sets an hour
   - the prepaid Console balance is the hard cap
 
@@ -87,17 +88,22 @@ To set it up by hand instead, use **New**, then **Web Service**, and pick the re
 - `nav_tab` (bottom tab bar), `demo_started` / `demo_ended` (the sample team; set `NEXT_PUBLIC_DEMO_TEAM` and `NEXT_PUBLIC_DEMO_LEAGUE` in Vercel to change which team it shows), `fpl_signup_opened`
 - `plan_question` (kind: why, keep, hit or none), `week_loaded`, `rivals_loaded`, `compare_opened` / `compare_added`, `calendar_added`
 - `league_invite_shared`, `invite_opened` (someone arrived by a league invite link, `/?league=…`; the league number is never sent)
-- `app_error`: crashes and failed requests (server errors, rate limits, bad requests, no connection), with the endpoint and message. Digits of 3+ are replaced by `:id`, and at most 20 are sent per visit. In PostHog, filter on this event to see what breaks.
+- `app_error`: crashes and failed requests (server errors, rate limits, bad requests, no connection, timeouts after 90 s), with the endpoint and message. Digits of 3+ are replaced by `:id`, and at most 20 are sent per visit. In PostHog, filter on this event to see what breaks.
+- `team_not_found` (reason: `not_started` for a team created since the last deadline, else `missing`), `shared_link_opened` (someone arrived from a shared plan, `/?ref=plan`), `alt_league_opened`
+- On every event (added 24 Nov 2026): `in_app` (which app's built-in browser, e.g. `linkedin`, or `none`), `source` for the visit (`utm_source`, or `share-plan` / `share-invite`), and `gw` (the gameweek being planned, once a team has loaded). `team_loaded` also has `demo`, `has_league` and `leagues` (0, 1 or 2+).
+- Post links as `https://fpl-mini-league-planner.vercel.app/?utm_source=linkedin` (or `whatsapp`, …) so visits can be split by where they came from.
+
+**The launch funnel in PostHog:** `$pageview` → `team_loaded` (filter `demo` = false) → `plans_loaded` → `plan_shared` or `league_invite_shared`; break down by `source` or `in_app`. "Came back next gameweek": a retention insight on `team_loaded`, weekly, broken down by `gw`. Visitors who return in a different browser (LinkedIn's built-in one, then Safari) count as new people.
 
 **Privacy.**
 - No names, no team or league IDs. Page addresses are scrubbed before sending (`/team/5179483?league=…` becomes `/team/:id`).
-- No autocapture, no session recording, no feature flags, and nobody is identified.
+- No autocapture, no session recording, no feature flags. Nobody is identified unless they choose the optional Google sign-in (see below).
 
 To check the privacy claim, run the test in `frontend/e2e/privacy.spec.ts`. It builds with a dummy key, intercepts everything sent to PostHog, and fails if a team or league ID appears.
 
 ## Optional Google sign-in
 
-The start page offers **Sign in with Google (optional)**. Anyone can use the app without it. Signed-in users' usage events in PostHog carry their name and email; everyone else stays anonymous. Sign-in only identifies the person. It's separate from FPL, and we never ask for an FPL password. Sessions are kept in a signed cookie, so there's no database. The button stays hidden until the keys below are set.
+The start page offers **Sign in with Google (optional)**. Anyone can use the app without it. Signed-in users' usage events in PostHog carry their name and email; everyone else stays anonymous. Sign-in only identifies the person. It's separate from FPL, and we never ask for an FPL password. Sessions are kept in a signed cookie, so there's no database. The button stays hidden until the keys below are set, and always inside apps' built-in browsers (LinkedIn, Facebook, Instagram…; `frontend/lib/inapp.ts`), where Google refuses sign-in with "disallowed_useragent".
 
 **1. Create the Google sign-in client** (Google Cloud Console, free, about 10 minutes):
 1. Go to https://console.cloud.google.com, create a project (for example "FPL Planner"), and select it.
@@ -124,6 +130,19 @@ The start page offers **Sign in with Google (optional)**. Anyone can use the app
 **3. Redeploy** (Deployments, then ⋯, then Redeploy). The button appears on the start page.
 
 To test sign-in without Google, run `frontend/e2e/signin.spec.ts` with dummy values (see the comment in that file). It checks the button, the backend proxy, and the handover to Google.
+
+## Monitoring (set up before a public launch)
+
+The app reports browser-side errors to PostHog (`app_error`), but nothing tells you when the server itself is down. Two free settings:
+
+1. **Uptime check.** In any free uptime monitor (for example UptimeRobot), add an HTTP check on `https://fpl-planner-api.onrender.com/health` every 5 minutes, with an email alert.
+2. **Render alerts.** In Render, open the service, then **Settings**, then **Notifications**, and turn on emails for failed deploys and for the service going unhealthy.
+
+## Before posting a link publicly
+
+- Paste the link into LinkedIn's Post Inspector (https://www.linkedin.com/post-inspector/) to check the preview card and refresh LinkedIn's cache of it.
+- Send the link to yourself on WhatsApp to check the preview there.
+- Post the link with `?utm_source=linkedin` (see "What's tracked").
 
 ## Alternative: Hugging Face Spaces (needs PRO)
 

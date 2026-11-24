@@ -10,10 +10,20 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-space-grotesk" });
 
+// The public address, so link previews get absolute image URLs. Override with NEXT_PUBLIC_SITE_URL.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://fpl-mini-league-planner.vercel.app";
+const SHARE_TITLE = "Mini-League Planner: FPL transfer plans to beat your mini-league";
+const SHARE_DESCRIPTION =
+  "Free FPL transfer plans built against your own mini-league rivals, with the numbers behind every move. No login, never your FPL password.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "Mini-League Planner",
   description: "FPL transfer plans built against your mini-league rivals.",
   appleWebApp: { capable: true, title: "ML Planner", statusBarStyle: "black" },
+  // The image comes from app/opengraph-image.tsx (Next adds og:image and its size automatically).
+  openGraph: { type: "website", url: "/", siteName: "Mini-League Planner", title: SHARE_TITLE, description: SHARE_DESCRIPTION, locale: "en_GB" },
+  twitter: { card: "summary_large_image", title: SHARE_TITLE, description: SHARE_DESCRIPTION },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#0B0F14" };

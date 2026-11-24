@@ -143,7 +143,7 @@ export interface ChipsResponse {
   clubs: Record<string, Club>;
   facts: string[];
 }
-export interface ChipReason { chip: ChipName; status: "ok" | "unavailable" | "off"; why: string | null; watch_out: string | null }
+export interface ChipReason { chip: ChipName; status: "ok" | "unavailable" | "paused" | "off"; why: string | null; watch_out: string | null }
 export interface PlanGw {
   gw: number;
   moves: Move[];
@@ -211,7 +211,7 @@ export interface PlansResponse {
 
 export interface ExplainResponse {
   rank: number;
-  status: "ok" | "unavailable" | "off";
+  status: "ok" | "unavailable" | "paused" | "off";
   why: string | null;
   watch_out: string | null;
 }

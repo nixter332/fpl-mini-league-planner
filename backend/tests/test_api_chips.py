@@ -6,8 +6,15 @@ TEAM, LEAGUE = 5179483, 1883627
 BASE = {"team": TEAM, "league": LEAGUE, "strategy": "protect", "horizon": 3, "max_hits": 0}
 
 
-def test_plans_list_chips_left(api: TestClient) -> None:
+def test_plans_dont_spend_chips_unless_asked(api: TestClient) -> None:
+    """Projected chip weeks didn't beat random weeks in the backtest, so the default is off."""
     body = api.get("/api/plans", params=BASE).json()
+    assert body["auto_chips"] is False
+    assert all(g["chip"] is None for p in body["plans"] for g in p["gameweeks"])
+
+
+def test_plans_list_chips_left(api: TestClient) -> None:
+    body = api.get("/api/plans", params={**BASE, "chips": True}).json()
     first_half = {(c["name"], c["stop"]) for c in body["chips_left"] if c["stop"] == 19}
     assert first_half == {("freehit", 19), ("bboost", 19)}
     assert body["auto_chips"] is True and body["wildcard_gw"] is None

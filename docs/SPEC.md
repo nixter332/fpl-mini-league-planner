@@ -79,6 +79,8 @@ One multi-week MILP over horizon H (default 4 GWs):
 - Speed: under 5 seconds. Prune the player pool (current squad + top N per position by projected points). Plans 2–3 run within a time budget and may be the best found rather than proven best (they're still fully validated).
 
 - *Added 9 Nov 2026 (Nikhil):* chips. The planner plays Bench Boost and Triple Captain when a week beats keeping the chip; the user chooses Wildcard and Free Hit weeks, and the app reports what one would add this week. Details: `docs/optimizer.md` → Chips.
+- *Changed 24 Nov 2026 (launch review, agreed with Nikhil):* in the app, the planner only plays Bench Boost and Triple Captain when the user turns that on, because the phase 7 chip backtest found projected chip weeks no better than random ones (`docs/chip-planner.md`).
+- *Changed 24 Nov 2026:* with no league given, the default rivals league is the smallest private league with 5+ managers (the smallest if none has 5), not simply the smallest.
 
 ## Explanations (phase 5)
 

@@ -6,6 +6,7 @@
 // The PostHog project key is meant to be public (it can only send events), so it's fine here.
 
 import posthog, { type CaptureResult } from "posthog-js";
+import { inAppBrowser } from "./inapp";
 
 const KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 const HOST = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
@@ -50,9 +51,26 @@ export function startAnalytics(): void {
     // privacy test. Real visitors are never affected.
     opt_out_useragent_filter: process.env.NEXT_PUBLIC_POSTHOG_DEBUG === "1",
   });
-  // Tag every event, so this app can share a PostHog project with others and still be filtered.
-  posthog.register({ app: "fpl-mini-league-planner" });
+  // Tag every event, so this app can share a PostHog project with others and still be filtered,
+  // and with which app's built-in browser it's in (LinkedIn, WhatsApp...), if any.
+  posthog.register({ app: "fpl-mini-league-planner", in_app: inAppBrowser(navigator.userAgent) ?? "none" });
+  // Where this visit came from: ?utm_source=linkedin on a posted link, or ?ref=plan on a shared
+  // plan. Kept for this visit only; page addresses are still sent without their query.
+  const query = new URLSearchParams(window.location.search);
+  const ref = query.get("ref");
+  const source = query.get("utm_source") ?? (ref ? `share-${ref}` : null);
+  if (source) posthog.register_for_session({ source: scrubText(source).slice(0, 40) });
   started = true;
+}
+
+/** The gameweek being planned, on every later event: lets us see who comes back the next week. */
+export function setGameweek(gw: number): void {
+  if (!started) return;
+  try {
+    posthog.register({ gw });
+  } catch {
+    /* tracking must never break the app */
+  }
 }
 
 /** Tie later events to a signed-in person (optional Google sign-in). */

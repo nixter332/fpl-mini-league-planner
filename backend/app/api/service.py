@@ -51,6 +51,7 @@ CONTEXT_MAX_AGE = 60 * 60  # older than this (or past a deadline): rebuild befor
 PREFETCH_FRESH = 10 * 60  # a finished rival prefetch counts for this long; after that, fetch again
 PLAN_CACHE_SIZE = 32
 N_RIVALS = 20
+MIN_DEFAULT_LEAGUE = 5  # managers; smaller leagues are only the default when there's no bigger one
 DOUBT_STATUSES = {"d", "i", "s", "u"}
 WEEK_TOP_N = 5  # most transferred in / out shown
 CAPTAIN_OPTIONS = 4
@@ -924,12 +925,18 @@ class PlannerService:
 
     @staticmethod
     def _pick_league(league_id: int | None, leagues: list[s.LeagueInfo]) -> int | None:
-        """None -> the first league in the list (the smallest private league, most likely the
-        user's mini-league); 0 -> no league (points only)."""
+        """None -> the smallest private league with at least MIN_DEFAULT_LEAGUE managers (most
+        likely the user's mini-league), else the smallest; 0 -> no league (points only).
+
+        A 2- or 3-manager league (often a head-to-head with one friend) makes the "vs rivals"
+        numbers swing wildly, so it's only the default when there's nothing bigger; the user can
+        still pick it in the League menu."""
         if league_id == 0:
             return None
         if league_id is None:
-            return leagues[0].id if leagues else None
+            if not leagues:
+                return None
+            return next((l.id for l in leagues if (l.size or 0) >= MIN_DEFAULT_LEAGUE), leagues[0].id)
         return league_id
 
     # ---- rivals ----------------------------------------------------------------------------

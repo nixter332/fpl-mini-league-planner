@@ -148,6 +148,12 @@ class Explainer:
     def enabled(self) -> bool:
         return self.client is not None
 
+    @property
+    def at_cap(self) -> bool:
+        """Today's (UTC) new-call cap is used up: new reasons are paused until tomorrow."""
+        day = time.strftime("%Y-%m-%d", time.gmtime(self._clock()))
+        return day == self._calls_day and self._calls_today >= self.daily_calls
+
     def cache_key(self, facts: str, system: str = SYSTEM) -> str:
         digest = hashlib.sha256(f"{self.model}|{PROMPT_VERSION}|{system}|{facts}".encode()).hexdigest()
         return f"explain-{digest[:40]}"
