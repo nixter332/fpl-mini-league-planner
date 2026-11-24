@@ -30,10 +30,12 @@ test("league link → pick yourself → team → plans → plan detail", async (
   await expect(page.getByText(/^Owned \d+\/\d+$/).first()).toBeVisible();
   await shot(page, "04-team-gw2-rivals-own");
 
+  // Leaders start on Protect lead, everyone else on Balanced (live data: Nikhil's rank changes).
+  const leader = await page.getByText("Top of the league").isVisible();
   await page.getByRole("link", { name: "See transfer plans" }).click();
   await expect(page.getByTestId("plan-card").first()).toBeVisible(); // 1-3 plans (a timed-out plan is dropped)
-  await expect(page).toHaveURL(/strategy=protect/); // Nikhil is 1st, so plans start on Protect lead
-  await shot(page, "05-plans-protect");
+  await expect(page).toHaveURL(leader ? /strategy=protect/ : /strategy=balanced/);
+  await shot(page, "05-plans-default");
 
   await page.getByRole("group", { name: "Strategy" }).getByRole("button", { name: "Risky" }).click();
   await expect(page).toHaveURL(/strategy=risky/);
@@ -123,16 +125,18 @@ test("league by new-style link and by number", async ({ page }) => {
 
   await page.getByLabel("Paste a link or ID").fill(LEAGUE);
   await page.getByRole("button", { name: "Find" }).click();
-  // The number may also be someone's team ID; then the app asks which was meant.
-  const choice = page.getByTestId("resolve-choice");
+  // The number may also be someone's team ID; then the team opens and offers the league instead.
+  const alt = page.getByTestId("alt-league");
   const members = page.getByTestId("league-members");
-  await expect(choice.or(members)).toBeVisible();
-  if (await choice.isVisible()) {
-    await shot(page, "15-main-team-or-league");
-    await choice.getByRole("button", { name: /League/ }).click();
+  await expect(alt.or(members)).toBeVisible();
+  if (await alt.isVisible()) {
+    await expect(page).toHaveURL(new RegExp(`/team/${LEAGUE}`));
+    await shot(page, "15-team-also-a-league");
+    await alt.getByRole("link", { name: "Open league" }).click();
   }
   await expect(members).toBeVisible();
   await expect(members).toContainText("Nikhil");
+  await expect(page.getByText("You've been invited")).toHaveCount(0); // not an invite
 });
 
 test("pitch stays put across gameweeks, swaps are labelled, team is remembered", async ({ page }) => {
