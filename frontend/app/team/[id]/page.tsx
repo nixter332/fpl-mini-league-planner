@@ -157,8 +157,8 @@ function TeamScreen() {
   if (!data) {
     return (
       <>
+        {slow && <div className="pb-3"><SlowNote /></div>}
         <TeamSkeleton />
-        {slow && <SlowNote />}
       </>
     );
   }

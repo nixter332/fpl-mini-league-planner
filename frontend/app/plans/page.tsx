@@ -225,6 +225,7 @@ function PlansScreen() {
       {error && <ErrorBox message={error} action={<RetryActions onRetry={() => setAttempt((n) => n + 1)} />} />}
       {!current && !error && (
         <>
+          {slow && <SlowNote />}
           <CardsSkeleton
             rows={3}
             message={
@@ -233,7 +234,6 @@ function PlansScreen() {
                 : "Building your plans. This takes a few seconds…"
             }
           />
-          {slow && <SlowNote />}
         </>
       )}
 
