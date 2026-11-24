@@ -18,7 +18,7 @@ import { DeadlineChecklist } from "@/components/DeadlineChecklist";
 import { Sheet } from "@/components/Sheet";
 import { saveRecentTeam } from "@/lib/recent";
 import { TeamSkeleton } from "@/components/Skeleton";
-import { DEMO_LEAGUE, DEMO_TEAM, isDemo, rememberNav, startDemo } from "@/lib/nav";
+import { DEMO_LEAGUE, DEMO_TEAM, type AltLeague, forgetAltLeague, isDemo, loadAltLeague, rememberNav, startDemo } from "@/lib/nav";
 import { track } from "@/lib/analytics";
 import { FeedbackLink } from "@/components/Feedback";
 import { deadlineLabel, gwOf, money, ordinal, pts, signed } from "@/lib/format";
@@ -109,6 +109,9 @@ function TeamScreen() {
     };
   }, [entry, league, attempt]);
   const slow = useSlow(!data && !error);
+  // Typed a number that is also a league: offer the league (stored for this browser tab only).
+  const [alt, setAlt] = useState<AltLeague | null>(null);
+  useEffect(() => setAlt(loadAltLeague(entry)), [entry]);
 
   // Start building the default plans as soon as the rivals are in, so "See transfer plans" opens
   // fast. The plans page asks for exactly the same set and picks up this request.
@@ -221,6 +224,24 @@ function TeamScreen() {
           <ThemeToggle />
         </div>
       </div>
+
+      {alt && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-surface px-3 py-2 text-[12.5px] text-text2" data-testid="alt-league">
+          <span className="min-w-0">
+            {entry} is also a league{alt.name ? <> (<b className="text-text">{alt.name}</b>)</> : null}. Meant that?
+          </span>
+          <Link
+            href={`/?league=${alt.id}&from=id`}
+            onClick={() => {
+              forgetAltLeague();
+              track("alt_league_opened");
+            }}
+            className="shrink-0 font-semibold no-underline"
+          >
+            Open league
+          </Link>
+        </div>
+      )}
 
       <label className="flex items-center gap-2 text-xs text-text3">
         League

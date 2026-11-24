@@ -1,12 +1,18 @@
 "use client";
 
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 import { useAuthEnabled } from "@/components/AuthProvider";
 import { track } from "@/lib/analytics";
+import { inAppBrowser } from "@/lib/inapp";
 
-/** Optional "Sign in with Google" (hidden when sign-in isn't set up). */
+/** Optional "Sign in with Google" (hidden when sign-in isn't set up, and inside apps' built-in
+ * browsers such as LinkedIn's, where Google refuses to sign anyone in). */
 export function SignInCard() {
-  if (!useAuthEnabled()) return null;
+  const enabled = useAuthEnabled();
+  const [inApp, setInApp] = useState<boolean | null>(null); // unknown until the browser is checked
+  useEffect(() => setInApp(inAppBrowser(navigator.userAgent) !== null), []);
+  if (!enabled || inApp !== false) return null;
   return <SignInInner />;
 }
 

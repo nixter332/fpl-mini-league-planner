@@ -58,3 +58,38 @@ export function isDemo(team: number): boolean {
     return false;
   }
 }
+
+// A bare number that is both a team and a league opens the team (people mostly type their team
+// ID); the league is remembered so the team page can offer "Meant the league … instead?".
+const ALT_KEY = "alt-league:v1";
+
+export interface AltLeague {
+  team: number;
+  id: number;
+  name: string;
+}
+
+export function rememberAltLeague(alt: AltLeague): void {
+  try {
+    sessionStorage.setItem(ALT_KEY, JSON.stringify(alt));
+  } catch {
+    /* storage blocked: no offer, the team still opens */
+  }
+}
+
+export function loadAltLeague(team: number): AltLeague | null {
+  try {
+    const alt = JSON.parse(sessionStorage.getItem(ALT_KEY) ?? "null");
+    return alt?.team === team ? alt : null;
+  } catch {
+    return null;
+  }
+}
+
+export function forgetAltLeague(): void {
+  try {
+    sessionStorage.removeItem(ALT_KEY);
+  } catch {
+    /* ignore */
+  }
+}
