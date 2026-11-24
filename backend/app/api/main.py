@@ -204,6 +204,11 @@ def review(
     return svc.review(team, league)
 
 
+def _missing(explainer: Explainer) -> Literal["paused", "unavailable"]:
+    """Why a reason didn't come back: today's Claude cap ("paused", try tomorrow) or anything else."""
+    return "paused" if explainer.at_cap else "unavailable"
+
+
 @app.get("/api/explain", response_model=s.ExplainResponse)
 async def explain(
     request: Request,
@@ -225,7 +230,7 @@ async def explain(
     if not explainer.enabled:
         return s.ExplainResponse(rank=rank, status="off")
     if not explain_limiter.allow(client_key(request)):
-        return s.ExplainResponse(rank=rank, status="unavailable")  # the plan still shows, without a reason
+        return s.ExplainResponse(rank=rank, status="paused")  # the plan still shows, without a reason
     resp, plan = await run_in_threadpool(
         lambda: svc.plan(team, league, strategy, horizon, max_hits, rank, wildcard=wildcard, freehit=freehit,
                          bboost=bboost, tcap=tcap, chips=chips)
@@ -233,7 +238,7 @@ async def explain(
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_summary(resp, plan), known)
     if result is None:
-        return s.ExplainResponse(rank=rank, status="unavailable")
+        return s.ExplainResponse(rank=rank, status=_missing(explainer))
     return s.ExplainResponse(rank=rank, status="ok", why=result.why, watch_out=result.watch_out)
 
 
@@ -281,7 +286,7 @@ async def analysis_explain(
     if not explainer.enabled:
         return s.ReplacementExplainResponse(player=player, status="off")
     if not explain_limiter.allow(client_key(request)):
-        return s.ReplacementExplainResponse(player=player, status="unavailable")
+        return s.ReplacementExplainResponse(player=player, status="paused")
     resp = await run_in_threadpool(svc.analysis, team, league, strategy, horizon)
     spot = next((sp for sp in resp.spots if sp.player == player), None)
     if spot is None:
@@ -291,7 +296,7 @@ async def analysis_explain(
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_replacement_summary(resp, spot), known, REPLACEMENT_SYSTEM)
     if result is None:
-        return s.ReplacementExplainResponse(player=player, status="unavailable")
+        return s.ReplacementExplainResponse(player=player, status=_missing(explainer))
     return s.ReplacementExplainResponse(player=player, status="ok", why=result.why, watch_out=result.watch_out)
 
 
@@ -339,7 +344,7 @@ async def chips_explain(
     if not explainer.enabled:
         return s.ChipExplainResponse(chip=chip, status="off")
     if not explain_limiter.allow(client_key(request)):
-        return s.ChipExplainResponse(chip=chip, status="unavailable")
+        return s.ChipExplainResponse(chip=chip, status="paused")
     resp = await run_in_threadpool(svc.chips, team, league)
     outlook = next((c for c in resp.chips if c.name == chip and c.ranked and c.best_gw is not None), None)
     if outlook is None:
@@ -347,7 +352,7 @@ async def chips_explain(
     known = await run_in_threadpool(svc.known_names)
     result = await explainer.explain(build_chip_summary(resp, outlook), known, CHIP_SYSTEM)
     if result is None:
-        return s.ChipExplainResponse(chip=chip, status="unavailable")
+        return s.ChipExplainResponse(chip=chip, status=_missing(explainer))
     return s.ChipExplainResponse(chip=chip, status="ok", why=result.why, watch_out=result.watch_out)
 
 

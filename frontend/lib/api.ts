@@ -349,7 +349,7 @@ export function decodeWhatIf(search: URLSearchParams): { moves: WhatIfMove[]; ca
   return { moves, captains, chips, swaps };
 }
 
-export interface ReplacementReason { player: number; status: "ok" | "unavailable" | "off"; why: string | null; watch_out: string | null }
+export interface ReplacementReason { player: number; status: "ok" | "unavailable" | "paused" | "off"; why: string | null; watch_out: string | null }
 const reasonCache = new Map<string, Promise<ReplacementReason>>();
 
 /** Claude's reason for the top replacement of one squad player (cached for the session). */

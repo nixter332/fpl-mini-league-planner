@@ -212,7 +212,7 @@ class PlansResponse(BaseModel):
 
 class ExplainResponse(BaseModel):
     rank: int
-    status: Literal["ok", "unavailable", "off"]  # off = no API key configured
+    status: Literal["ok", "unavailable", "paused", "off"]  # off = no API key configured
     why: str | None = None
     watch_out: str | None = None
 
@@ -292,7 +292,7 @@ class BenchBuildResponse(BaseModel):
 
 class ChipExplainResponse(BaseModel):
     chip: ChipName
-    status: Literal["ok", "unavailable", "off"]
+    status: Literal["ok", "unavailable", "paused", "off"]
     why: str | None = None
     watch_out: str | None = None
 
@@ -400,7 +400,7 @@ class WhatIfResponse(BaseModel):
 
 class ReplacementExplainResponse(BaseModel):
     player: int
-    status: Literal["ok", "unavailable", "off"]
+    status: Literal["ok", "unavailable", "paused", "off"]
     why: str | None = None
     watch_out: str | None = None
 

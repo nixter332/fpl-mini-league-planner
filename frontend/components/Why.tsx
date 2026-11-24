@@ -24,8 +24,17 @@ export function useExplanation(params: PlanParams, rank: number): ExplainRespons
   return result && result.key === key ? result.value : null;
 }
 
-/** "Why this plan" and "Watch out", or nothing if there's no reason (no key, error, failed check). */
+/** "Why this plan" and "Watch out"; a short note when reasons are paused (today's cap or the
+ * hourly limit); nothing otherwise (no key, error, failed check). */
 export function Why({ explanation, label = "Why this plan" }: { explanation: Pick<ExplainResponse, "status" | "why" | "watch_out"> | null; label?: string }) {
+  if (explanation?.status === "paused") {
+    return (
+      <div className="rounded-[10px] bg-why-bg px-3 py-2.5 text-[12.5px] leading-[1.45] text-text2" data-testid="why-paused">
+        Written reasons are paused for now: lots of people are planning today. The plan and its numbers aren&apos;t
+        affected. Check back later for the reason.
+      </div>
+    );
+  }
   if (explanation && explanation.status !== "ok") return null;
   return (
     <>
