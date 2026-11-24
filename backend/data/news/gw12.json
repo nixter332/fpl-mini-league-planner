@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-24T04:46:13.476183+00:00",
+"captured_at": "2026-11-24T19:29:36.042679+00:00",
 "deadline": "2026-11-27T18:30:00+00:00",
 "gw": 12,
 "players": {
@@ -2036,7 +2036,7 @@
 "360": {
 "chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": 0,
-"news": "Knee injury - Unknown return date",
+"news": "Knee injury - Expected back 12 Dec",
 "news_added": "2026-07-23T12:01:23.565711+00:00",
 "status": "i"
 },
@@ -2057,7 +2057,7 @@
 "363": {
 "chance_of_playing_next_round": 0,
 "chance_of_playing_this_round": 0,
-"news": "Knee injury - Unknown return date",
+"news": "Knee injury - Expected back 12 Dec",
 "news_added": "2026-07-23T12:01:23.596909+00:00",
 "status": "i"
 },
@@ -2104,11 +2104,11 @@
 "status": "a"
 },
 "37": {
-"chance_of_playing_next_round": 75,
+"chance_of_playing_next_round": 100,
 "chance_of_playing_this_round": null,
-"news": "Illness - 75% chance of playing",
+"news": "",
 "news_added": "2026-11-21T14:30:05.829063+00:00",
-"status": "d"
+"status": "a"
 },
 "370": {
 "chance_of_playing_next_round": 100,
@@ -2524,11 +2524,11 @@
 "status": "a"
 },
 "423": {
-"chance_of_playing_next_round": 0,
+"chance_of_playing_next_round": 75,
 "chance_of_playing_this_round": 0,
-"news": "Unspecified injury - Unknown return date",
+"news": "Unspecified injury - 75% chance of playing",
 "news_added": "2026-10-12T21:30:08.995810+00:00",
-"status": "i"
+"status": "d"
 },
 "424": {
 "chance_of_playing_next_round": null,
