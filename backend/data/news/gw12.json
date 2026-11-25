@@ -1,5 +1,5 @@
 {
-"captured_at": "2026-11-24T19:29:36.042679+00:00",
+"captured_at": "2026-11-25T03:31:49.879036+00:00",
 "deadline": "2026-11-27T18:30:00+00:00",
 "gw": 12,
 "players": {
@@ -2503,11 +2503,11 @@
 "status": "a"
 },
 "420": {
-"chance_of_playing_next_round": 0,
+"chance_of_playing_next_round": 100,
 "chance_of_playing_this_round": null,
-"news": "Suspended until 2 Dec",
+"news": "",
 "news_added": "2026-11-22T17:00:05.657366+00:00",
-"status": "s"
+"status": "a"
 },
 "421": {
 "chance_of_playing_next_round": 100,
